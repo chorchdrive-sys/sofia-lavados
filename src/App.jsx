@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getFirestore, doc, setDoc, getDoc, collection,
-  addDoc, query, where, getDocs, deleteDoc, onSnapshot, serverTimestamp
+  addDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp,
+  updateDoc, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ═══════════════════════════════════════════════════════════════
-//  ⚙️  CONFIGURACIÓN FIREBASE — REEMPLAZAR CON TUS DATOS
-//  (Instrucciones de setup al final del archivo)
+//  FIREBASE CONFIG
 // ═══════════════════════════════════════════════════════════════
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyDBZS7KR8YIq8UzAhnq9WaPTh8wGTZ-SMI",
@@ -17,24 +17,428 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "738758410354",
   appId:             "1:738758410354:web:0c07ee6f2906d8add402eb",
 };
-const CONFIGURADO = FIREBASE_CONFIG.apiKey !== "TU_API_KEY";
 
-// ─── Init Firebase (solo si está configurado) ───────────────────
 let db = null;
-if (CONFIGURADO) {
-  try {
-    const app = initializeApp(FIREBASE_CONFIG);
-    db = getFirestore(app);
-  } catch {}
+try {
+  const app = initializeApp(FIREBASE_CONFIG);
+  db = getFirestore(app);
+} catch {}
+
+// ═══════════════════════════════════════════════════════════════
+//  DATOS SEED (solo para primera carga si Firestore está vacío)
+// ═══════════════════════════════════════════════════════════════
+const STAFF_SEED = [
+  { nombre:"Jhony",     transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#22d3ee" },
+  { nombre:"Sergio",    transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#0ea5e9" },
+  { nombre:"Alexander", transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#38bdf8" },
+  { nombre:"Maxi",      transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#7dd3fc" },
+  { nombre:"Rene",      transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#06b6d4" },
+  { nombre:"Brandon",   transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#67e8f9" },
+  { nombre:"Jorge",     transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#a5f3fc" },
+  { nombre:"Emiliano",  transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#2dd4bf" },
+  { nombre:"Gaby",      transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#5eead4" },
+  { nombre:"Javi",      transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#99f6e4" },
+  { nombre:"Franco",    transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#34d399" },
+  { nombre:"Fede",      transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#6ee7b7" },
+  { nombre:"Elias",     transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#a7f3d0" },
+  { nombre:"Alvaro",    transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"",               color:"#c084fc" },
+  { nombre:"Nestor",    transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"",               color:"#d8b4fe" },
+  { nombre:"Matias",    transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"",               color:"#e879f9" },
+  { nombre:"Luis",      transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"",               color:"#f0abfc" },
+  { nombre:"Bruno",     transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"",               color:"#a78bfa" },
+  { nombre:"Nico Alto", transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"rapido",         color:"#fbbf24" },
+  { nombre:"Hernán",    transporte:"bici", whatsapp:false, rol:"lavador",   especial:"avisar_presencia",color:"#f87171" },
+  { nombre:"Gastón",    transporte:"bici", whatsapp:false, rol:"lavador",   especial:"llamar_telefono",color:"#fb923c" },
+];
+
+const CLIENTES_SEED = [
+  { nombre:"Victoria", direccion:"Dardo Rocha 3278",           autosHabituales:3, nota:"" },
+  { nombre:"Martin",   direccion:"Colectora Panamericana 2065", autosHabituales:3, nota:"" },
+  { nombre:"Micaela",  direccion:"Eduardo Costa 902",           autosHabituales:1, nota:"" },
+  { nombre:"Hyundai",  direccion:"Av. Santa Fe 2627",           autosHabituales:4, nota:"Confirmar cantidad (3-5 autos)" },
+  { nombre:"Mariana",  direccion:"Diagonal Salta 557",          autosHabituales:1, nota:"" },
+];
+
+const SERVICIOS = [
+  { id:"basico",   nombre:"Lavado Básico",     precio:8000  },
+  { id:"completo", nombre:"Lavado Completo",   precio:12000 },
+  { id:"premium",  nombre:"Premium Detailing", precio:18000 },
+];
+
+// Grilla horaria continua de 9 a 19 (cada hora)
+const HORAS = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"];
+const HORAS_TARDE_IDX = 4; // 13:00 en adelante = tarde
+
+const COLORES_POOL = [
+  "#22d3ee","#0ea5e9","#38bdf8","#7dd3fc","#06b6d4","#67e8f9",
+  "#a5f3fc","#2dd4bf","#5eead4","#34d399","#6ee7b7","#a7f3d0",
+  "#c084fc","#d8b4fe","#e879f9","#f0abfc","#a78bfa","#fbbf24",
+  "#fb923c","#f87171","#4ade80","#facc15","#60a5fa","#f472b6",
+];
+
+// ═══════════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════════
+const fechaHoy    = () => new Date().toISOString().split("T")[0];
+const horaFin     = h  => { const [hr,mn]=h.split(":").map(Number); return `${String(hr+1).padStart(2,"0")}:${String(mn).padStart(2,"0")}`; };
+const formatPesos = n  => "$" + Number(n||0).toLocaleString("es-AR");
+const distSim     = (id,dir) => 5 + ((id*17 + (dir||"").split("").reduce((a,c)=>a+c.charCodeAt(0),0)*7) % 35);
+const coloresUsados = (staff) => staff.map(s=>s.color).filter(Boolean);
+const colorNuevo    = (staff) => COLORES_POOL.find(c=>!coloresUsados(staff).includes(c)) || "#94a3b8";
+
+// Slots bloqueados por una cantidad de autos desde una hora
+function slotsOcupados(horaInicio, cantAutos) {
+  const idx = HORAS.indexOf(horaInicio);
+  if (idx < 0) return [];
+  return Array.from({length: cantAutos}, (_,i) => HORAS[idx+i]).filter(Boolean);
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  BASE DE DATOS LOCAL
+//  FIRESTORE HELPERS
 // ═══════════════════════════════════════════════════════════════
-const CONDUCTORES = [
-  { id: 1,  nombre: "Jhony",     transporte: "moto", radio: 25, whatsapp: true,  color: "#22d3ee" },
-  { id: 2,  nombre: "Sergio",    transporte: "moto", radio: 25, whatsapp: true,  color: "#0ea5e9" },
-  { id: 3,  nombre: "Alexander", transporte: "moto", radio: 25, whatsapp: true,  color: "#38bdf8" },
+async function fsLeer(col, id) {
+  if (!db) return null;
+  try { const s = await getDoc(doc(db, col, id)); return s.exists() ? {id:s.id,...s.data()} : null; } catch { return null; }
+}
+async function fsGuardar(col, id, data) {
+  if (!db) return;
+  try { await setDoc(doc(db, col, id), {...data, _ts: serverTimestamp()}, {merge:true}); } catch {}
+}
+async function fsAgregar(col, data) {
+  if (!db) return null;
+  try { const r = await addDoc(collection(db, col), {...data, _ts: serverTimestamp()}); return r.id; } catch { return null; }
+}
+async function fsBorrar(col, id) {
+  if (!db) return;
+  try { await deleteDoc(doc(db, col, id)); } catch {}
+}
+async function fsListar(col) {
+  if (!db) return [];
+  try { const s = await getDocs(collection(db, col)); return s.docs.map(d=>({id:d.id,...d.data()})); } catch { return []; }
+}
+async function fsActualizar(col, id, data) {
+  if (!db) return;
+  try { await updateDoc(doc(db, col, id), data); } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  COMPONENTES PEQUEÑOS
+// ═══════════════════════════════════════════════════════════════
+function Toast({ msg, tipo, onClose }) {
+  useEffect(()=>{const t=setTimeout(onClose,3500);return()=>clearTimeout(t);},[]);
+  const c={ok:"#22d3ee",error:"#f87171",warn:"#fbbf24"}[tipo]||"#22d3ee";
+  return <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,background:"#0b1220",
+    border:`1px solid ${c}55`,color:c,padding:"12px 18px",borderRadius:10,
+    fontSize:12,fontFamily:"inherit",boxShadow:`0 4px 20px ${c}22`,animation:"fadein .2s ease"}}>
+    {tipo==="ok"?"✓":tipo==="error"?"✗":"⚠"} {msg}
+  </div>;
+}
+
+function Modal({ titulo, onClose, children }) {
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:14,padding:24,maxWidth:480,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{titulo}</div>
+        <button onClick={onClose} style={{background:"transparent",border:"none",color:"#475569",cursor:"pointer",fontSize:18,lineHeight:1}}>✕</button>
+      </div>
+      {children}
+    </div>
+  </div>;
+}
+
+function Btn({ children, onClick, color="#0e7490", disabled, style={}, small }) {
+  return <button onClick={onClick} disabled={disabled} style={{
+    background:disabled?"#1e2d40":`linear-gradient(135deg,${color},${color}cc)`,
+    color:disabled?"#334155":"white",border:"none",borderRadius:8,
+    padding:small?"6px 14px":"10px 18px",fontSize:small?11:12,fontWeight:700,
+    cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",
+    transition:"all .15s",...style
+  }}>{children}</button>;
+}
+
+function Input({ label, value, onChange, placeholder, type="text", style={} }) {
+  return <div style={{marginBottom:10}}>
+    {label && <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5,fontWeight:700}}>{label}</div>}
+    <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+      style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",
+        fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none",...style}}/>
+  </div>;
+}
+
+function Select({ label, value, onChange, children }) {
+  return <div style={{marginBottom:10}}>
+    {label && <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5,fontWeight:700}}>{label}</div>}
+    <select value={value} onChange={e=>onChange(e.target.value)}
+      style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",
+        fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none"}}>
+      {children}
+    </select>
+  </div>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  APP PRINCIPAL
+// ═══════════════════════════════════════════════════════════════
+export default function SofiaV3() {
+  // ── Firebase
+  const [fbOk,   setFbOk]   = useState(false);
+  const [fbCarg, setFbCarg] = useState(false);
+
+  // ── Datos dinámicos desde Firestore
+  const [staff,    setStaff]    = useState([]);   // todos los integrantes
+  const [asistencia,setAsist]  = useState({});    // { staffId: { transporte, presente } } — clave del día
+  const [clientes, setClientes] = useState([]);
+  const [turnos,   setTurnos]   = useState([]);   // colección turnos_YYYY-MM-DD
+  const [registros,setRegistros]= useState([]);
+
+  // ── UI
+  const [vista,   setVista]   = useState("turno");
+  const [toast,   setToast]   = useState(null);
+  const [modal,   setModal]   = useState(null);   // { tipo, data }
+
+  // ── Formulario nuevo turno
+  const [clienteInput, setClienteInput] = useState("");
+  const [sugerencias,  setSugerencias]  = useState([]);
+  const [direccion,    setDireccion]    = useState("");
+  const [cantAutos,    setCantAutos]    = useState(1);
+  const [servicio,     setServicio]     = useState("completo");
+  const [notas,        setNotas]        = useState("");
+  const [metodoPago,   setMetodoPago]   = useState("efectivo");
+  const [staffSelId,   setStaffSelId]   = useState(null);
+  const [horaSelec,    setHoraSelec]    = useState("");
+  const [paso,         setPaso]         = useState(1);
+  const [msgCopiado,   setMsgCopiado]   = useState(false);
+  const [guardando,    setGuardando]    = useState(false);
+
+  // ── Filtros grilla
+  const [filtroT,     setFiltroT]   = useState("todos");
+  const [filtroBusca, setFiltroBusca]= useState("");
+
+  // ── IA
+  const [iaResp,  setIaResp]  = useState("");
+  const [iaLoad,  setIaLoad]  = useState(false);
+  const [iaPanel, setIaPanel] = useState(false);
+
+  const showToast = (msg, tipo="ok") => setToast({msg,tipo});
+
+  // ── Computed
+  const hoy = fechaHoy();
+  const staffActivo = staff.filter(s => {
+    const a = asistencia[s.id];
+    return a?.presente === true;
+  });
+  const staffFiltrado = staffActivo.filter(s =>
+    (filtroT==="todos" || (asistencia[s.id]?.transporte||s.transporte)===filtroT) &&
+    (!filtroBusca || s.nombre.toLowerCase().includes(filtroBusca.toLowerCase())) &&
+    s.rol !== "encargado"
+  );
+  const staffSelObj   = staff.find(s=>s.id===staffSelId);
+  const servicioSel   = SERVICIOS.find(s=>s.id===servicio);
+  const totalBase     = (servicioSel?.precio||0)*cantAutos;
+  const esFZ          = (() => {
+    if(!staffSelId||!horaSelec||!direccion) return false;
+    const s = staffSelObj; if(!s) return false;
+    const radio = (asistencia[s.id]?.transporte||s.transporte)==="moto"?25:15;
+    return distSim(s.id,direccion) > radio*1.4;
+  })();
+  const totalFinal    = esFZ ? Math.round(totalBase*1.20) : totalBase;
+  const slotsAUsar    = horaSelec ? slotsOcupados(horaSelec, cantAutos) : [];
+
+  const hayTardeTurnos = turnos.some(t => {
+    const idx = HORAS.indexOf(t.hora);
+    return idx >= HORAS_TARDE_IDX;
+  });
+  const listaVacia = !hayTardeTurnos;
+
+  // Totales cierre
+  const totalDia   = registros.reduce((s,r)=>s+Number(r.total||0),0);
+  const totalMP    = registros.filter(r=>r.metodo==="mp").reduce((s,r)=>s+Number(r.total||0),0);
+  const totalEfect = registros.filter(r=>r.metodo==="efectivo").reduce((s,r)=>s+Number(r.total||0),0);
+  const pendientes = turnos.filter(t=>t.estado==="confirmado"&&!t.pagado).length;
+
+  // ── Init
+  useEffect(()=>{ inicializar(); },[]);
+
+  async function inicializar() {
+    setFbCarg(true);
+    try {
+      // Cargar staff
+      let s = await fsListar("staff");
+      if (s.length === 0) {
+        // Seed inicial
+        for (const m of STAFF_SEED) {
+          const id = await fsAgregar("staff", m);
+          s.push({id, ...m});
+        }
+      }
+      setStaff(s);
+
+      // Cargar asistencia de hoy
+      const asDoc = await fsLeer("asistencia", hoy);
+      if (asDoc) {
+        const { id:_, _ts:__, ...slots } = asDoc;
+        setAsist(slots);
+      }
+
+      // Cargar clientes
+      let cl = await fsListar("clientes");
+      if (cl.length === 0) {
+        for (const c of CLIENTES_SEED) {
+          const id = await fsAgregar("clientes", c);
+          cl.push({id, ...c});
+        }
+      }
+      setClientes(cl);
+
+      // Cargar turnos y registros del día
+      await recargarDia();
+
+      setFbOk(true);
+      showToast("Firebase conectado ✓");
+    } catch(e) {
+      setFbOk(false);
+      showToast("Firebase offline — modo local", "warn");
+    }
+    setFbCarg(false);
+  }
+
+  async function recargarDia() {
+    const t = await fsListar(`turnos_${hoy}`);
+    setTurnos(t);
+    const r = await fsListar(`cierre_${hoy}`);
+    setRegistros(r);
+  }
+
+  // Listener tiempo real de turnos
+  useEffect(()=>{
+    if (!db) return;
+    const unsub = onSnapshot(collection(db, `turnos_${hoy}`), snap=>{
+      setTurnos(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });
+    return ()=>unsub();
+  },[]);
+
+  // ── Helpers de estado turno
+  function getTurno(staffId, hora) {
+    return turnos.find(t => t.staffId===staffId && t.hora===hora);
+  }
+  function estaOcupado(staffId, hora) {
+    return turnos.some(t => t.staffId===staffId && t.horasOcupadas?.includes(hora));
+  }
+  function estadoGeo(staffMiembro, hora) {
+    if(!direccion) return "libre";
+    const a = asistencia[staffMiembro.id];
+    const trans = a?.transporte || staffMiembro.transporte;
+    const radio = trans==="moto"?25:15;
+    const dist  = distSim(staffMiembro.id, direccion);
+    if (listaVacia && HORAS.indexOf(hora)>=HORAS_TARDE_IDX) return dist>radio*1.5?"fz_aceptable":"verde";
+    if (dist<=radio)        return "verde";
+    if (dist<=radio*1.4)    return "amarillo";
+    return "fz";
+  }
+
+  // ── Autocompletado
+  function handleClienteInput(val) {
+    setClienteInput(val);
+    setSugerencias(val.length>=2 ? clientes.filter(c=>c.nombre.toLowerCase().startsWith(val.toLowerCase())) : []);
+  }
+  function aplicarCliente(c) {
+    setClienteInput(c.nombre); setDireccion(c.direccion);
+    setCantAutos(Number(c.autosHabituales)||1);
+    if(c.nota) setNotas(c.nota);
+    setSugerencias([]);
+  }
+
+  // ── Seleccionar turno
+  function selTurno(sId, hora) {
+    setStaffSelId(sId); setHoraSelec(hora);
+    setPaso(Math.max(paso,3));
+  }
+
+  // ── Confirmar turno
+  async function confirmarTurno() {
+    if(!staffSelId||!horaSelec) return;
+    setGuardando(true);
+    const horasOcupadas = slotsOcupados(horaSelec, cantAutos);
+    const turnoData = {
+      staffId:staffSelId, staffNombre:staffSelObj?.nombre,
+      hora:horaSelec, horasOcupadas,
+      cliente:clienteInput, direccion, cantAutos,
+      servicio:servicioSel?.nombre, precioBase:totalBase,
+      esFZ, totalFinal, metodo:metodoPago,
+      notas, estado:"confirmado", pagado:false,
+      fechaCreacion: new Date().toISOString(),
+    };
+    const id = await fsAgregar(`turnos_${hoy}`, turnoData);
+    if(id) {
+      setTurnos(prev=>[...prev,{id,...turnoData}]);
+      showToast("Turno guardado ✓");
+    } else {
+      setTurnos(prev=>[...prev,{id:"local_"+Date.now(),...turnoData}]);
+      showToast("Turno guardado local","warn");
+    }
+    setGuardando(false);
+    setPaso(4);
+  }
+
+  // ── Cancelar turno
+  async function cancelarTurno(turno) {
+    await fsBorrar(`turnos_${hoy}`, turno.id);
+    setTurnos(prev=>prev.filter(t=>t.id!==turno.id));
+    showToast("Turno cancelado — slots liberados","warn");
+    setModal(null);
+  }
+
+  // ── Reasignar turno
+  async function reasignarTurno(turno, nuevoStaffId, nuevaHora) {
+    const nuevoStaff = staff.find(s=>s.id===nuevoStaffId);
+    const horasOcupadas = slotsOcupados(nuevaHora, turno.cantAutos);
+    const upd = { staffId:nuevoStaffId, staffNombre:nuevoStaff?.nombre, hora:nuevaHora, horasOcupadas };
+    await fsActualizar(`turnos_${hoy}`, turno.id, upd);
+    setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,...upd}:t));
+    showToast(`Turno reasignado a ${nuevoStaff?.nombre} ✓`);
+    setModal(null);
+  }
+
+  // ── Registrar pago
+  async function registrarPago(turno) {
+    const reg = {
+      turnoId:turno.id, hora:turno.hora, staffNombre:turno.staffNombre,
+      cliente:turno.cliente, direccion:turno.direccion, autos:turno.cantAutos,
+      servicio:turno.servicio, total:turno.totalFinal, metodo:turno.metodo,
+      esFZ:turno.esFZ, notas:turno.notas,
+      ts:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}),
+    };
+    await fsAgregar(`cierre_${hoy}`, reg);
+    await fsActualizar(`turnos_${hoy}`, turno.id, {pagado:true, estadoPago:"cobrado"});
+    setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,pagado:true}:t));
+    setRegistros(prev=>[...prev,{id:Date.now(),...reg}]);
+    showToast(`Pago ${formatPesos(turno.totalFinal)} registrado ✓`);
+    setModal(null);
+  }
+
+  // Flujo rápido de registro de pago al cerrar turno
+  async function cerrarTurnoActual() {
+    setGuardando(true);
+    const turnoTemp = {
+      id:"tmp_"+Date.now(), hora:horaSelec, staffNombre:staffSelObj?.nombre,
+      cliente:clienteInput, direccion, cantAutos, servicio:servicioSel?.nombre,
+      totalFinal, metodo:metodoPago, esFZ, notas,
+    };
+    await registrarPago({...turnoTemp, id: turnos.find(t=>t.staffId===staffSelId&&t.hora===horaSelec)?.id||"tmp"});
+    setClienteInput(""); setDireccion(""); setCantAutos(1); setNotas("");
+    setStaffSelId(null); setHoraSelec(""); setIaResp(""); setPaso(1);
+    setGuardando(false);
+  }
+
+  // ── WhatsApp
+  function generarMensaje() {
+    const fin = horaFin(horaSelec);
+    const notasLines = notas.trim() ? `\n⚠️ *Instrucciones:*\n${notas.split(",").map(n=>`• ${n.trim()}`).join("\n")}` : "";
+    const fzLine = esFZ ? "\n🌐 *Fuera de zona — recargo de traslado incluido.*" : "";
+    const trans = asistencia[staffSelId]?.transporte || staffSelObj?.transporte;
+    const icono = trans==="moto"?"🏍":"🚲";
+    return `🚿 *  { id: 3,  nombre: "Alexander", transporte: "moto", radio: 25, whatsapp: true,  color: "#38bdf8" },
   { id: 4,  nombre: "Maxi",      transporte: "moto", radio: 25, whatsapp: true,  color: "#7dd3fc" },
   { id: 5,  nombre: "Rene",      transporte: "moto", radio: 25, whatsapp: true,  color: "#06b6d4" },
   { id: 6,  nombre: "Brandon",   transporte: "moto", radio: 25, whatsapp: true,  color: "#67e8f9" },
