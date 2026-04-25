@@ -3,13 +3,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import {
   getFirestore, doc, setDoc, getDoc, collection,
   addDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp,
-  updateDoc, writeBatch
+  updateDoc, query, orderBy, where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ═══════════════════════════════════════════════════════════════
 //  FIREBASE CONFIG
 // ═══════════════════════════════════════════════════════════════
-const FIREBASE_CONFIG = {
+const FB = {
   apiKey:            "AIzaSyDBZS7KR8YIq8UzAhnq9WaPTh8wGTZ-SMI",
   authDomain:        "sofia-lavados-99231.firebaseapp.com",
   projectId:         "sofia-lavados-99231",
@@ -17,458 +17,690 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "738758410354",
   appId:             "1:738758410354:web:0c07ee6f2906d8add402eb",
 };
-
 let db = null;
-try {
-  const app = initializeApp(FIREBASE_CONFIG);
-  db = getFirestore(app);
-} catch {}
+try { const app = initializeApp(FB); db = getFirestore(app); } catch {}
 
 // ═══════════════════════════════════════════════════════════════
-//  DATOS SEED (solo para primera carga si Firestore está vacío)
+//  CONSTANTES
 // ═══════════════════════════════════════════════════════════════
-const STAFF_SEED = [
-  { nombre:"Jhony",     transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#22d3ee" },
-  { nombre:"Sergio",    transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#0ea5e9" },
-  { nombre:"Alexander", transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#38bdf8" },
-  { nombre:"Maxi",      transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#7dd3fc" },
-  { nombre:"Rene",      transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#06b6d4" },
-  { nombre:"Brandon",   transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#67e8f9" },
-  { nombre:"Jorge",     transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#a5f3fc" },
-  { nombre:"Emiliano",  transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#2dd4bf" },
-  { nombre:"Gaby",      transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#5eead4" },
-  { nombre:"Javi",      transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#99f6e4" },
-  { nombre:"Franco",    transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#34d399" },
-  { nombre:"Fede",      transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#6ee7b7" },
-  { nombre:"Elias",     transporte:"moto", whatsapp:true,  rol:"lavador",   especial:"",               color:"#a7f3d0" },
-  { nombre:"Alvaro",    transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"",               color:"#c084fc" },
-  { nombre:"Nestor",    transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"",               color:"#d8b4fe" },
-  { nombre:"Matias",    transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"",               color:"#e879f9" },
-  { nombre:"Luis",      transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"",               color:"#f0abfc" },
-  { nombre:"Bruno",     transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"",               color:"#a78bfa" },
-  { nombre:"Nico Alto", transporte:"bici", whatsapp:true,  rol:"lavador",   especial:"rapido",         color:"#fbbf24" },
-  { nombre:"Hernán",    transporte:"bici", whatsapp:false, rol:"lavador",   especial:"avisar_presencia",color:"#f87171" },
-  { nombre:"Gastón",    transporte:"bici", whatsapp:false, rol:"lavador",   especial:"llamar_telefono",color:"#fb923c" },
+// Base Olivos — punto de partida para calcular distancias del primer turno del día
+const BASE_LAT  = -34.5128;
+const BASE_LNG  = -58.4985; // Juan Bautista Alberdi 1620, Olivos
+
+// Franjas reales de 90 minutos
+const FRANJAS = ["09:00","10:30","12:00","13:30","15:00","16:30","18:00"];
+const FRANJA_TARDE = 3; // 13:30 en adelante
+
+// Tamaños de auto con precios DEFAULT (editables desde Configuración)
+const TAMANOS_DEFAULT = [
+  { id:"chico",     label:"Chico",     precio:25000 },
+  { id:"mediano",   label:"Mediano",   precio:28000 },
+  { id:"camioneta", label:"Camioneta", precio:32000 },
 ];
 
-const CLIENTES_SEED = [
-  { nombre:"Victoria", direccion:"Dardo Rocha 3278",           autosHabituales:3, nota:"" },
-  { nombre:"Martin",   direccion:"Colectora Panamericana 2065", autosHabituales:3, nota:"" },
-  { nombre:"Micaela",  direccion:"Eduardo Costa 902",           autosHabituales:1, nota:"" },
-  { nombre:"Hyundai",  direccion:"Av. Santa Fe 2627",           autosHabituales:4, nota:"Confirmar cantidad (3-5 autos)" },
-  { nombre:"Mariana",  direccion:"Diagonal Salta 557",          autosHabituales:1, nota:"" },
-];
-
-const SERVICIOS = [
-  { id:"basico",   nombre:"Lavado Básico",     precio:8000  },
-  { id:"completo", nombre:"Lavado Completo",   precio:12000 },
-  { id:"premium",  nombre:"Premium Detailing", precio:18000 },
-];
-
-// Grilla horaria continua de 9 a 19 (cada hora)
-const HORAS = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"];
-const HORAS_TARDE_IDX = 4; // 13:00 en adelante = tarde
-
-const COLORES_POOL = [
+const COLORES = [
   "#22d3ee","#0ea5e9","#38bdf8","#7dd3fc","#06b6d4","#67e8f9",
   "#a5f3fc","#2dd4bf","#5eead4","#34d399","#6ee7b7","#a7f3d0",
   "#c084fc","#d8b4fe","#e879f9","#f0abfc","#a78bfa","#fbbf24",
   "#fb923c","#f87171","#4ade80","#facc15","#60a5fa","#f472b6",
 ];
 
+const STAFF_SEED = [
+  {nombre:"Jhony",     transporte:"moto",color:"#22d3ee",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Sergio",    transporte:"moto",color:"#0ea5e9",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Alexander", transporte:"moto",color:"#38bdf8",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Maxi",      transporte:"moto",color:"#7dd3fc",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Rene",      transporte:"moto",color:"#06b6d4",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Brandon",   transporte:"moto",color:"#67e8f9",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Jorge",     transporte:"moto",color:"#a5f3fc",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Emiliano",  transporte:"moto",color:"#2dd4bf",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Gaby",      transporte:"moto",color:"#5eead4",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Javi",      transporte:"moto",color:"#99f6e4",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Franco",    transporte:"moto",color:"#34d399",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Fede",      transporte:"moto",color:"#6ee7b7",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Elias",     transporte:"moto",color:"#a7f3d0",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Alvaro",    transporte:"bici",color:"#c084fc",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Nestor",    transporte:"bici",color:"#d8b4fe",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Matias",    transporte:"bici",color:"#e879f9",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Luis",      transporte:"bici",color:"#f0abfc",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Bruno",     transporte:"bici",color:"#a78bfa",whatsapp:true, rol:"lavador",especial:""},
+  {nombre:"Nico Alto", transporte:"bici",color:"#fbbf24",whatsapp:true, rol:"lavador",especial:"rapido"},
+  {nombre:"Hernán",    transporte:"bici",color:"#f87171",whatsapp:false,rol:"lavador",especial:"avisar_presencia"},
+  {nombre:"Gastón",    transporte:"bici",color:"#fb923c",whatsapp:false,rol:"lavador",especial:"llamar_telefono"},
+];
+
+const CLIENTES_SEED = [
+  {nombre:"Victoria", telefono:"1100000001", direccion:"Dardo Rocha 3278",           autosHabituales:3, nota:""},
+  {nombre:"Martin",   telefono:"1100000002", direccion:"Colectora Panamericana 2065", autosHabituales:3, nota:""},
+  {nombre:"Micaela",  telefono:"1100000003", direccion:"Eduardo Costa 902",           autosHabituales:1, nota:""},
+  {nombre:"Hyundai",  telefono:"1100000004", direccion:"Av. Santa Fe 2627",           autosHabituales:4, nota:"Confirmar cantidad (3-5 autos)"},
+  {nombre:"Mariana",  telefono:"1100000005", direccion:"Diagonal Salta 557",          autosHabituales:1, nota:""},
+];
+
 // ═══════════════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════════════
-const fechaHoy    = () => new Date().toISOString().split("T")[0];
-const horaFin     = h  => { const [hr,mn]=h.split(":").map(Number); return `${String(hr+1).padStart(2,"0")}:${String(mn).padStart(2,"0")}`; };
-const formatPesos = n  => "$" + Number(n||0).toLocaleString("es-AR");
-const distSim     = (id,dir) => 5 + ((id*17 + (dir||"").split("").reduce((a,c)=>a+c.charCodeAt(0),0)*7) % 35);
-const coloresUsados = (staff) => staff.map(s=>s.color).filter(Boolean);
-const colorNuevo    = (staff) => COLORES_POOL.find(c=>!coloresUsados(staff).includes(c)) || "#94a3b8";
+const hoy         = () => new Date().toISOString().split("T")[0];
+const franjaFin   = h  => { const [hr,mn]=h.split(":").map(Number); const t=hr*60+mn+90; return `${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`; };
+const esTarde     = h  => FRANJAS.indexOf(h) >= FRANJA_TARDE;
+const formatP     = n  => "$" + Number(n||0).toLocaleString("es-AR");
+const colorNuevo  = (staff) => COLORES.find(c=>!staff.map(s=>s.color).includes(c)) || "#94a3b8";
 
-// Slots bloqueados por una cantidad de autos desde una hora
-function slotsOcupados(horaInicio, cantAutos) {
-  const idx = HORAS.indexOf(horaInicio);
-  if (idx < 0) return [];
-  return Array.from({length: cantAutos}, (_,i) => HORAS[idx+i]).filter(Boolean);
+// Distancia real usando fórmula Haversine aproximada (en km)
+function distKm(lat1,lng1,lat2,lng2) {
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+// Convertir km a cuadras (~100m por cuadra)
+const kmToCuadras = km => km * 10;
+
+// Simular coordenadas desde dirección (en producción: geocoding API)
+// Usamos hash determinístico relativo a la base de Olivos
+function coordsSimuladas(dir) {
+  const h = (dir||"").split("").reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0),0);
+  const lat = BASE_LAT + (((h & 0xFF) - 127) / 10000);
+  const lng = BASE_LNG + ((((h >> 8) & 0xFF) - 127) / 8000);
+  return { lat, lng };
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  FIRESTORE HELPERS
-// ═══════════════════════════════════════════════════════════════
-async function fsLeer(col, id) {
-  if (!db) return null;
-  try { const s = await getDoc(doc(db, col, id)); return s.exists() ? {id:s.id,...s.data()} : null; } catch { return null; }
-}
-async function fsGuardar(col, id, data) {
-  if (!db) return;
-  try { await setDoc(doc(db, col, id), {...data, _ts: serverTimestamp()}, {merge:true}); } catch {}
-}
-async function fsAgregar(col, data) {
-  if (!db) return null;
-  try { const r = await addDoc(collection(db, col), {...data, _ts: serverTimestamp()}); return r.id; } catch { return null; }
-}
-async function fsBorrar(col, id) {
-  if (!db) return;
-  try { await deleteDoc(doc(db, col, id)); } catch {}
-}
-async function fsListar(col) {
-  if (!db) return [];
-  try { const s = await getDocs(collection(db, col)); return s.docs.map(d=>({id:d.id,...d.data()})); } catch { return []; }
-}
-async function fsActualizar(col, id, data) {
-  if (!db) return;
-  try { await updateDoc(doc(db, col, id), data); } catch {}
+// Slots bloqueados por cantidad de autos
+function slotsOcupados(inicio, cant) {
+  const idx = FRANJAS.indexOf(inicio);
+  if (idx < 0) return [inicio];
+  return Array.from({length: cant}, (_,i) => FRANJAS[idx+i]).filter(Boolean);
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  COMPONENTES PEQUEÑOS
+//  FIRESTORE
 // ═══════════════════════════════════════════════════════════════
-function Toast({ msg, tipo, onClose }) {
+const fsGet    = async (col,id)       => { if(!db)return null; try{const s=await getDoc(doc(db,col,id));return s.exists()?{id:s.id,...s.data()}:null;}catch{return null;} };
+const fsSave   = async (col,id,data)  => { if(!db)return; try{await setDoc(doc(db,col,id),{...data,_ts:serverTimestamp()},{merge:true});}catch{} };
+const fsAdd    = async (col,data)     => { if(!db)return null; try{const r=await addDoc(collection(db,col),{...data,_ts:serverTimestamp()});return r.id;}catch{return null;} };
+const fsDel    = async (col,id)       => { if(!db)return; try{await deleteDoc(doc(db,col,id));}catch{} };
+const fsList   = async (col)          => { if(!db)return []; try{const s=await getDocs(collection(db,col));return s.docs.map(d=>({id:d.id,...d.data()}));}catch{return[];} };
+const fsUpdate = async (col,id,data)  => { if(!db)return; try{await updateDoc(doc(db,col,id),data);}catch{} };
+
+// ═══════════════════════════════════════════════════════════════
+//  COMPONENTES BASE
+// ═══════════════════════════════════════════════════════════════
+function Toast({msg,tipo,onClose}) {
   useEffect(()=>{const t=setTimeout(onClose,3500);return()=>clearTimeout(t);},[]);
   const c={ok:"#22d3ee",error:"#f87171",warn:"#fbbf24"}[tipo]||"#22d3ee";
-  return <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,background:"#0b1220",
-    border:`1px solid ${c}55`,color:c,padding:"12px 18px",borderRadius:10,
-    fontSize:12,fontFamily:"inherit",boxShadow:`0 4px 20px ${c}22`,animation:"fadein .2s ease"}}>
+  return <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,background:"#0b1220",border:`1px solid ${c}55`,color:c,padding:"11px 16px",borderRadius:10,fontSize:12,fontFamily:"inherit",boxShadow:`0 4px 20px ${c}22`,maxWidth:280,animation:"fi .2s ease"}}>
     {tipo==="ok"?"✓":tipo==="error"?"✗":"⚠"} {msg}
   </div>;
 }
 
-function Modal({ titulo, onClose, children }) {
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-    <div style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:14,padding:24,maxWidth:480,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+function Modal({titulo,onClose,children,wide}) {
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:12}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:14,padding:20,width:"100%",maxWidth:wide?580:440,maxHeight:"92vh",overflowY:"auto"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{titulo}</div>
-        <button onClick={onClose} style={{background:"transparent",border:"none",color:"#475569",cursor:"pointer",fontSize:18,lineHeight:1}}>✕</button>
+        <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0"}}>{titulo}</div>
+        <button onClick={onClose} style={{background:"transparent",border:"none",color:"#475569",cursor:"pointer",fontSize:20,lineHeight:1,padding:"0 4px"}}>✕</button>
       </div>
       {children}
     </div>
   </div>;
 }
 
-function Btn({ children, onClick, color="#0e7490", disabled, style={}, small }) {
-  return <button onClick={onClick} disabled={disabled} style={{
-    background:disabled?"#1e2d40":`linear-gradient(135deg,${color},${color}cc)`,
-    color:disabled?"#334155":"white",border:"none",borderRadius:8,
-    padding:small?"6px 14px":"10px 18px",fontSize:small?11:12,fontWeight:700,
-    cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",
-    transition:"all .15s",...style
+function Btn({children,onClick,color="#0e7490",ghost,danger,disabled,full,sm,style={}}) {
+  const bg = disabled?"#1e2d40":danger?"#dc2626":ghost?"transparent":`linear-gradient(135deg,${color},${color}cc)`;
+  return <button onClick={disabled?undefined:onClick} style={{
+    background:bg, color:disabled?"#334155":ghost?"#64748b":"white",
+    border:ghost?"1px solid #1e3a5f":"none", borderRadius:8,
+    padding:sm?"6px 13px":"10px 18px", fontSize:sm?11:12, fontWeight:700,
+    cursor:disabled?"not-allowed":"pointer", fontFamily:"inherit",
+    width:full?"100%":"auto", transition:"all .15s", ...style
   }}>{children}</button>;
 }
 
-function Input({ label, value, onChange, placeholder, type="text", style={} }) {
+function Inp({label,value,onChange,placeholder,type="text",style={}}) {
   return <div style={{marginBottom:10}}>
-    {label && <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5,fontWeight:700}}>{label}</div>}
+    {label&&<div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>{label}</div>}
     <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-      style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",
-        fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none",...style}}/>
+      style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none",...style}}/>
   </div>;
 }
 
-function Select({ label, value, onChange, children }) {
+function Sel({label,value,onChange,children,style={}}) {
   return <div style={{marginBottom:10}}>
-    {label && <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5,fontWeight:700}}>{label}</div>}
+    {label&&<div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>{label}</div>}
     <select value={value} onChange={e=>onChange(e.target.value)}
-      style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",
-        fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none"}}>
+      style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none",...style}}>
       {children}
     </select>
   </div>;
 }
 
+function Toggle({on,onChange}) {
+  return <button onClick={()=>onChange(!on)} style={{
+    width:38,height:20,borderRadius:10,border:"none",cursor:"pointer",position:"relative",
+    background:on?"#16a34a":"#334155",transition:"background .2s",flexShrink:0,padding:0
+  }}>
+    <span style={{position:"absolute",top:2,left:on?20:2,width:16,height:16,borderRadius:"50%",background:"white",transition:"left .2s"}}/>
+  </button>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL WHATSAPP (recuperable desde cualquier turno)
+// ═══════════════════════════════════════════════════════════════
+function ModalWA({turno,staff,onClose}) {
+  const [copiado,setCopiado] = useState(false);
+  const s = staff.find(x=>x.id===turno.staffId)||{};
+  const fin = franjaFin(turno.hora);
+  const notasLines = turno.notas?.trim()
+    ? `\n⚠️ *Instrucciones:*\n${turno.notas.split(",").map(n=>`• ${n.trim()}`).join("\n")}`
+    : "";
+  const fzLine = turno.esFZ ? "\n🌐 *Servicio fuera de zona — recargo de traslado incluido.*" : "";
+  const telLine = turno.clienteTel ? `\n📞 *Tel. cliente:* ${turno.clienteTel}` : "";
+  const icono = (turno.staffTransporte||s.transporte)==="moto"?"🏍":"🚲";
+  const msg = `🚿 *SOFÍA LAVADOS — Turno confirmado*\n\n📍 *Dirección:* ${turno.direccion}\n🕐 *Llegada:* ${turno.hora} a ${fin} hs\n🚗 *Autos:* ${turno.cantAutos} auto${turno.cantAutos>1?"s":""} (${turno.tamano||""})\n💰 *Cobrar:* ${formatP(turno.precio)} (${turno.metodo==="mp"?"Mercado Pago":"Efectivo"})${fzLine}${telLine}${notasLines}\n\n${icono} Confirmá arribo cuando llegues. ¡Gracias!`;
+
+  async function copiar() {
+    try { await navigator.clipboard.writeText(msg); } catch {}
+    setCopiado(true); setTimeout(()=>setCopiado(false),2500);
+  }
+
+  return <Modal titulo="📲 Mensaje para el lavador" onClose={onClose}>
+    <div style={{background:"#041a0f",border:"1px solid #16a34a33",borderRadius:10,padding:14,marginBottom:12}}>
+      <pre style={{fontFamily:"inherit",fontSize:12,color:"#bbf7d0",whiteSpace:"pre-wrap",lineHeight:1.75}}>{msg}</pre>
+    </div>
+    {/* Alerta sin WA */}
+    {s.especial==="avisar_presencia" && <div style={{padding:"9px 12px",background:"#f8717118",border:"1px solid #f8717144",borderRadius:8,color:"#fca5a5",fontSize:12,marginBottom:10}}>🔴 Hernán — Avisar en persona (sin celular)</div>}
+    {s.especial==="llamar_telefono" && <div style={{padding:"9px 12px",background:"#fb923c18",border:"1px solid #fb923c44",borderRadius:8,color:"#fdba74",fontSize:12,marginBottom:10}}>📞 Gastón — Llamar por teléfono</div>}
+    <div style={{display:"flex",gap:8}}>
+      <Btn full color="#16a34a" onClick={copiar}>{copiado?"✓ Copiado — pegá en WhatsApp":`📋 Copiar mensaje de ${s.nombre||"lavador"}`}</Btn>
+    </div>
+    {turno.clienteTel && (
+      <a href={`tel:${turno.clienteTel}`} style={{display:"block",marginTop:8,textDecoration:"none"}}>
+        <Btn full ghost>📞 Llamar al cliente ({turno.clienteNombre})</Btn>
+      </a>
+    )}
+  </Modal>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL DETALLE TURNO
+// ═══════════════════════════════════════════════════════════════
+function ModalDetalle({turno,staff,asistencia,onCancelar,onReasignar,onPagar,onWA,onClose}) {
+  const [modo,setModo] = useState("detalle");
+  const [nStaff,setNS] = useState(turno.staffId||"");
+  const [nHora, setNH] = useState(turno.hora||"");
+  const staffActivos = staff.filter(s=>asistencia[s.id]?.presente&&s.rol!=="encargado");
+
+  return <Modal titulo={modo==="detalle"?"Detalle del turno":"Reasignar turno"} onClose={onClose}>
+    {modo==="detalle" && <>
+      <div style={{display:"flex",flexDirection:"column",gap:7,fontSize:12,marginBottom:16}}>
+        {[
+          ["Lavador",    turno.staffNombre],
+          ["Hora",       turno.hora],
+          ["Franja",     `${turno.hora} → ${franjaFin(turno.hora)} hs`],
+          ["Cliente",    turno.clienteNombre||turno.cliente||"—"],
+          ["Teléfono",   turno.clienteTel||"—"],
+          ["Dirección",  turno.direccion],
+          ["Autos",      `${turno.cantAutos} (${turno.tamano||"—"})`],
+          ["Precio",     formatP(turno.precio)],
+          ["Pago",       turno.metodo==="mp"?"Mercado Pago":"Efectivo"],
+          ["Estado",     turno.pagado?"✓ Cobrado":"💰 Pendiente"],
+          ["Notas",      turno.notas||"—"],
+        ].map(([k,v])=>(
+          <div key={k} style={{display:"flex",justifyContent:"space-between",borderBottom:"1px solid #1e2d40",paddingBottom:5}}>
+            <span style={{color:"#475569"}}>{k}</span>
+            <span style={{color:"#e2e8f0",fontWeight:600,textAlign:"right",maxWidth:"60%"}}>{v}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:7}}>
+        <Btn full color="#16a34a" onClick={()=>onWA(turno)}>📲 Generar mensaje WhatsApp</Btn>
+        {!turno.pagado && <Btn full color="#d97706" onClick={()=>onPagar(turno)}>💰 Registrar cobro</Btn>}
+        <Btn full color="#0e7490" onClick={()=>setModo("reasignar")}>🔄 Reasignar turno</Btn>
+        {turno.clienteTel && <a href={`tel:${turno.clienteTel}`} style={{textDecoration:"none"}}><Btn full ghost>📞 Llamar al cliente</Btn></a>}
+        <Btn full danger onClick={()=>onCancelar(turno)}>✕ Cancelar turno</Btn>
+      </div>
+    </>}
+    {modo==="reasignar" && <>
+      <div style={{fontSize:12,color:"#64748b",marginBottom:12}}>Cambiá el lavador y/o el horario.</div>
+      <Sel label="NUEVO LAVADOR" value={nStaff} onChange={setNS}>
+        {staffActivos.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
+      </Sel>
+      <Sel label="NUEVO HORARIO" value={nHora} onChange={setNH}>
+        {FRANJAS.map(h=><option key={h} value={h}>{h}</option>)}
+      </Sel>
+      <div style={{display:"flex",gap:8,marginTop:4}}>
+        <Btn ghost onClick={()=>setModo("detalle")}>← Volver</Btn>
+        <Btn full color="#0e7490" onClick={()=>onReasignar(turno,nStaff,nHora)}>Confirmar reasignación</Btn>
+      </div>
+    </>}
+  </Modal>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL STAFF
+// ═══════════════════════════════════════════════════════════════
+function ModalStaff({miembro,staff,esNuevo,onGuardar,onBorrar,onClose}) {
+  const [nombre,    setNombre]    = useState(miembro?.nombre||"");
+  const [transporte,setTrans]     = useState(miembro?.transporte||"moto");
+  const [rol,       setRol]       = useState(miembro?.rol||"lavador");
+  const [wa,        setWa]        = useState(miembro?.whatsapp!==false);
+  const [especial,  setEspecial]  = useState(miembro?.especial||"");
+  const [confirmar, setConfirmar] = useState(false);
+
+  return <Modal titulo={esNuevo?"Agregar integrante":`Editar: ${miembro?.nombre}`} onClose={onClose}>
+    <Inp label="NOMBRE" value={nombre} onChange={setNombre}/>
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>ROL</div>
+      <div style={{display:"flex",gap:8}}>
+        {["lavador","encargado"].map(r=>(
+          <Btn key={r} full ghost={rol!==r} color="#0e7490" onClick={()=>setRol(r)} style={{flex:1}}>
+            {r==="lavador"?"🚗 Lavador":"👷 Encargado"}
+          </Btn>
+        ))}
+      </div>
+    </div>
+    {rol==="lavador"&&<>
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>TRANSPORTE HABITUAL</div>
+        <div style={{display:"flex",gap:8}}>
+          {["moto","bici"].map(t=>(
+            <Btn key={t} full ghost={transporte!==t} color="#0e7490" onClick={()=>setTrans(t)} style={{flex:1}}>
+              {t==="moto"?"🏍 Moto (25 cuas)":"🚲 Bici (15 cuas)"}
+            </Btn>
+          ))}
+        </div>
+      </div>
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>WHATSAPP</div>
+        <div style={{display:"flex",gap:8}}>
+          {[[true,"✓ Tiene WA"],[false,"✗ Sin WA"]].map(([v,l])=>(
+            <Btn key={String(v)} full ghost={wa!==v} color="#0e7490" onClick={()=>setWa(v)} style={{flex:1}}>{l}</Btn>
+          ))}
+        </div>
+      </div>
+      {!wa&&<div style={{marginBottom:10}}>
+        <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>CÓMO AVISAR</div>
+        <div style={{display:"flex",gap:8}}>
+          {[["avisar_presencia","👁 En persona"],["llamar_telefono","📞 Por teléfono"]].map(([v,l])=>(
+            <Btn key={v} full ghost={especial!==v} color="#0e7490" onClick={()=>setEspecial(v)} style={{flex:1}}>{l}</Btn>
+          ))}
+        </div>
+      </div>}
+    </>}
+    <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
+      {!esNuevo&&!confirmar&&<Btn danger sm onClick={()=>setConfirmar(true)}>Eliminar</Btn>}
+      {!esNuevo&&confirmar&&<Btn danger sm onClick={()=>onBorrar(miembro.id)}>¿Confirmar?</Btn>}
+      <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
+      <Btn full color="#0e7490" onClick={()=>{if(!nombre.trim())return;onGuardar({nombre,transporte,rol,whatsapp:wa,especial,color:esNuevo?colorNuevo(staff):miembro?.color});}} style={{flex:2}}>
+        {esNuevo?"Agregar":"Guardar cambios"}
+      </Btn>
+    </div>
+  </Modal>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL CLIENTE
+// ═══════════════════════════════════════════════════════════════
+function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
+  const [nombre,   setNombre]   = useState(cliente?.nombre||"");
+  const [tel,      setTel]      = useState(cliente?.telefono||"");
+  const [dir,      setDir]      = useState(cliente?.direccion||"");
+  const [autos,    setAutos]    = useState(cliente?.autosHabituales||1);
+  const [nota,     setNota]     = useState(cliente?.nota||"");
+  const [confirm,  setConfirm]  = useState(false);
+
+  return <Modal titulo={esNuevo?"Nuevo cliente":"Editar cliente"} onClose={onClose}>
+    <Inp label="NOMBRE *" value={nombre} onChange={setNombre} placeholder="Nombre o empresa"/>
+    <Inp label="TELÉFONO *" value={tel} onChange={setTel} placeholder="Ej: 1155551234" type="tel"/>
+    <Inp label="DIRECCIÓN" value={dir} onChange={setDir} placeholder="Dirección habitual"/>
+    <Inp label="AUTOS HABITUALES" value={autos} onChange={v=>setAutos(Number(v))} type="number"/>
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>NOTA</div>
+      <textarea value={nota} onChange={e=>setNota(e.target.value)} placeholder="Cliente detallista, etc."
+        style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none",resize:"none",height:60}}/>
+    </div>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+      {!esNuevo&&!confirm&&<Btn danger sm onClick={()=>setConfirm(true)}>Eliminar</Btn>}
+      {!esNuevo&&confirm&&<Btn danger sm onClick={()=>onBorrar(cliente.id)}>¿Confirmar?</Btn>}
+      <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
+      <Btn full color="#0e7490" onClick={()=>{if(!nombre.trim()||!tel.trim())return;onGuardar({nombre,telefono:tel,direccion:dir,autosHabituales:autos,nota});}} style={{flex:2}}>
+        {esNuevo?"Agregar cliente":"Guardar"}
+      </Btn>
+    </div>
+  </Modal>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL SERVICIO ESPECIAL
+// ═══════════════════════════════════════════════════════════════
+function ModalServicioEsp({onAplicar,onClose}) {
+  const [nombre,  setNombre]  = useState("");
+  const [precio,  setPrecio]  = useState("");
+  const [slots,   setSlots]   = useState(1);
+
+  return <Modal titulo="Servicio especial personalizado" onClose={onClose}>
+    <Inp label="NOMBRE DEL SERVICIO" value={nombre} onChange={setNombre} placeholder="Ej: Limpieza de vómito"/>
+    <Inp label="PRECIO" value={precio} onChange={setPrecio} placeholder="Ej: 45000" type="number"/>
+    <Inp label="SLOTS DE TIEMPO (1 slot = 90 min)" value={slots} onChange={v=>setSlots(Number(v))} type="number"/>
+    <div style={{padding:"8px 12px",background:"#fbbf2410",border:"1px solid #fbbf2433",borderRadius:8,fontSize:11,color:"#fde68a",marginBottom:12}}>
+      ⏱ {slots} slot{slots>1?"s":""} = {slots*90} minutos de trabajo
+    </div>
+    <div style={{display:"flex",gap:8}}>
+      <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
+      <Btn full color="#7c3aed" onClick={()=>{if(!nombre.trim()||!precio)return;onAplicar({nombre,precio:Number(precio),slotsPersonalizados:slots,esServicioEsp:true});}} style={{flex:2}}>
+        Aplicar servicio
+      </Btn>
+    </div>
+  </Modal>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CELDA DE TURNO EN LA GRILLA
+// ═══════════════════════════════════════════════════════════════
+function CeldaTurno({s,hora,turnos,asistencia,dir,listaVacia,sel,onSel,onDetalle,tamanos}) {
+  const turno = turnos.find(t=>t.staffId===s.id&&t.horasOcupadas?.includes(hora));
+  const esPpal = turno?.hora===hora;
+  const trans  = asistencia[s.id]?.transporte||s.transporte;
+  const radio  = trans==="moto"?25:15;
+
+  let geo = "libre";
+  if(!turno&&dir) {
+    // Calcular desde último turno del día o desde base
+    const turnosHoy = turnos.filter(t=>t.staffId===s.id).sort((a,b)=>FRANJAS.indexOf(a.hora)-FRANJAS.indexOf(b.hora));
+    const ultimoTurno = turnosHoy[turnosHoy.length-1];
+    let fromLat = BASE_LAT, fromLng = BASE_LNG;
+    if(ultimoTurno?.coordsDestino) { fromLat=ultimoTurno.coordsDestino.lat; fromLng=ultimoTurno.coordsDestino.lng; }
+    const dest = coordsSimuladas(dir);
+    const cuadras = kmToCuadras(distKm(fromLat,fromLng,dest.lat,dest.lng));
+    if(listaVacia&&esTarde(hora)) geo=cuadras>radio*1.5?"fz_ok":"verde";
+    else if(cuadras<=radio) geo="verde";
+    else if(cuadras<=radio*1.5) geo="amarillo";
+    else geo="fz";
+  }
+
+  const ocupado = !!turno;
+  const bloq = turno&&!esPpal;
+
+  const estilos = {
+    libre:     {bg:"#0b122066",bd:"#1e2d40",  txt:"#1e3a5f",lbl:"·"},
+    verde:     {bg:"#34d39913",bd:"#34d39955",txt:"#6ee7b7",lbl:"● libre"},
+    amarillo:  {bg:"#fbbf2413",bd:"#fbbf2455",txt:"#fde68a",lbl:"◐ lejos"},
+    fz:        {bg:"#a78bfa13",bd:"#a78bfa55",txt:"#c4b5fd",lbl:"⬡ FZ"},
+    fz_ok:     {bg:"#7c3aed18",bd:"#7c3aed88",txt:"#ddd6fe",lbl:"⬡ FZ ok"},
+  }[geo]||{bg:"#0b122066",bd:"#1e2d40",txt:"#1e3a5f",lbl:"·"};
+
+  if(ocupado) return (
+    <div onClick={()=>onDetalle(turno)}
+      style={{padding:"7px 5px",borderRadius:7,fontSize:10,cursor:"pointer",
+        background:bloq?"#ef444408":`${s.color}18`,
+        border:`1px solid ${bloq?"#ef444422":s.color+"55"}`,
+        color:bloq?"#1e2d40":s.color,lineHeight:1.4,minHeight:50}}>
+      {esPpal?<>
+        <div style={{fontWeight:700,fontSize:11}}>{turno.clienteNombre||turno.cliente||"turno"}</div>
+        <div style={{color:"#475569",fontSize:9,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{turno.direccion?.split(",")[0]}</div>
+        <div style={{fontSize:9,marginTop:2}}>{turno.pagado?<span style={{color:"#34d399"}}>✓ cobrado</span>:<span style={{color:"#fde68a"}}>💰 pendiente</span>}</div>
+      </>:<div style={{fontSize:9,color:"#334155",textAlign:"center",paddingTop:12}}>↓</div>}
+    </div>
+  );
+
+  return (
+    <div onClick={()=>geo!=="libre"&&onSel(s.id,hora,geo)}
+      style={{padding:"9px 5px",borderRadius:7,textAlign:"center",fontSize:11,
+        background:estilos.bg,border:`1px solid ${sel?s.color:estilos.bd}`,
+        color:sel?s.color:estilos.txt,
+        outline:sel?`2px solid ${s.color}44`:"none",outlineOffset:1,
+        cursor:geo==="libre"?"default":"pointer",minHeight:50,
+        display:"flex",alignItems:"center",justifyContent:"center"}}>
+      {estilos.lbl}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  APP PRINCIPAL
 // ═══════════════════════════════════════════════════════════════
-export default function SofiaV3() {
+export default function SofiaV4() {
   // ── Firebase
-  const [fbOk,   setFbOk]   = useState(false);
-  const [fbCarg, setFbCarg] = useState(false);
+  const [fbOk,  setFbOk]  = useState(false);
+  const [fbLoad,setFbLoad]= useState(false);
 
-  // ── Datos dinámicos desde Firestore
-  const [staff,    setStaff]    = useState([]);   // todos los integrantes
-  const [asistencia,setAsist]  = useState({});    // { staffId: { transporte, presente } } — clave del día
-  const [clientes, setClientes] = useState([]);
-  const [turnos,   setTurnos]   = useState([]);   // colección turnos_YYYY-MM-DD
-  const [registros,setRegistros]= useState([]);
+  // ── Datos
+  const [staff,      setStaff]      = useState([]);
+  const [asistencia, setAsist]      = useState({});
+  const [clientes,   setClientes]   = useState([]);
+  const [turnos,     setTurnos]     = useState([]);
+  const [registros,  setRegistros]  = useState([]);
+  const [tamanos,    setTamanos]    = useState(TAMANOS_DEFAULT);
+  const [fzPct,      setFzPct]      = useState(20);
 
   // ── UI
-  const [vista,   setVista]   = useState("turno");
-  const [toast,   setToast]   = useState(null);
-  const [modal,   setModal]   = useState(null);   // { tipo, data }
+  const [vista,  setVista]  = useState("turno");
+  const [toast,  setToast]  = useState(null);
+  const [modal,  setModal]  = useState(null); // {tipo, data}
 
   // ── Formulario nuevo turno
-  const [clienteInput, setClienteInput] = useState("");
-  const [sugerencias,  setSugerencias]  = useState([]);
-  const [direccion,    setDireccion]    = useState("");
-  const [cantAutos,    setCantAutos]    = useState(1);
-  const [servicio,     setServicio]     = useState("completo");
-  const [notas,        setNotas]        = useState("");
-  const [metodoPago,   setMetodoPago]   = useState("efectivo");
-  const [staffSelId,   setStaffSelId]   = useState(null);
-  const [horaSelec,    setHoraSelec]    = useState("");
-  const [paso,         setPaso]         = useState(1);
-  const [msgCopiado,   setMsgCopiado]   = useState(false);
-  const [guardando,    setGuardando]    = useState(false);
+  const [clienteInput,setClienteInput] = useState("");
+  const [sugs,        setSugs]         = useState([]);
+  const [clienteSel,  setClienteSel]   = useState(null); // objeto cliente
+  const [direccion,   setDireccion]    = useState("");
+  const [cantAutos,   setCantAutos]    = useState(1);
+  const [tamano,      setTamano]       = useState("mediano");
+  const [precio,      setPrecio]       = useState("");
+  const [notas,       setNotas]        = useState("");
+  const [metodo,      setMetodo]       = useState("efectivo");
+  const [staffSelId,  setStaffSelId]   = useState(null);
+  const [horaSelec,   setHoraSelec]    = useState("");
+  const [geoSelec,    setGeoSelec]     = useState("");
+  const [paso,        setPaso]         = useState(1);
+  const [guardando,   setGuardando]    = useState(false);
+  const [servicioEsp, setServicioEsp]  = useState(null); // servicio especial
 
   // ── Filtros grilla
-  const [filtroT,     setFiltroT]   = useState("todos");
-  const [filtroBusca, setFiltroBusca]= useState("");
+  const [filtroT,   setFiltroT]  = useState("todos");
+  const [filtroBus, setFiltroBus]= useState("");
 
-  // ── IA
+  // ── IA (Gemini)
   const [iaResp,  setIaResp]  = useState("");
   const [iaLoad,  setIaLoad]  = useState(false);
   const [iaPanel, setIaPanel] = useState(false);
+  const [geminiKey,setGKey]   = useState("");
 
-  const showToast = (msg, tipo="ok") => setToast({msg,tipo});
+  // ── Reporte semanal
+  const [semana,  setSemana]  = useState(null);
+
+  const showToast = (msg,tipo="ok") => setToast({msg,tipo});
+  const diaHoy = hoy();
 
   // ── Computed
-  const hoy = fechaHoy();
-  const staffActivo = staff.filter(s => {
-    const a = asistencia[s.id];
-    return a?.presente === true;
-  });
-  const staffFiltrado = staffActivo.filter(s =>
-    (filtroT==="todos" || (asistencia[s.id]?.transporte||s.transporte)===filtroT) &&
-    (!filtroBusca || s.nombre.toLowerCase().includes(filtroBusca.toLowerCase())) &&
-    s.rol !== "encargado"
+  const staffActivo    = staff.filter(s=>asistencia[s.id]?.presente&&s.rol!=="encargado");
+  const staffFiltrado  = staffActivo.filter(s=>
+    (filtroT==="todos"||(asistencia[s.id]?.transporte||s.transporte)===filtroT)&&
+    (!filtroBus||s.nombre.toLowerCase().includes(filtroBus.toLowerCase()))
   );
-  const staffSelObj   = staff.find(s=>s.id===staffSelId);
-  const servicioSel   = SERVICIOS.find(s=>s.id===servicio);
-  const totalBase     = (servicioSel?.precio||0)*cantAutos;
-  const esFZ          = (() => {
-    if(!staffSelId||!horaSelec||!direccion) return false;
-    const s = staffSelObj; if(!s) return false;
-    const radio = (asistencia[s.id]?.transporte||s.transporte)==="moto"?25:15;
-    return distSim(s.id,direccion) > radio*1.4;
-  })();
-  const totalFinal    = esFZ ? Math.round(totalBase*1.20) : totalBase;
-  const slotsAUsar    = horaSelec ? slotsOcupados(horaSelec, cantAutos) : [];
-
-  const hayTardeTurnos = turnos.some(t => {
-    const idx = HORAS.indexOf(t.hora);
-    return idx >= HORAS_TARDE_IDX;
-  });
-  const listaVacia = !hayTardeTurnos;
-
-  // Totales cierre
-  const totalDia   = registros.reduce((s,r)=>s+Number(r.total||0),0);
-  const totalMP    = registros.filter(r=>r.metodo==="mp").reduce((s,r)=>s+Number(r.total||0),0);
-  const totalEfect = registros.filter(r=>r.metodo==="efectivo").reduce((s,r)=>s+Number(r.total||0),0);
-  const pendientes = turnos.filter(t=>t.estado==="confirmado"&&!t.pagado).length;
+  const staffSelObj    = staff.find(s=>s.id===staffSelId);
+  const tamanoObj      = tamanos.find(t=>t.id===tamano);
+  const precioFinal    = servicioEsp ? servicioEsp.precio : (precio ? Number(precio) : (tamanoObj?.precio||0)) * (servicioEsp?.slotsPersonalizados||cantAutos);
+  const esFZ           = geoSelec==="fz"||geoSelec==="fz_ok";
+  const precioConFZ    = esFZ ? Math.round(precioFinal*(1+fzPct/100)) : precioFinal;
+  const slotsAUsar     = horaSelec ? slotsOcupados(horaSelec, servicioEsp?.slotsPersonalizados||cantAutos) : [];
+  const listaVacia     = !turnos.some(t=>esTarde(t.hora));
+  const pendientes     = turnos.filter(t=>!t.pagado&&t.estado==="confirmado").length;
+  const totalDia       = registros.reduce((s,r)=>s+Number(r.precio||0),0);
+  const totalMP        = registros.filter(r=>r.metodo==="mp").reduce((s,r)=>s+Number(r.precio||0),0);
+  const totalEfect     = registros.filter(r=>r.metodo==="efectivo").reduce((s,r)=>s+Number(r.precio||0),0);
 
   // ── Init
   useEffect(()=>{ inicializar(); },[]);
 
   async function inicializar() {
-    setFbCarg(true);
+    setFbLoad(true);
     try {
-      // Cargar staff
-      let s = await fsListar("staff");
-      if (s.length === 0) {
-        // Seed inicial
-        for (const m of STAFF_SEED) {
-          const id = await fsAgregar("staff", m);
-          s.push({id, ...m});
-        }
-      }
+      let s = await fsList("staff");
+      if(!s.length) { for(const m of STAFF_SEED){const id=await fsAdd("staff",m);s.push({id,...m});} }
       setStaff(s);
 
-      // Cargar asistencia de hoy
-      const asDoc = await fsLeer("asistencia", hoy);
-      if (asDoc) {
-        const { id:_, _ts:__, ...slots } = asDoc;
-        setAsist(slots);
-      }
+      const asDoc = await fsGet("asistencia", diaHoy);
+      if(asDoc){const{id:_,_ts:__,...slots}=asDoc;setAsist(slots);}
 
-      // Cargar clientes
-      let cl = await fsListar("clientes");
-      if (cl.length === 0) {
-        for (const c of CLIENTES_SEED) {
-          const id = await fsAgregar("clientes", c);
-          cl.push({id, ...c});
-        }
-      }
+      let cl = await fsList("clientes");
+      if(!cl.length){for(const c of CLIENTES_SEED){const id=await fsAdd("clientes",c);cl.push({id,...c});}}
       setClientes(cl);
 
-      // Cargar turnos y registros del día
-      await recargarDia();
+      const cfg = await fsGet("config","precios");
+      if(cfg?.tamanos) setTamanos(cfg.tamanos);
+      if(cfg?.fzPct)   setFzPct(cfg.fzPct);
+      if(cfg?.geminiKey) setGKey(cfg.geminiKey);
 
+      await recargar();
       setFbOk(true);
-      showToast("Firebase conectado ✓");
-    } catch(e) {
-      setFbOk(false);
-      showToast("Firebase offline — modo local", "warn");
-    }
-    setFbCarg(false);
+      showToast("Firebase ✓");
+    } catch { setFbOk(false); showToast("Modo local activo","warn"); }
+    setFbLoad(false);
   }
 
-  async function recargarDia() {
-    const t = await fsListar(`turnos_${hoy}`);
-    setTurnos(t);
-    const r = await fsListar(`cierre_${hoy}`);
-    setRegistros(r);
+  async function recargar() {
+    const t = await fsList(`turnos_${diaHoy}`); setTurnos(t);
+    const r = await fsList(`cierre_${diaHoy}`); setRegistros(r);
   }
 
-  // Listener tiempo real de turnos
+  // Listener tiempo real
   useEffect(()=>{
-    if (!db) return;
-    const unsub = onSnapshot(collection(db, `turnos_${hoy}`), snap=>{
+    if(!db) return;
+    const u = onSnapshot(collection(db,`turnos_${diaHoy}`), snap=>{
       setTurnos(snap.docs.map(d=>({id:d.id,...d.data()})));
     });
-    return ()=>unsub();
+    return()=>u();
   },[]);
 
-  // ── Helpers de estado turno
-  function getTurno(staffId, hora) {
-    return turnos.find(t => t.staffId===staffId && t.hora===hora);
-  }
-  function estaOcupado(staffId, hora) {
-    return turnos.some(t => t.staffId===staffId && t.horasOcupadas?.includes(hora));
-  }
-  function estadoGeo(staffMiembro, hora) {
-    if(!direccion) return "libre";
-    const a = asistencia[staffMiembro.id];
-    const trans = a?.transporte || staffMiembro.transporte;
-    const radio = trans==="moto"?25:15;
-    const dist  = distSim(staffMiembro.id, direccion);
-    if (listaVacia && HORAS.indexOf(hora)>=HORAS_TARDE_IDX) return dist>radio*1.5?"fz_aceptable":"verde";
-    if (dist<=radio)        return "verde";
-    if (dist<=radio*1.4)    return "amarillo";
-    return "fz";
-  }
-
-  // ── Autocompletado
+  // ── Autocomplete clientes
   function handleClienteInput(val) {
     setClienteInput(val);
-    setSugerencias(val.length>=2 ? clientes.filter(c=>c.nombre.toLowerCase().startsWith(val.toLowerCase())) : []);
+    if(val.length>=2) setSugs(clientes.filter(c=>c.nombre.toLowerCase().startsWith(val.toLowerCase())));
+    else setSugs([]);
   }
   function aplicarCliente(c) {
-    setClienteInput(c.nombre); setDireccion(c.direccion);
-    setCantAutos(Number(c.autosHabituales)||1);
+    setClienteInput(c.nombre); setClienteSel(c);
+    setDireccion(c.direccion||""); setCantAutos(c.autosHabituales||1);
     if(c.nota) setNotas(c.nota);
-    setSugerencias([]);
+    setSugs([]);
   }
 
-  // ── Seleccionar turno
-  function selTurno(sId, hora) {
-    setStaffSelId(sId); setHoraSelec(hora);
+  // ── Selección turno en grilla
+  function selTurno(sId,hora,geo) {
+    setStaffSelId(sId); setHoraSelec(hora); setGeoSelec(geo);
     setPaso(Math.max(paso,3));
+  }
+
+  // ── Reset formulario completo
+  function resetForm() {
+    setClienteInput(""); setClienteSel(null); setDireccion(""); setCantAutos(1);
+    setTamano("mediano"); setPrecio(""); setNotas(""); setMetodo("efectivo");
+    setStaffSelId(null); setHoraSelec(""); setGeoSelec(""); setServicioEsp(null);
+    setIaResp(""); setPaso(1);
   }
 
   // ── Confirmar turno
   async function confirmarTurno() {
     if(!staffSelId||!horaSelec) return;
     setGuardando(true);
-    const horasOcupadas = slotsOcupados(horaSelec, cantAutos);
-    const turnoData = {
+    const slotsUsados = slotsOcupados(horaSelec, servicioEsp?.slotsPersonalizados||cantAutos);
+    const destCoords  = coordsSimuladas(direccion);
+    const turnoData   = {
       staffId:staffSelId, staffNombre:staffSelObj?.nombre,
-      hora:horaSelec, horasOcupadas,
-      cliente:clienteInput, direccion, cantAutos,
-      servicio:servicioSel?.nombre, precioBase:totalBase,
-      esFZ, totalFinal, metodo:metodoPago,
-      notas, estado:"confirmado", pagado:false,
-      fechaCreacion: new Date().toISOString(),
+      staffTransporte: asistencia[staffSelId]?.transporte||staffSelObj?.transporte,
+      hora:horaSelec, horasOcupadas:slotsUsados,
+      clienteNombre:clienteSel?.nombre||clienteInput,
+      clienteTel:clienteSel?.telefono||"",
+      cliente:clienteInput, direccion,
+      cantAutos: servicioEsp?.slotsPersonalizados||cantAutos,
+      tamano:servicioEsp?servicioEsp.nombre:tamano,
+      precio:precioConFZ, esFZ,
+      metodo, notas, estado:"confirmado", pagado:false,
+      coordsDestino:destCoords,
+      servicioEsp:!!servicioEsp,
+      fecha:diaHoy,
     };
-    const id = await fsAgregar(`turnos_${hoy}`, turnoData);
-    if(id) {
-      setTurnos(prev=>[...prev,{id,...turnoData}]);
-      showToast("Turno guardado ✓");
-    } else {
-      setTurnos(prev=>[...prev,{id:"local_"+Date.now(),...turnoData}]);
-      showToast("Turno guardado local","warn");
-    }
+    const id = await fsAdd(`turnos_${diaHoy}`, turnoData);
+    setTurnos(prev=>[...prev,{id:id||"local_"+Date.now(),...turnoData}]);
+    showToast("Turno guardado ✓");
     setGuardando(false);
-    setPaso(4);
+    // Mostrar modal WA automáticamente
+    setModal({tipo:"wa", data:{id:id||"local",...turnoData}});
+    // Reset para siguiente turno
+    resetForm();
   }
 
   // ── Cancelar turno
   async function cancelarTurno(turno) {
-    await fsBorrar(`turnos_${hoy}`, turno.id);
+    await fsDel(`turnos_${diaHoy}`, turno.id);
     setTurnos(prev=>prev.filter(t=>t.id!==turno.id));
-    showToast("Turno cancelado — slots liberados","warn");
+    showToast("Turno cancelado","warn");
     setModal(null);
   }
 
-  // ── Reasignar turno
-  async function reasignarTurno(turno, nuevoStaffId, nuevaHora) {
-    const nuevoStaff = staff.find(s=>s.id===nuevoStaffId);
-    const horasOcupadas = slotsOcupados(nuevaHora, turno.cantAutos);
-    const upd = { staffId:nuevoStaffId, staffNombre:nuevoStaff?.nombre, hora:nuevaHora, horasOcupadas };
-    await fsActualizar(`turnos_${hoy}`, turno.id, upd);
+  // ── Reasignar
+  async function reasignarTurno(turno,nStaff,nHora) {
+    const ns = staff.find(s=>s.id===nStaff);
+    const horasOcupadas = slotsOcupados(nHora, turno.cantAutos);
+    const upd = {staffId:nStaff,staffNombre:ns?.nombre,hora:nHora,horasOcupadas};
+    await fsUpdate(`turnos_${diaHoy}`,turno.id,upd);
     setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,...upd}:t));
-    showToast(`Turno reasignado a ${nuevoStaff?.nombre} ✓`);
+    showToast(`Reasignado a ${ns?.nombre} ✓`);
     setModal(null);
   }
 
   // ── Registrar pago
   async function registrarPago(turno) {
     const reg = {
-      turnoId:turno.id, hora:turno.hora, staffNombre:turno.staffNombre,
-      cliente:turno.cliente, direccion:turno.direccion, autos:turno.cantAutos,
-      servicio:turno.servicio, total:turno.totalFinal, metodo:turno.metodo,
-      esFZ:turno.esFZ, notas:turno.notas,
+      turnoId:turno.id, hora:turno.hora,
+      staffNombre:turno.staffNombre,
+      clienteNombre:turno.clienteNombre||turno.cliente,
+      direccion:turno.direccion, autos:turno.cantAutos,
+      tamano:turno.tamano, precio:turno.precio,
+      metodo:turno.metodo, esFZ:turno.esFZ,
+      notas:turno.notas, fecha:diaHoy,
       ts:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}),
     };
-    await fsAgregar(`cierre_${hoy}`, reg);
-    await fsActualizar(`turnos_${hoy}`, turno.id, {pagado:true, estadoPago:"cobrado"});
+    await fsAdd(`cierre_${diaHoy}`, reg);
+    await fsUpdate(`turnos_${diaHoy}`,turno.id,{pagado:true});
     setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,pagado:true}:t));
     setRegistros(prev=>[...prev,{id:Date.now(),...reg}]);
-    showToast(`Pago ${formatPesos(turno.totalFinal)} registrado ✓`);
+    showToast(`Cobro ${formatP(turno.precio)} registrado ✓`);
     setModal(null);
   }
 
-  // Flujo rápido de registro de pago al cerrar turno
-  async function cerrarTurnoActual() {
-    setGuardando(true);
-    const turnoTemp = {
-      id:"tmp_"+Date.now(), hora:horaSelec, staffNombre:staffSelObj?.nombre,
-      cliente:clienteInput, direccion, cantAutos, servicio:servicioSel?.nombre,
-      totalFinal, metodo:metodoPago, esFZ, notas,
-    };
-    await registrarPago({...turnoTemp, id: turnos.find(t=>t.staffId===staffSelId&&t.hora===horaSelec)?.id||"tmp"});
-    setClienteInput(""); setDireccion(""); setCantAutos(1); setNotas("");
-    setStaffSelId(null); setHoraSelec(""); setIaResp(""); setPaso(1);
-    setGuardando(false);
-  }
-
-  // ── WhatsApp
-  function generarMensaje() {
-    const fin = horaFin(horaSelec);
-    const notasLines = notas.trim() ? `\n⚠️ *Instrucciones:*\n${notas.split(",").map(n=>`• ${n.trim()}`).join("\n")}` : "";
-    const fzLine = esFZ ? "\n🌐 *Fuera de zona — recargo de traslado incluido.*" : "";
-    const trans = asistencia[staffSelId]?.transporte || staffSelObj?.transporte;
-    const icono = trans==="moto"?"🏍":"🚲";
-    return `🚿 *SOFÍA LAVADOS — Turno confirmado*\n\n📍 *Dirección:* ${direccion}\n🕐 *Llegada:* ${horaSelec} a ${fin} hs\n🚗 *Autos:* ${cantAutos} × ${servicioSel?.nombre}\n💰 *Cobrar:* ${formatPesos(totalFinal)} (${metodoPago==="mp"?"Mercado Pago":"Efectivo"})${fzLine}${notasLines}\n\n${icono} Confirmá arribo cuando llegues. ¡Gracias!`;
-  }
-  async function copiarMensaje() {
-    try { await navigator.clipboard.writeText(generarMensaje()); } catch {}
-    setMsgCopiado(true); setTimeout(()=>setMsgCopiado(false),2500);
-  }
-
-  // ── IA
+  // ── IA Gemini
   async function consultarIA() {
     setIaLoad(true); setIaResp("");
     try {
-      const activos = staffActivo.filter(s=>s.rol!=="encargado").slice(0,8)
-        .map(s=>`${s.nombre}(${asistencia[s.id]?.transporte||s.transporte},r:${(asistencia[s.id]?.transporte||s.transporte)==="moto"?25:15})`).join(", ");
-      const res = await fetch("https://api.anthropic.com/v1/messages",{
+      const activos = staffActivo.slice(0,8).map(s=>`${s.nombre}(${asistencia[s.id]?.transporte||s.transporte})`).join(", ");
+      const prompt  = `Sos asistente logístico de "Sofía Lavados Móvil" en Olivos, GBA Norte, Argentina. Respondé en español, directo, máx 4 oraciones, sin markdown.\n\nDatos del turno: cliente=${clienteInput||"?"}, dirección=${direccion||"?"}, autos=${cantAutos}, notas="${notas||"ninguna"}", tarde vacía=${listaVacia?"SÍ":"NO"}.\nLavadores activos: ${activos}.\n\nRecomendá el lavador óptimo, si aplica FZ y qué considerar por las notas.`;
+
+      const key = geminiKey || "AIzaSyD-PLACEHOLDER";
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`,{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",
-          content:`Sos asistente logístico de "Sofía Lavados Móvil", norte del GBA, Argentina. Respondé en español, directo, máx 4 oraciones, sin markdown.\n\nSituación: cliente=${clienteInput||"?"}, dirección=${direccion||"?"}, autos=${cantAutos}, servicio=${servicioSel?.nombre}, hora=${horaSelec||"?"}, notas=${notas||"ninguna"}, tarde vacía=${listaVacia?"SÍ":"NO"}.\nLavadores activos hoy: ${activos}.\n\nRecomendá el conductor óptimo, si aplica FZ y cualquier advertencia operativa.`}]})
+        body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
       });
       const d = await res.json();
-      setIaResp(d.content?.find(b=>b.type==="text")?.text||"Sin respuesta.");
-    } catch { setIaResp("Error de conexión."); }
+      const txt = d.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta de Gemini.";
+      setIaResp(txt);
+    } catch { setIaResp("Error — verificá la Gemini API Key en Configuración."); }
     setIaLoad(false);
   }
 
   // ── Backup
-  function descargarBackup() {
-    const data = { staff, clientes, turnos, registros, fecha:hoy };
-    const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = `backup-sofia-${hoy}.json`; a.click();
+  function backup() {
+    const data = {staff,clientes,turnos,registros,tamanos,fecha:diaHoy};
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
+    a.download = `backup-sofia-${diaHoy}.json`; a.click();
     showToast("Backup descargado ✓");
+  }
+
+  // ── Guardar config precios
+  async function guardarConfig(newTam,newFz,newKey) {
+    setTamanos(newTam); setFzPct(newFz); setGKey(newKey);
+    await fsSave("config","precios",{tamanos:newTam,fzPct:newFz,geminiKey:newKey});
+    showToast("Configuración guardada ✓");
   }
 
   // ═══ CSS ═══════════════════════════════════════════════════
@@ -476,40 +708,38 @@ export default function SofiaV3() {
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Bebas+Neue&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
     ::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:#080c18}::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:2px}
+    body{background:#080c18;overscroll-behavior:none}
     .ff{font-family:'JetBrains Mono',monospace}
-    @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-    .fade{animation:fadein .25s ease}
-    input,textarea,select{background:#0b1220;border:1px solid #1e3a5f;border-radius:8px;color:#e2e8f0;font-family:'JetBrains Mono',monospace;font-size:12px;padding:10px 14px;width:100%;transition:border-color .2s;outline:none;resize:none}
+    .fade{animation:fi .22s ease}
+    input,textarea,select{background:#0b1220;border:1px solid #1e3a5f;border-radius:8px;color:#e2e8f0;font-family:'JetBrains Mono',monospace;font-size:12px;padding:9px 13px;width:100%;transition:border-color .2s;outline:none;resize:none}
     input:focus,textarea:focus,select:focus{border-color:#22d3ee;box-shadow:0 0 0 2px #22d3ee18}
     select option{background:#0b1220}
     .card{background:#0b1220;border:1px solid #1e2d40;border-radius:12px;padding:16px}
-    .lbl{font-size:10px;color:#334155;letter-spacing:.15em;margin-bottom:6px;font-weight:700}
-    .hr{height:1px;background:linear-gradient(90deg,transparent,#1e3a5f,transparent);margin:12px 0}
-    .nav-tab{background:transparent;border:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;padding:8px 14px;border-radius:8px;color:#475569;transition:all .2s}
-    .nav-tab:hover{color:#94a3b8;background:#fff8}
-    .nav-tab.on{color:#22d3ee;background:#22d3ee0f;border-bottom:2px solid #22d3ee}
-    .cell-turno{padding:7px 5px;border-radius:6px;text-align:center;font-size:10px;cursor:pointer;transition:all .15s;border:1px solid transparent;font-family:inherit}
-    .cell-libre{background:#0b122088;border-color:#1e2d40;color:#1e3a5f}
-    .cell-verde{background:#34d39913;border-color:#34d39955;color:#6ee7b7}
-    .cell-verde:hover{background:#34d39930}
-    .cell-amarillo{background:#fbbf2413;border-color:#fbbf2455;color:#fde68a}
-    .cell-amarillo:hover{background:#fbbf2430}
-    .cell-fz{background:#a78bfa13;border-color:#a78bfa55;color:#c4b5fd}
-    .cell-fz:hover{background:#a78bfa30}
-    .cell-fz_aceptable{background:#7c3aed18;border-color:#7c3aed88;color:#ddd6fe}
-    .cell-ocupado{cursor:pointer;border-color:#334155}
-    .cell-bloqueado{background:#ef444405;border-color:#ef444415;color:#1e2d40;cursor:default}
-    .cell-sel{outline:2px solid #22d3ee;outline-offset:1px}
-    .badge{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
-    .chip-toggle{padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;border:1px solid #1e3a5f;background:transparent;color:#64748b;font-family:inherit;transition:all .15s}
-    .chip-toggle:hover{border-color:#334155;color:#94a3b8}
-    .chip-toggle.on{border-color:#22d3ee;color:#22d3ee;background:#22d3ee0a}
-    .turno-pill{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:6px 7px;border-radius:6px;font-size:9px;line-height:1.3;text-align:left}
-    .toggle-asist{width:36px;height:20px;border-radius:10px;border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
-    .toggle-asist::after{content:"";position:absolute;top:2px;width:16px;height:16px;border-radius:50%;background:white;transition:left .2s}
-    .toggle-asist.off{background:#334155}.toggle-asist.off::after{left:2px}
-    .toggle-asist.on_{background:#16a34a}.toggle-asist.on_::after{left:18px}
+    .lbl{font-size:10px;color:#334155;letter-spacing:.13em;margin-bottom:5px;font-weight:700}
+    .hr{height:1px;background:linear-gradient(90deg,transparent,#1e3a5f,transparent);margin:11px 0}
+    .nt{background:transparent;border:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px 12px;border-radius:8px;color:#475569;transition:all .2s}
+    .nt:hover{color:#94a3b8;background:#ffffff09}
+    .nt.on{color:#22d3ee;background:#22d3ee0f;border-bottom:2px solid #22d3ee}
+    .chip{padding:4px 10px;border-radius:6px;font-size:10px;cursor:pointer;border:1px solid #1e3a5f;background:transparent;color:#64748b;font-family:inherit;transition:all .15s}
+    .chip:hover{border-color:#334155;color:#94a3b8}
+    .chip.on{border-color:#22d3ee;color:#22d3ee;background:#22d3ee0a}
+    .tog{width:36px;height:20px;border-radius:10px;border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;padding:0}
+    .tog::after{content:"";position:absolute;top:2px;width:16px;height:16px;border-radius:50%;background:white;transition:left .2s}
+    .tog.off{background:#334155}.tog.off::after{left:2px}
+    .tog.on_{background:#16a34a}.tog.on_::after{left:18px}
+    /* GRILLA SCROLL HORIZONTAL */
+    .grilla-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .grilla-inner{min-width:600px}
+    /* MOBILE FIRST */
+    @media(max-width:768px){
+      .layout-turno{grid-template-columns:1fr!important}
+      .nav-labels{display:none}
+      .nav-icons{display:flex!important}
+      .topbar-right{gap:4px!important}
+      .topbar-badges{display:none!important}
+    }
   `;
 
   // ═══ RENDER ════════════════════════════════════════════════
@@ -519,102 +749,142 @@ export default function SofiaV3() {
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={()=>setToast(null)}/>}
 
       {/* MODALES */}
-      {modal?.tipo==="detalle_turno" && <ModalDetalleTurno turno={modal.data} staff={staff} asistencia={asistencia} horas={HORAS} onCancelar={cancelarTurno} onReasignar={reasignarTurno} onPagar={registrarPago} onClose={()=>setModal(null)} />}
-      {modal?.tipo==="nuevo_staff"  && <ModalNuevoStaff staff={staff} onGuardar={async m=>{const id=await fsAgregar("staff",m);const ns={id,...m};setStaff(prev=>[...prev,ns]);showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)} colorNuevo={colorNuevo(staff)} />}
-      {modal?.tipo==="editar_staff" && <ModalEditarStaff miembro={modal.data} onGuardar={async(id,upd)=>{await fsActualizar("staff",id,upd);setStaff(prev=>prev.map(s=>s.id===id?{...s,...upd}:s));showToast("Datos actualizados ✓");setModal(null);}} onBorrar={async id=>{await fsBorrar("staff",id);setStaff(prev=>prev.filter(s=>s.id!==id));showToast("Integrante eliminado","warn");setModal(null);}} onClose={()=>setModal(null)} />}
+      {modal?.tipo==="wa"       && <ModalWA      turno={modal.data} staff={staff} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="detalle"  && <ModalDetalle turno={modal.data} staff={staff} asistencia={asistencia} onCancelar={cancelarTurno} onReasignar={reasignarTurno} onPagar={registrarPago} onWA={t=>setModal({tipo:"wa",data:t})} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="nstaff"   && <ModalStaff   esNuevo staff={staff} onGuardar={async m=>{const id=await fsAdd("staff",m);setStaff(p=>[...p,{id,...m}]);showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="estaff"   && <ModalStaff   miembro={modal.data} staff={staff} onGuardar={async(m)=>{await fsUpdate("staff",modal.data.id,m);setStaff(p=>p.map(s=>s.id===modal.data.id?{...s,...m}:s));showToast("Guardado ✓");setModal(null);}} onBorrar={async id=>{await fsDel("staff",id);setStaff(p=>p.filter(s=>s.id!==id));showToast("Eliminado","warn");setModal(null);}} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="ncliente" && <ModalCliente esNuevo onGuardar={async m=>{const id=await fsAdd("clientes",m);setClientes(p=>[...p,{id,...m}]);showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="ecliente" && <ModalCliente cliente={modal.data} onGuardar={async m=>{await fsUpdate("clientes",modal.data.id,m);setClientes(p=>p.map(c=>c.id===modal.data.id?{...c,...m}:c));showToast("Guardado ✓");setModal(null);}} onBorrar={async id=>{await fsDel("clientes",id);setClientes(p=>p.filter(c=>c.id!==id));showToast("Eliminado","warn");setModal(null);}} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="servEsp"  && <ModalServicioEsp onAplicar={s=>{setServicioEsp(s);setPrecio(String(s.precio));setModal(null);showToast(`Servicio especial: ${s.nombre}`);}} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="config"   && <ModalConfig tamanos={tamanos} fzPct={fzPct} geminiKey={geminiKey} onGuardar={guardarConfig} onClose={()=>setModal(null)}/>}
 
       {/* NAV */}
-      <header style={{background:"#0b1220",borderBottom:"1px solid #1e2d40",padding:"0 20px",display:"flex",alignItems:"center",position:"sticky",top:0,zIndex:100}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0",marginRight:24,flexShrink:0}}>
-          <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#0e7490,#1d4ed8)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🚿</div>
-          <div>
-            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:".1em",color:"#f1f5f9",lineHeight:1}}>SOFÍA LAVADOS</div>
-            <div style={{fontSize:8,color:"#1e3a5f",letterSpacing:".2em"}}>v3.0 BETA</div>
+      <header style={{background:"#0b1220",borderBottom:"1px solid #1e2d40",padding:"0 16px",display:"flex",alignItems:"center",position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",marginRight:20,flexShrink:0}}>
+          <div style={{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg,#0e7490,#1d4ed8)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🚿</div>
+          <div style={{display:"none"}} className="nav-labels">
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:".1em",color:"#f1f5f9",lineHeight:1}}>SOFÍA</div>
+            <div style={{fontSize:8,color:"#1e3a5f",letterSpacing:".2em"}}>v4.0</div>
           </div>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:".1em",color:"#f1f5f9",lineHeight:1}}>SOFÍA v4</div>
         </div>
-        {[{id:"turno",l:"+ Turno"},{id:"agenda",l:`Agenda${turnos.length?` (${turnos.length})`:""}`},{id:"asistencia",l:`Asistencia`},{id:"staff",l:"Staff"},{id:"cierre",l:`Cierre${registros.length?` (${registros.length})`:""}`}].map(v=>(
-          <button key={v.id} className={`nav-tab ${vista===v.id?"on":""}`} onClick={()=>setVista(v.id)}>{v.l}</button>
-        ))}
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
-          {pendientes>0 && <span style={{background:"#ef444420",border:"1px solid #ef444444",color:"#fca5a5",padding:"3px 9px",borderRadius:6,fontSize:10}}>💰 {pendientes} sin cobrar</span>}
-          {listaVacia && <span style={{background:"#312e8118",border:"1px solid #312e8144",color:"#a5b4fc",padding:"3px 9px",borderRadius:6,fontSize:10}}>📋 TARDE LIBRE</span>}
-          <div onClick={fbCarg?null:inicializar} style={{display:"flex",alignItems:"center",gap:5,fontSize:10,padding:"4px 9px",borderRadius:6,cursor:"pointer",background:fbOk?"#34d39910":"#f8717110",border:`1px solid ${fbOk?"#34d39933":"#f8717133"}`,color:fbOk?"#6ee7b7":"#fca5a5"}}>
-            <span style={{animation:fbCarg?"spin .7s linear infinite":"none",display:"inline-block"}}>{fbCarg?"⟳":fbOk?"●":"○"}</span>
-            {fbCarg?"…":fbOk?"Firebase ✓":"Offline"}
+        <div style={{display:"flex",gap:2,overflowX:"auto"}}>
+          {[
+            {id:"turno",   l:"+ Turno",     ico:"➕"},
+            {id:"agenda",  l:`Agenda${turnos.length?` (${turnos.length})`:""}`, ico:"📅"},
+            {id:"asist",   l:"Asistencia",  ico:"✅"},
+            {id:"clientes",l:"Clientes",    ico:"👥"},
+            {id:"staff",   l:"Staff",       ico:"👷"},
+            {id:"cierre",  l:`Cierre${registros.length?` (${registros.length})`:""}`, ico:"💰"},
+            {id:"config",  l:"Config",      ico:"⚙"},
+          ].map(v=>(
+            <button key={v.id} className={`nt ${vista===v.id?"on":""}`} onClick={()=>v.id==="config"?setModal({tipo:"config"}):setVista(v.id)}>
+              <span className="nav-labels">{v.l}</span>
+              <span className="nav-icons" style={{display:"none"}}>{v.ico}</span>
+              {v.l}
+            </button>
+          ))}
+        </div>
+        <div className="topbar-right" style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+          <div className="topbar-badges" style={{display:"flex",gap:5}}>
+            {pendientes>0&&<span style={{background:"#ef444420",border:"1px solid #ef444444",color:"#fca5a5",padding:"3px 8px",borderRadius:5,fontSize:10}}>💰{pendientes}</span>}
+            {listaVacia&&<span style={{background:"#312e8118",border:"1px solid #312e8144",color:"#a5b4fc",padding:"3px 8px",borderRadius:5,fontSize:10}}>📋TARDE</span>}
+          </div>
+          <div onClick={inicializar} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,padding:"3px 8px",borderRadius:5,cursor:"pointer",background:fbOk?"#34d39910":"#f8717110",border:`1px solid ${fbOk?"#34d39933":"#f8717133"}`,color:fbOk?"#6ee7b7":"#fca5a5"}}>
+            <span style={{animation:fbLoad?"spin .7s linear infinite":"none",display:"inline-block"}}>{fbLoad?"⟳":fbOk?"●":"○"}</span>
+            <span>{fbLoad?"…":fbOk?"FB✓":"off"}</span>
           </div>
         </div>
       </header>
 
-      <main style={{maxWidth:1300,margin:"0 auto",padding:"20px 18px"}}>
+      <main style={{maxWidth:1280,margin:"0 auto",padding:"16px 14px"}}>
 
         {/* ══ NUEVO TURNO ══ */}
-        {vista==="turno" && (
-          <div className="fade" style={{display:"grid",gridTemplateColumns:"340px 1fr",gap:18,alignItems:"start"}}>
-            {/* Columna izquierda */}
+        {vista==="turno"&&(
+          <div className="fade layout-turno" style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:16,alignItems:"start"}}>
+
+            {/* Columna izquierda: formulario */}
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
 
-              {/* Paso 1 */}
+              {/* PASO 1 */}
               <div className="card" style={{borderColor:paso===1?"#22d3ee33":"#1e2d40"}}>
-                <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",marginBottom:12,display:"flex",alignItems:"center",gap:7}}>
                   <span style={{background:"#22d3ee",color:"#080c18",borderRadius:5,padding:"1px 6px",fontSize:10}}>01</span> Datos del servicio
+                  {servicioEsp&&<span style={{marginLeft:"auto",background:"#7c3aed22",border:"1px solid #7c3aed44",color:"#c4b5fd",padding:"2px 8px",borderRadius:5,fontSize:9}}>⚡ {servicioEsp.nombre}</span>}
                 </div>
+
                 {/* Autocomplete */}
                 <div style={{position:"relative",marginBottom:8}}>
                   <div className="lbl">CLIENTE</div>
-                  <input placeholder="Victoria, Martin, Hyundai…" value={clienteInput} onChange={e=>handleClienteInput(e.target.value)}/>
-                  {sugerencias.length>0 && (
-                    <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#0b1220",border:"1px solid #22d3ee44",borderRadius:8,zIndex:20,overflow:"hidden",marginTop:2}}>
-                      {sugerencias.map(s=>(
-                        <div key={s.id||s.nombre} onClick={()=>aplicarCliente(s)}
+                  <input placeholder="Nombre o escribí directo…" value={clienteInput} onChange={e=>handleClienteInput(e.target.value)}/>
+                  {sugs.length>0&&(
+                    <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#0b1220",border:"1px solid #22d3ee44",borderRadius:8,zIndex:20,overflow:"hidden",marginTop:2,maxHeight:180,overflowY:"auto"}}>
+                      {sugs.map(c=>(
+                        <div key={c.id} onClick={()=>aplicarCliente(c)}
                           style={{padding:"9px 12px",cursor:"pointer",fontSize:12,borderBottom:"1px solid #1e2d40"}}
                           onMouseEnter={e=>e.currentTarget.style.background="#22d3ee0a"}
                           onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                          <div style={{color:"#22d3ee",fontWeight:700}}>{s.nombre}</div>
-                          <div style={{color:"#475569",fontSize:10}}>{s.direccion} · {s.autosHabituales} auto{s.autosHabituales>1?"s":""}</div>
-                          {s.nota&&<div style={{color:"#fbbf24",fontSize:9,marginTop:2}}>⚠ {s.nota}</div>}
+                          <div style={{color:"#22d3ee",fontWeight:700}}>{c.nombre}</div>
+                          <div style={{color:"#475569",fontSize:10}}>{c.telefono} · {c.direccion?.split(",")[0]}</div>
+                          {c.nota&&<div style={{color:"#fbbf24",fontSize:9}}>⚠ {c.nota}</div>}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
+
                 <div className="lbl">DIRECCIÓN</div>
                 <input placeholder="Av. Maipú 1234, Olivos" value={direccion} onChange={e=>setDireccion(e.target.value)} style={{marginBottom:8}}/>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 70px",gap:8,marginBottom:8}}>
+
+                {!servicioEsp&&(
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 60px",gap:8,marginBottom:8}}>
+                    <div>
+                      <div className="lbl">TAMAÑO</div>
+                      <select value={tamano} onChange={e=>setTamano(e.target.value)}>
+                        {tamanos.map(t=><option key={t.id} value={t.id}>{t.label} — {formatP(t.precio)}</option>)}
+                      </select>
+                    </div>
+                    <div><div className="lbl">AUTOS</div>
+                      <input type="number" min={1} max={5} value={cantAutos} onChange={e=>setCantAutos(Number(e.target.value))}/>
+                    </div>
+                  </div>
+                )}
+
+                {/* Precio manual */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"flex-end",marginBottom:8}}>
                   <div>
-                    <div className="lbl">SERVICIO</div>
-                    <select value={servicio} onChange={e=>setServicio(e.target.value)}>
-                      {SERVICIOS.map(s=><option key={s.id} value={s.id}>{s.nombre} — {formatPesos(s.precio)}</option>)}
-                    </select>
+                    <div className="lbl">PRECIO MANUAL (opcional)</div>
+                    <input type="number" placeholder={`Base: ${formatP(servicioEsp?.precio||(tamanoObj?.precio||0)*cantAutos)}`} value={precio} onChange={e=>setPrecio(e.target.value)}/>
                   </div>
-                  <div><div className="lbl">AUTOS</div>
-                    <input type="number" min={1} max={5} value={cantAutos} onChange={e=>setCantAutos(Number(e.target.value))}/>
-                  </div>
+                  <button onClick={()=>setModal({tipo:"servEsp"})} style={{background:"#7c3aed22",border:"1px solid #7c3aed55",color:"#c4b5fd",borderRadius:8,padding:"9px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>
+                    ⚡ Especial
+                  </button>
                 </div>
+
                 <div className="lbl">NOTAS OPERATIVAS</div>
-                <textarea rows={2} placeholder="cliente detallista, insectos de ruta…" value={notas} onChange={e=>setNotas(e.target.value)}/>
-                {cantAutos>1&&<div style={{marginTop:8,padding:"7px 10px",background:"#fbbf2410",border:"1px solid #fbbf2433",borderRadius:7,fontSize:10,color:"#fde68a"}}>
-                  ⏱ {cantAutos} autos = {cantAutos}hs — ocupa franjas: {slotsOcupados(horaSelec||"09:00",cantAutos).join(", ")||"(elegí horario)"}
+                <textarea rows={2} placeholder="cliente detallista, insectos de ruta…" value={notas} onChange={e=>setNotas(e.target.value)} style={{marginBottom:8}}/>
+
+                {slotsAUsar.length>1&&<div style={{padding:"6px 10px",background:"#fbbf2410",border:"1px solid #fbbf2433",borderRadius:7,fontSize:10,color:"#fde68a",marginBottom:8}}>
+                  ⏱ Ocupa: {slotsAUsar.join(", ")}
                 </div>}
-                <button className="btn" onClick={()=>setPaso(Math.max(paso,2))} disabled={!direccion}
-                  style={{width:"100%",marginTop:10,background:direccion?"linear-gradient(135deg,#0e7490,#1d4ed8)":"#1e2d40",color:direccion?"#fff":"#334155",border:"none",borderRadius:8,padding:10,fontSize:12,fontWeight:700,cursor:direccion?"pointer":"not-allowed",fontFamily:"inherit"}}>
+
+                <Btn full color="#0e7490" disabled={!direccion} onClick={()=>setPaso(Math.max(paso,2))}>
                   Ver disponibilidad →
-                </button>
+                </Btn>
               </div>
 
-              {/* Paso 3: Confirmar */}
-              {paso>=3 && staffSelId && horaSelec && (
+              {/* PASO 3: Confirmar */}
+              {paso>=3&&staffSelId&&horaSelec&&(
                 <div className="card fade" style={{borderColor:"#34d39933"}}>
-                  <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{background:"#34d399",color:"#080c18",borderRadius:5,padding:"1px 6px",fontSize:10}}>03</span> Confirmar turno
+                  <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",marginBottom:12,display:"flex",alignItems:"center",gap:7}}>
+                    <span style={{background:"#34d399",color:"#080c18",borderRadius:5,padding:"1px 6px",fontSize:10}}>03</span> Confirmar
                   </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:7,fontSize:11,marginBottom:12}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:6,fontSize:11,marginBottom:12}}>
                     {[
-                      ["Lavador", <span style={{color:staffSelObj?.color}}>{staffSelObj?.nombre} <span style={{color:"#475569"}}>({asistencia[staffSelId]?.transporte||staffSelObj?.transporte})</span></span>],
-                      ["Hora interna", horaSelec],
-                      ["Franja cliente", <span style={{color:"#22d3ee"}}>{horaSelec} → {horaFin(horaSelec)} hs</span>],
-                      ["Servicio", `${servicioSel?.nombre} × ${cantAutos}`],
-                      esFZ && ["Zona", <span style={{color:"#c4b5fd"}}>⬡ FZ — +20%</span>],
-                      slotsAUsar.length>1 && ["Ocupa franjas", <span style={{color:"#fde68a"}}>{slotsAUsar.join(", ")}</span>],
+                      ["Lavador",  <span style={{color:staffSelObj?.color}}>{staffSelObj?.nombre}</span>],
+                      ["Franja",   <span style={{color:"#22d3ee"}}>{horaSelec} → {franjaFin(horaSelec)} hs</span>],
+                      ["Tamaño",   servicioEsp?.nombre||tamano],
+                      esFZ&&["Zona",<span style={{color:"#c4b5fd"}}>⬡ FZ +{fzPct}%</span>],
                     ].filter(Boolean).map(([k,v])=>(
                       <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <span style={{color:"#475569"}}>{k}</span><span>{v}</span>
@@ -623,164 +893,98 @@ export default function SofiaV3() {
                     <div className="hr"/>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <span style={{color:"#64748b"}}>TOTAL</span>
-                      <strong style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:"#22d3ee"}}>{formatPesos(totalFinal)}</strong>
+                      <strong style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:"#22d3ee"}}>{formatP(precioConFZ)}</strong>
                     </div>
                   </div>
-                  {/* Alerta sin WA */}
-                  {staffSelObj?.especial==="avisar_presencia" && <div style={{padding:"8px 12px",background:"#f8717118",border:"1px solid #f8717144",borderRadius:7,color:"#fca5a5",fontSize:11,marginBottom:10}}>🔴 Hernán — Avisar en persona</div>}
-                  {staffSelObj?.especial==="llamar_telefono" && <div style={{padding:"8px 12px",background:"#fb923c18",border:"1px solid #fb923c44",borderRadius:7,color:"#fdba74",fontSize:11,marginBottom:10}}>📞 Gastón — Llamar por teléfono</div>}
-                  <div style={{display:"flex",gap:7,marginBottom:10}}>
-                    <button className={`chip-toggle ${metodoPago==="efectivo"?"on":""}`} onClick={()=>setMetodoPago("efectivo")}>💵 Efectivo</button>
-                    <button className={`chip-toggle ${metodoPago==="mp"?"on":""}`} onClick={()=>setMetodoPago("mp")}>📱 Mercado Pago</button>
+                  {staffSelObj?.especial==="avisar_presencia"&&<div style={{padding:"7px 10px",background:"#f8717118",border:"1px solid #f8717144",borderRadius:7,color:"#fca5a5",fontSize:11,marginBottom:8}}>🔴 Hernán — Avisar en persona</div>}
+                  {staffSelObj?.especial==="llamar_telefono"&&<div style={{padding:"7px 10px",background:"#fb923c18",border:"1px solid #fb923c44",borderRadius:7,color:"#fdba74",fontSize:11,marginBottom:8}}>📞 Gastón — Llamar por teléfono</div>}
+                  <div style={{display:"flex",gap:7,marginBottom:8}}>
+                    <button className={`chip ${metodo==="efectivo"?"on":""}`} onClick={()=>setMetodo("efectivo")}>💵 Efectivo</button>
+                    <button className={`chip ${metodo==="mp"?"on":""}`} onClick={()=>setMetodo("mp")}>📱 Mercado Pago</button>
                   </div>
-                  <button onClick={confirmarTurno} disabled={guardando} style={{width:"100%",background:"linear-gradient(135deg,#0e7490,#1d4ed8)",color:"#fff",border:"none",borderRadius:8,padding:10,fontSize:12,fontWeight:700,cursor:guardando?"not-allowed":"pointer",fontFamily:"inherit"}}>
-                    {guardando?"⟳ Guardando…":"Confirmar y enviar al lavador →"}
-                  </button>
-                </div>
-              )}
-
-              {/* Paso 4: WA */}
-              {paso>=4 && (
-                <div className="card fade" style={{background:"#052e1c",borderColor:"#16a34a44"}}>
-                  <div style={{fontSize:12,fontWeight:700,marginBottom:10,color:"#4ade80",display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{background:"#16a34a",color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:10}}>04</span>
-                    📲 Mensaje para el lavador
-                  </div>
-                  <pre style={{fontFamily:"inherit",fontSize:11,color:"#bbf7d0",whiteSpace:"pre-wrap",lineHeight:1.7,background:"#041a0f",padding:12,borderRadius:8,border:"1px solid #16a34a22"}}>
-                    {generarMensaje()}
-                  </pre>
-                  <button style={{width:"100%",marginTop:10,background:"linear-gradient(135deg,#15803d,#166534)",color:"#fff",border:"none",borderRadius:8,padding:9,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}} onClick={copiarMensaje}>
-                    {msgCopiado?"✓ Copiado — pegá en WhatsApp":`📋 Copiar para WA de ${staffSelObj?.nombre}`}
-                  </button>
-                  <button onClick={()=>setPaso(5)} style={{width:"100%",marginTop:7,background:"linear-gradient(135deg,#0e7490,#1d4ed8)",color:"#fff",border:"none",borderRadius:8,padding:9,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                    ✓ Confirmé arribo → Registrar pago
-                  </button>
-                </div>
-              )}
-
-              {/* Paso 5: Pago */}
-              {paso>=5 && (
-                <div className="card fade" style={{borderColor:"#fbbf2433"}}>
-                  <div style={{fontSize:12,fontWeight:700,marginBottom:10,color:"#fde68a",display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{background:"#d97706",color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:10}}>05</span> Registrar pago
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                    <span style={{color:"#64748b",fontSize:12}}>Total a cobrar:</span>
-                    <strong style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24,color:"#22d3ee"}}>{formatPesos(totalFinal)}</strong>
-                  </div>
-                  <button onClick={cerrarTurnoActual} disabled={guardando} style={{width:"100%",background:"linear-gradient(135deg,#d97706,#b45309)",color:"#fff",border:"none",borderRadius:8,padding:10,fontSize:12,fontWeight:700,cursor:guardando?"not-allowed":"pointer",fontFamily:"inherit"}}>
-                    {guardando?"⟳ Guardando…":"💰 Confirmar cobro y cerrar turno"}
-                  </button>
+                  <Btn full color="#0e7490" disabled={guardando} onClick={confirmarTurno}>
+                    {guardando?"⟳ Guardando…":"✓ Confirmar turno"}
+                  </Btn>
                 </div>
               )}
             </div>
 
-            {/* Columna derecha: Semáforo + IA */}
+            {/* Columna derecha: semáforo + IA */}
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               <div className="card" style={{borderColor:paso>=2?"#a78bfa33":"#1e2d40"}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                  <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",display:"flex",alignItems:"center",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:8}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",display:"flex",alignItems:"center",gap:7}}>
                     <span style={{background:"#7c3aed",color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:10}}>02</span>
-                    Semáforo Geográfico
+                    Semáforo
                   </div>
-                  <div style={{display:"flex",gap:4}}>
-                    {[["#6ee7b7","#34d399","● libre"],["#fde68a","#fbbf24","◐ lejos"],["#c4b5fd","#a78bfa","⬡ FZ"],["#fca5a5","#ef4444","● turno"]].map(([tc,bc,l])=>(
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                    {[["#6ee7b7","#34d399","●libre"],["#fde68a","#fbbf24","◐lejos"],["#c4b5fd","#a78bfa","⬡FZ"],["#fca5a5","#ef4444","●turno"]].map(([tc,bc,l])=>(
                       <span key={l} style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:`${bc}18`,border:`1px solid ${bc}44`,color:tc}}>{l}</span>
                     ))}
                   </div>
                 </div>
-                <div style={{display:"flex",gap:6,marginBottom:10}}>
+                <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
                   {["todos","moto","bici"].map(t=>(
-                    <button key={t} className={`chip-toggle ${filtroT===t?"on":""}`} onClick={()=>setFiltroT(t)}>
+                    <button key={t} className={`chip ${filtroT===t?"on":""}`} onClick={()=>setFiltroT(t)}>
                       {t==="todos"?"Todos":t==="moto"?"🏍 Motos":"🚲 Bicis"}
                     </button>
                   ))}
-                  <input placeholder="Buscar…" value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)} style={{width:120,padding:"5px 10px",fontSize:10}}/>
-                  <span style={{marginLeft:"auto",fontSize:10,color:"#334155"}}>{staffFiltrado.length} activos hoy</span>
+                  <input placeholder="Buscar…" value={filtroBus} onChange={e=>setFiltroBus(e.target.value)} style={{width:110,padding:"5px 9px",fontSize:10}}/>
+                  <span style={{marginLeft:"auto",fontSize:10,color:"#334155"}}>{staffFiltrado.length} activos</span>
                 </div>
 
                 {paso<2
-                  ? <div style={{textAlign:"center",padding:24,color:"#1e3a5f",fontSize:12}}>Completá la dirección y tocá "Ver disponibilidad"</div>
-                  : <div style={{overflowX:"auto"}}>
-                      {staffFiltrado.length===0
-                        ? <div style={{textAlign:"center",padding:20,color:"#475569",fontSize:12}}>No hay lavadores activos hoy.<br/>Marcá la asistencia en la pestaña "Asistencia".</div>
-                        : <>
+                  ? <div style={{textAlign:"center",padding:20,color:"#1e3a5f",fontSize:12}}>Completá la dirección y tocá "Ver disponibilidad"</div>
+                  : staffFiltrado.length===0
+                    ? <div style={{textAlign:"center",padding:20,color:"#475569",fontSize:12}}>Sin lavadores activos. Marcá la asistencia primero.</div>
+                    : <div className="grilla-wrap">
+                        <div className="grilla-inner" style={{display:"grid",gridTemplateColumns:`56px repeat(${staffFiltrado.length},minmax(90px,1fr))`,gap:3}}>
                           {/* Cabecera */}
-                          <div style={{display:"grid",gridTemplateColumns:`60px repeat(${staffFiltrado.length},minmax(80px,1fr))`,gap:3,marginBottom:5}}>
-                            <div style={{fontSize:9,color:"#1e3a5f",padding:"5px"}}>HORA</div>
-                            {staffFiltrado.map(s=>(
-                              <div key={s.id} style={{fontSize:9,textAlign:"center",padding:"4px 2px",color:s.color,borderBottom:`2px solid ${s.color}44`,lineHeight:1.4}}>
-                                <div style={{fontWeight:700}}>{s.nombre}</div>
-                                <div style={{opacity:.6}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":"🚲"}</div>
-                                {s.especial==="rapido"&&<div style={{fontSize:8,color:s.color}}>⚡</div>}
-                              </div>
-                            ))}
-                          </div>
+                          <div style={{fontSize:9,color:"#1e3a5f",padding:"5px"}}>HORA</div>
+                          {staffFiltrado.map(s=>(
+                            <div key={s.id} style={{fontSize:11,textAlign:"center",padding:"5px 3px",color:s.color,borderBottom:`2px solid ${s.color}44`,lineHeight:1.5}}>
+                              <div style={{fontWeight:700}}>{s.nombre}</div>
+                              <div style={{fontSize:14}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":"🚲"}</div>
+                              {s.especial==="rapido"&&<div style={{fontSize:9}}>⚡</div>}
+                            </div>
+                          ))}
                           {/* Filas */}
-                          {HORAS.map(hora=>{
-                            const esTarde_ = HORAS.indexOf(hora)>=HORAS_TARDE_IDX;
-                            return (
-                              <div key={hora} style={{display:"grid",gridTemplateColumns:`60px repeat(${staffFiltrado.length},minmax(80px,1fr))`,gap:3,marginBottom:3}}>
-                                <div style={{fontSize:10,padding:"7px 5px",display:"flex",flexDirection:"column",gap:1}}>
-                                  <span style={{color:esTarde_?"#a78bfa":"#94a3b8",fontWeight:700}}>{hora}</span>
-                                  <span style={{fontSize:8,color:"#1e3a5f"}}>→{horaFin(hora)}</span>
-                                </div>
-                                {staffFiltrado.map(s=>{
-                                  const ocup = estaOcupado(s.id, hora);
-                                  const turno = turnos.find(t=>t.staffId===s.id&&t.horasOcupadas?.includes(hora));
-                                  const sel = staffSelId===s.id && horaSelec===hora;
-                                  let geo = "libre";
-                                  if(!ocup && paso>=2) geo = estadoGeo(s, hora);
-
-                                  if(ocup && turno) {
-                                    const esPrincipal = turno.hora === hora;
-                                    return (
-                                      <div key={s.id} className={`cell-turno cell-ocupado ${sel?"cell-sel":""}`}
-                                        onClick={()=>setModal({tipo:"detalle_turno",data:turno})}
-                                        style={{background:`${s.color}18`,borderColor:`${s.color}55`,color:s.color,padding:"5px 4px"}}>
-                                        {esPrincipal
-                                          ? <div className="turno-pill" style={{color:s.color}}>
-                                              <span style={{fontWeight:700,fontSize:9}}>● {turno.cliente||"turno"}</span>
-                                              <span style={{color:"#475569",fontSize:8}}>{turno.direccion?.split(",")[0]||""}</span>
-                                              {turno.notas&&<span style={{color:"#fbbf24",fontSize:8}}>📝</span>}
-                                              {turno.pagado?<span style={{color:"#34d399",fontSize:8}}>✓ cobrado</span>:<span style={{color:"#fde68a",fontSize:8}}>💰 pendiente</span>}
-                                            </div>
-                                          : <div style={{fontSize:9,color:"#334155",padding:"4px 0"}}>— cont.</div>
-                                        }
-                                      </div>
-                                    );
-                                  }
-                                  return (
-                                    <div key={s.id}
-                                      className={`cell-turno cell-${geo} ${sel?"cell-sel":""}`}
-                                      onClick={()=>{if(geo!=="libre"&&paso>=2){selTurno(s.id,hora);}}}
-                                      style={{cursor:geo==="libre"||paso<2?"default":"pointer"}}>
-                                      {geo==="libre"?"·":geo==="verde"?"● libre":geo==="amarillo"?"◐ lejos":geo==="fz"||geo==="fz_aceptable"?"⬡ FZ":"·"}
-                                    </div>
-                                  );
-                                })}
+                          {FRANJAS.map(hora=>(
+                            <>
+                              <div key={`h_${hora}`} style={{fontSize:11,padding:"8px 5px",display:"flex",flexDirection:"column",gap:1}}>
+                                <span style={{color:esTarde(hora)?"#a78bfa":"#94a3b8",fontWeight:700}}>{hora}</span>
+                                <span style={{fontSize:8,color:"#1e3a5f"}}>→{franjaFin(hora)}</span>
                               </div>
-                            );
-                          })}
-                        </>
-                      }
-                    </div>
+                              {staffFiltrado.map(s=>(
+                                <CeldaTurno key={`${s.id}_${hora}`} s={s} hora={hora} turnos={turnos} asistencia={asistencia} dir={direccion} listaVacia={listaVacia}
+                                  sel={staffSelId===s.id&&horaSelec===hora} onSel={selTurno} onDetalle={t=>setModal({tipo:"detalle",data:t})} tamanos={tamanos}/>
+                              ))}
+                            </>
+                          ))}
+                        </div>
+                      </div>
                 }
               </div>
 
-              {/* IA */}
+              {/* IA Gemini */}
               <div style={{background:"linear-gradient(135deg,#0d1b3e,#0b1220)",border:"1px solid #1e3a5f",borderRadius:12,padding:14}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:iaPanel?10:0}}>
-                  <div style={{fontSize:10,color:"#4f46e5",letterSpacing:".1em",display:"flex",alignItems:"center",gap:7}}>✦ ASISTENTE IA</div>
+                  <div style={{fontSize:10,color:"#4f46e5",letterSpacing:".1em",display:"flex",alignItems:"center",gap:7}}>
+                    ✦ IA LOGÍSTICO {geminiKey?"(Gemini)":"(sin key)"}
+                  </div>
                   <div style={{display:"flex",gap:5}}>
-                    <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#64748b",borderRadius:7,cursor:"pointer",fontSize:10,padding:"3px 9px",fontFamily:"inherit"}} onClick={()=>setIaPanel(!iaPanel)}>{iaPanel?"Cerrar":"Abrir"}</button>
-                    {iaPanel&&<button style={{background:"#1d4ed8",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:10,padding:"3px 9px",fontFamily:"inherit"}} onClick={consultarIA} disabled={iaLoad}>{iaLoad?"⟳":"Consultar"}</button>}
+                    <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#64748b",borderRadius:6,cursor:"pointer",fontSize:10,padding:"3px 8px",fontFamily:"inherit"}} onClick={()=>setIaPanel(!iaPanel)}>
+                      {iaPanel?"Cerrar":"Abrir"}
+                    </button>
+                    {iaPanel&&<button style={{background:"#1d4ed8",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontSize:10,padding:"3px 8px",fontFamily:"inherit"}} onClick={consultarIA} disabled={iaLoad}>
+                      {iaLoad?"⟳":"Consultar"}
+                    </button>}
                   </div>
                 </div>
                 {iaPanel&&<div className="fade">
                   {iaLoad&&<div style={{color:"#6366f1",fontSize:11}}>● Analizando…</div>}
                   {iaResp&&<div style={{fontSize:11,color:"#a5b4fc",lineHeight:1.7,borderTop:"1px solid #1e3a5f",paddingTop:8}}>{iaResp}</div>}
-                  {!iaResp&&!iaLoad&&<div style={{fontSize:10,color:"#1e3a5f"}}>Completá los datos y tocá Consultar.</div>}
+                  {!iaResp&&!iaLoad&&<div style={{fontSize:11,color:"#1e3a5f"}}>{geminiKey?"Completá los datos y consultá.":"Configurá la Gemini API Key en ⚙ Config."}</div>}
                 </div>}
               </div>
             </div>
@@ -788,46 +992,38 @@ export default function SofiaV3() {
         )}
 
         {/* ══ AGENDA ══ */}
-        {vista==="agenda" && (
+        {vista==="agenda"&&(
           <div className="fade">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em"}}>AGENDA HOY — {hoy}</div>
-              <div style={{display:"flex",gap:8}}>
-                <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#64748b",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 12px",fontFamily:"inherit"}} onClick={recargarDia}>⟳ Refrescar</button>
-              </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em"}}>AGENDA — {diaHoy}</div>
+              <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#64748b",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={recargar}>⟳</button>
             </div>
-            <div className="card" style={{overflowX:"auto"}}>
+            <div className="card grilla-wrap">
               {staffActivo.filter(s=>s.rol!=="encargado").length===0
-                ? <div style={{textAlign:"center",padding:30,color:"#475569"}}>No hay lavadores activos hoy. Marcá la asistencia primero.</div>
-                : <div style={{display:"grid",gridTemplateColumns:`65px repeat(${staffActivo.filter(s=>s.rol!=="encargado").length},minmax(110px,1fr))`,gap:3,minWidth:600}}>
-                    <div style={{padding:"5px",fontSize:9,color:"#1e3a5f"}}>HORA</div>
+                ? <div style={{textAlign:"center",padding:28,color:"#475569"}}>Sin lavadores activos. Marcá la asistencia.</div>
+                : <div className="grilla-inner" style={{display:"grid",gridTemplateColumns:`56px repeat(${staffActivo.filter(s=>s.rol!=="encargado").length},minmax(100px,1fr))`,gap:3}}>
+                    <div style={{fontSize:9,color:"#1e3a5f",padding:"5px"}}>HORA</div>
                     {staffActivo.filter(s=>s.rol!=="encargado").map(s=>(
-                      <div key={s.id} style={{fontSize:9,textAlign:"center",padding:"4px 2px",color:s.color,borderBottom:`2px solid ${s.color}33`,lineHeight:1.4}}>
+                      <div key={s.id} style={{fontSize:11,textAlign:"center",padding:"5px 3px",color:s.color,borderBottom:`2px solid ${s.color}33`,lineHeight:1.5}}>
                         <div style={{fontWeight:700}}>{s.nombre}</div>
-                        <div style={{opacity:.5}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":"🚲"}</div>
+                        <div style={{fontSize:14}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":"🚲"}</div>
                       </div>
                     ))}
-                    {HORAS.map(hora=>(
+                    {FRANJAS.map(hora=>(
                       <>
-                        <div key={`h_${hora}`} style={{fontSize:10,padding:"9px 5px",color:HORAS.indexOf(hora)>=HORAS_TARDE_IDX?"#a78bfa":"#64748b",fontWeight:700}}>{hora}</div>
+                        <div key={`ha_${hora}`} style={{fontSize:10,padding:"8px 5px",color:esTarde(hora)?"#a78bfa":"#64748b",fontWeight:700}}>{hora}</div>
                         {staffActivo.filter(s=>s.rol!=="encargado").map(s=>{
-                          const turno=turnos.find(t=>t.staffId===s.id&&t.horasOcupadas?.includes(hora));
-                          const esPrincipal=turno&&turno.hora===hora;
-                          return <div key={s.id} onClick={()=>turno&&setModal({tipo:"detalle_turno",data:turno})}
-                            style={{padding:"7px 5px",borderRadius:7,fontSize:10,
-                              background:turno?`${s.color}18`:"#0b122088",
-                              border:`1px solid ${turno?s.color+"44":"#1e2d40"}`,
-                              color:turno?s.color:"#1e3a5f",cursor:turno?"pointer":"default",
-                              lineHeight:1.3}}>
-                            {esPrincipal
-                              ? <div>
-                                  <div style={{fontWeight:700,fontSize:9}}>{turno.cliente||"turno"}</div>
-                                  <div style={{color:"#475569",fontSize:8,marginTop:1}}>{turno.direccion?.split(",")[0]}</div>
-                                  <div style={{marginTop:2}}>{turno.pagado?<span style={{color:"#34d399",fontSize:8}}>✓</span>:<span style={{color:"#fde68a",fontSize:8}}>💰</span>}</div>
-                                </div>
-                              : turno ? <div style={{color:"#334155",fontSize:9}}>↓ cont.</div>
-                              : <div style={{color:"#1e2d40",fontSize:10}}>·</div>
-                            }
+                          const t=turnos.find(x=>x.staffId===s.id&&x.horasOcupadas?.includes(hora));
+                          const pp=t?.hora===hora;
+                          return <div key={s.id} onClick={()=>t&&setModal({tipo:"detalle",data:t})}
+                            style={{padding:"8px 6px",borderRadius:8,fontSize:10,cursor:t?"pointer":"default",lineHeight:1.4,minHeight:55,
+                              background:t?`${s.color}18`:"#0b122088",
+                              border:`1px solid ${t?s.color+"44":"#1e2d40"}`,
+                              color:t?s.color:"#1e3a5f"}}>
+                            {pp?<><div style={{fontWeight:700,fontSize:11}}>{t.clienteNombre||t.cliente||"turno"}</div>
+                              <div style={{color:"#475569",fontSize:9,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.direccion?.split(",")[0]}</div>
+                              <div style={{fontSize:9,marginTop:2}}>{t.pagado?<span style={{color:"#34d399"}}>✓</span>:<span style={{color:"#fde68a"}}>💰</span>}</div>
+                            </>:t?<div style={{fontSize:9,color:"#334155",textAlign:"center",paddingTop:12}}>↓</div>:"·"}
                           </div>;
                         })}
                       </>
@@ -839,62 +1035,50 @@ export default function SofiaV3() {
         )}
 
         {/* ══ ASISTENCIA ══ */}
-        {vista==="asistencia" && (
+        {vista==="asist"&&(
           <div className="fade">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em"}}>ASISTENCIA HOY — {hoy}</div>
-              <div style={{fontSize:11,color:"#475569"}}>{staffActivo.length} presentes de {staff.filter(s=>s.rol!=="encargado").length} lavadores</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em"}}>ASISTENCIA — {diaHoy}</div>
+              <span style={{fontSize:11,color:"#475569"}}>{staffActivo.length} presentes</span>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
               {staff.filter(s=>s.rol!=="encargado").map(s=>{
-                const a = asistencia[s.id]||{};
-                const presente = a.presente===true;
-                const trans = a.transporte||s.transporte;
-                return (
-                  <div key={s.id} className="card" style={{borderColor:`${s.color}33`,display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:36,height:36,borderRadius:"50%",background:`${s.color}22`,border:`2px solid ${s.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
-                      {trans==="moto"?"🏍":"🚲"}
-                    </div>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,color:s.color,fontSize:12,marginBottom:3}}>{s.nombre}</div>
-                      {/* Toggle transporte */}
-                      <div style={{display:"flex",gap:5,marginBottom:4}}>
-                        {["moto","bici"].map(t=>(
-                          <button key={t} onClick={async()=>{
-                            const radio = t==="moto"?25:15;
-                            const upd = {...(asistencia[s.id]||{}), transporte:t, radio};
-                            const newA = {...asistencia,[s.id]:upd};
-                            setAsist(newA);
-                            await fsGuardar("asistencia", hoy, {[s.id]:upd});
-                          }} className={`chip-toggle ${trans===t?"on":""}`} style={{padding:"3px 9px",fontSize:9}}>
-                            {t==="moto"?"🏍 Moto":"🚲 Bici"}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Toggle presencia */}
-                    <button className={`toggle-asist ${presente?"on_":"off"}`}
-                      onClick={async()=>{
-                        const upd = {...(asistencia[s.id]||{transporte:s.transporte}), presente:!presente};
-                        const newA = {...asistencia,[s.id]:upd};
-                        setAsist(newA);
-                        await fsGuardar("asistencia", hoy, {[s.id]:upd});
-                      }}/>
+                const a=asistencia[s.id]||{};
+                const pres=a.presente===true;
+                const trans=a.transporte||s.transporte;
+                return <div key={s.id} className="card" style={{borderColor:`${s.color}33`,display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:40,height:40,borderRadius:"50%",background:`${s.color}22`,border:`2px solid ${s.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                    {trans==="moto"?"🏍":"🚲"}
                   </div>
-                );
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,color:s.color,fontSize:13,marginBottom:4}}>{s.nombre}</div>
+                    <div style={{display:"flex",gap:5}}>
+                      {["moto","bici"].map(t=>(
+                        <button key={t} onClick={async()=>{
+                          const upd={...(asistencia[s.id]||{}),transporte:t};
+                          setAsist(p=>({...p,[s.id]:upd}));
+                          await fsSave("asistencia",diaHoy,{[s.id]:upd});
+                        }} className={`chip ${trans===t?"on":""}`} style={{padding:"3px 8px",fontSize:9}}>
+                          {t==="moto"?"🏍":"🚲"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <button className={`tog ${pres?"on_":"off"}`} onClick={async()=>{
+                    const upd={...(asistencia[s.id]||{transporte:s.transporte}),presente:!pres};
+                    setAsist(p=>({...p,[s.id]:upd}));
+                    await fsSave("asistencia",diaHoy,{[s.id]:upd});
+                  }}/>
+                </div>;
               })}
             </div>
-            {/* Encargados */}
-            {staff.filter(s=>s.rol==="encargado").length>0 && <>
-              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",margin:"20px 0 10px"}}>ENCARGADOS</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+            {staff.filter(s=>s.rol==="encargado").length>0&&<>
+              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",margin:"18px 0 10px"}}>ENCARGADOS</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:8}}>
                 {staff.filter(s=>s.rol==="encargado").map(s=>(
-                  <div key={s.id} className="card" style={{borderColor:`${s.color}33`,display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:34,height:34,borderRadius:"50%",background:`${s.color}22`,border:`2px solid ${s.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>👷</div>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,color:s.color,fontSize:12}}>{s.nombre}</div>
-                      <div style={{fontSize:10,color:"#475569"}}>Encargado / Supervisor</div>
-                    </div>
+                  <div key={s.id} className="card" style={{borderColor:`${s.color}33`,display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:34,height:34,borderRadius:"50%",background:`${s.color}22`,border:`2px solid ${s.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>👷</div>
+                    <div><div style={{fontWeight:700,color:s.color,fontSize:12}}>{s.nombre}</div><div style={{fontSize:10,color:"#475569"}}>Encargado</div></div>
                   </div>
                 ))}
               </div>
@@ -902,34 +1086,66 @@ export default function SofiaV3() {
           </div>
         )}
 
-        {/* ══ STAFF ══ */}
-        {vista==="staff" && (
+        {/* ══ CLIENTES ══ */}
+        {vista==="clientes"&&(
           <div className="fade">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em"}}>STAFF — {staff.length} INTEGRANTES</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em"}}>CLIENTES — {clientes.length}</div>
+              <Btn sm color="#0e7490" onClick={()=>setModal({tipo:"ncliente"})}>+ Nuevo cliente</Btn>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+              {clientes.map(c=>(
+                <div key={c.id} className="card" style={{cursor:"pointer",borderColor:"#22d3ee22"}} onClick={()=>setModal({tipo:"ecliente",data:c})}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                    <div style={{width:36,height:36,borderRadius:"50%",background:"#22d3ee18",border:"2px solid #22d3ee44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>👤</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,color:"#22d3ee",fontSize:13}}>{c.nombre}</div>
+                      <div style={{fontSize:10,color:"#475569"}}>{c.telefono}</div>
+                    </div>
+                    <div style={{fontSize:10,color:"#334155"}}>✏️</div>
+                  </div>
+                  {c.direccion&&<div style={{fontSize:10,color:"#475569",marginBottom:4}}>📍 {c.direccion}</div>}
+                  {c.nota&&<div style={{fontSize:10,color:"#fbbf24"}}>⚠ {c.nota}</div>}
+                  <div style={{display:"flex",gap:6,marginTop:6}}>
+                    <a href={`tel:${c.telefono}`} onClick={e=>e.stopPropagation()} style={{textDecoration:"none"}}>
+                      <button style={{background:"#34d39918",border:"1px solid #34d39944",color:"#6ee7b7",borderRadius:6,padding:"4px 9px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>📞 Llamar</button>
+                    </a>
+                    <button onClick={e=>{e.stopPropagation();setClienteInput(c.nombre);setClienteSel(c);setDireccion(c.direccion||"");setCantAutos(c.autosHabituales||1);if(c.nota)setNotas(c.nota);setVista("turno");}} style={{background:"#22d3ee18",border:"1px solid #22d3ee44",color:"#22d3ee",borderRadius:6,padding:"4px 9px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>
+                      + Turno
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ══ STAFF ══ */}
+        {vista==="staff"&&(
+          <div className="fade">
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em"}}>STAFF — {staff.length}</div>
               <div style={{display:"flex",gap:8}}>
-                <button onClick={descargarBackup} style={{background:"transparent",border:"1px solid #1e3a5f",color:"#64748b",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 12px",fontFamily:"inherit"}}>⬇ Backup</button>
-                <button onClick={()=>setModal({tipo:"nuevo_staff"})} style={{background:"linear-gradient(135deg,#0e7490,#1d4ed8)",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 12px",fontFamily:"inherit",fontWeight:700}}>+ Agregar integrante</button>
+                <Btn sm ghost onClick={backup}>⬇ Backup</Btn>
+                <Btn sm color="#0e7490" onClick={()=>setModal({tipo:"nstaff"})}>+ Agregar</Btn>
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
               {staff.map(s=>(
-                <div key={s.id} className="card" style={{borderColor:`${s.color}33`,cursor:"pointer"}} onClick={()=>setModal({tipo:"editar_staff",data:s})}>
+                <div key={s.id} className="card" style={{borderColor:`${s.color}33`,cursor:"pointer"}} onClick={()=>setModal({tipo:"estaff",data:s})}>
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                    <div style={{width:36,height:36,borderRadius:"50%",background:`${s.color}22`,border:`2px solid ${s.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>
+                    <div style={{width:38,height:38,borderRadius:"50%",background:`${s.color}22`,border:`2px solid ${s.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>
                       {s.rol==="encargado"?"👷":s.transporte==="moto"?"🏍":"🚲"}
                     </div>
-                    <div>
-                      <div style={{fontWeight:700,color:s.color,fontSize:12}}>{s.nombre}</div>
-                      <div style={{fontSize:9,color:"#475569"}}>{s.rol==="encargado"?"Encargado":`${s.transporte} · ${s.transporte==="moto"?25:15} cuas.`}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,color:s.color,fontSize:13}}>{s.nombre}</div>
+                      <div style={{fontSize:10,color:"#475569"}}>{s.rol==="encargado"?"Encargado":`${s.transporte} · ${s.transporte==="moto"?25:15} cuas.`}</div>
                     </div>
-                    <div style={{marginLeft:"auto",fontSize:9,color:"#334155"}}>✏️</div>
+                    <span style={{fontSize:11,color:"#334155"}}>✏️</span>
                   </div>
                   <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                     <span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:s.whatsapp?"#34d39918":"#ef444418",border:`1px solid ${s.whatsapp?"#34d39944":"#ef444444"}`,color:s.whatsapp?"#6ee7b7":"#fca5a5"}}>{s.whatsapp?"✓ WA":"✗ Sin WA"}</span>
-                    {s.especial==="rapido"&&<span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:"#fbbf2418",border:"1px solid #fbbf2444",color:"#fde68a"}}>⚡ Rápido</span>}
-                    {s.especial==="avisar_presencia"&&<span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:"#f8717118",border:"1px solid #f8717144",color:"#fca5a5"}}>👁 Avisar</span>}
-                    {s.especial==="llamar_telefono"&&<span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:"#fb923c18",border:"1px solid #fb923c44",color:"#fdba74"}}>📞 Tel.</span>}
+                    {s.especial==="rapido"&&<span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:"#fbbf2418",border:"1px solid #fbbf2444",color:"#fde68a"}}>⚡</span>}
                     {asistencia[s.id]?.presente&&<span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:"#34d39918",border:"1px solid #34d39933",color:"#6ee7b7"}}>● Hoy</span>}
                   </div>
                 </div>
@@ -939,267 +1155,116 @@ export default function SofiaV3() {
         )}
 
         {/* ══ CIERRE ══ */}
-        {vista==="cierre" && (
+        {vista==="cierre"&&(
           <div className="fade">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em"}}>CIERRE — {hoy}</div>
-              <div style={{display:"flex",gap:8}}>
-                <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#64748b",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 12px",fontFamily:"inherit"}} onClick={recargarDia}>⟳ Refrescar</button>
-                <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#64748b",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 12px",fontFamily:"inherit"}} onClick={descargarBackup}>⬇ Backup</button>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:10,color:"#334155",letterSpacing:".15em"}}>CIERRE — {diaHoy}</div>
+              <div style={{display:"flex",gap:7}}>
+                <Btn sm ghost onClick={recargar}>⟳</Btn>
+                <Btn sm ghost onClick={backup}>⬇ Backup</Btn>
               </div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
-              {[{l:"TOTAL DÍA",v:formatPesos(totalDia),c:"#22d3ee"},{l:"MERCADO PAGO",v:formatPesos(totalMP),c:"#a78bfa"},{l:"EFECTIVO",v:formatPesos(totalEfect),c:"#34d399"},{l:"SIN COBRAR",v:pendientes,c:"#f87171"}].map(s=>(
+              {[{l:"TOTAL DÍA",v:formatP(totalDia),c:"#22d3ee"},{l:"MERC. PAGO",v:formatP(totalMP),c:"#a78bfa"},{l:"EFECTIVO",v:formatP(totalEfect),c:"#34d399"},{l:"SIN COBRAR",v:pendientes,c:"#f87171"}].map(s=>(
                 <div key={s.l} className="card" style={{textAlign:"center",borderColor:`${s.c}33`}}>
-                  <div style={{fontSize:8,color:"#334155",marginBottom:6,letterSpacing:".15em"}}>{s.l}</div>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24,color:s.c}}>{s.v}</div>
+                  <div style={{fontSize:8,color:"#334155",marginBottom:5,letterSpacing:".12em"}}>{s.l}</div>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:s.c}}>{s.v}</div>
                 </div>
               ))}
             </div>
-            {/* Turnos pendientes de cobro */}
-            {turnos.filter(t=>!t.pagado&&t.estado==="confirmado").length>0 && (
+            {pendientes>0&&(
               <div style={{marginBottom:14}}>
-                <div style={{fontSize:10,color:"#f87171",letterSpacing:".1em",marginBottom:8}}>💰 PENDIENTES DE COBRO</div>
+                <div style={{fontSize:10,color:"#f87171",letterSpacing:".1em",marginBottom:8}}>💰 PENDIENTES</div>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  {turnos.filter(t=>!t.pagado).map(t=>(
-                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,background:"#0b1220",border:"1px solid #f8717133",borderRadius:8,padding:"10px 14px"}}>
-                      <span style={{color:"#22d3ee",fontSize:11,fontWeight:700,flexShrink:0}}>{t.hora}</span>
-                      <span style={{color:"#94a3b8",fontSize:11,flex:1}}>{t.staffNombre} → {t.cliente||t.direccion}</span>
-                      <span style={{color:"#34d399",fontWeight:700,fontSize:11}}>{formatPesos(t.totalFinal)}</span>
-                      <button onClick={()=>setModal({tipo:"detalle_turno",data:t})} style={{background:"#d97706",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Cobrar</button>
+                  {turnos.filter(t=>!t.pagado&&t.estado==="confirmado").map(t=>(
+                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,background:"#0b1220",border:"1px solid #f8717133",borderRadius:8,padding:"9px 12px",flexWrap:"wrap",gap:8}}>
+                      <span style={{color:"#22d3ee",fontSize:11,fontWeight:700}}>{t.hora}</span>
+                      <span style={{color:"#94a3b8",fontSize:11,flex:1}}>{t.staffNombre} → {t.clienteNombre||t.cliente}</span>
+                      <span style={{color:"#34d399",fontWeight:700,fontSize:11}}>{formatP(t.precio)}</span>
+                      <Btn sm color="#d97706" onClick={()=>setModal({tipo:"detalle",data:t})}>Cobrar</Btn>
                     </div>
                   ))}
                 </div>
               </div>
             )}
             {registros.length===0
-              ? <div className="card" style={{textAlign:"center",color:"#1e3a5f",padding:30}}>Sin registros todavía.</div>
+              ? <div className="card" style={{textAlign:"center",color:"#1e3a5f",padding:28}}>Sin registros todavía.</div>
               : <div className="card" style={{overflowX:"auto"}}>
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                     <thead><tr style={{borderBottom:"1px solid #1e2d40"}}>
-                      {["HORA","LAVADOR","CLIENTE","DIRECCIÓN","AUTOS","SERVICIO","TOTAL","PAGO","FZ","NOTAS"].map(h=>(
-                        <th key={h} style={{padding:"7px 8px",textAlign:"left",color:"#334155",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>
+                      {["HORA","LAVADOR","CLIENTE","DIR.","AUTOS","TAMAÑO","PRECIO","PAGO","FZ"].map(h=>(
+                        <th key={h} style={{padding:"6px 8px",textAlign:"left",color:"#334155",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>
                       ))}
                     </tr></thead>
                     <tbody>
                       {registros.map((r,i)=>(
                         <tr key={r.id||i} style={{borderBottom:"1px solid #0b1220"}}>
-                          <td style={{padding:"9px 8px",color:"#22d3ee",whiteSpace:"nowrap"}}>{r.hora}</td>
-                          <td style={{padding:"9px 8px"}}>{r.staffNombre||r.conductor}</td>
-                          <td style={{padding:"9px 8px",color:"#64748b"}}>{r.cliente||"—"}</td>
-                          <td style={{padding:"9px 8px",color:"#475569",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.direccion}</td>
-                          <td style={{padding:"9px 8px",textAlign:"center"}}>{r.autos}</td>
-                          <td style={{padding:"9px 8px",color:"#94a3b8"}}>{r.servicio}</td>
-                          <td style={{padding:"9px 8px",color:"#34d399",fontWeight:700}}>{formatPesos(r.total)}</td>
-                          <td style={{padding:"9px 8px"}}><span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:r.metodo==="mp"?"#a78bfa18":"#34d39918",border:`1px solid ${r.metodo==="mp"?"#a78bfa44":"#34d39944"}`,color:r.metodo==="mp"?"#c4b5fd":"#6ee7b7"}}>{r.metodo==="mp"?"MP":"Efect."}</span></td>
-                          <td style={{padding:"9px 8px"}}>{(r.esFZ)&&<span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:"#a78bfa18",border:"1px solid #a78bfa44",color:"#c4b5fd"}}>⬡</span>}</td>
-                          <td style={{padding:"9px 8px",color:"#334155",fontSize:10,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.notas||"—"}</td>
+                          <td style={{padding:"8px",color:"#22d3ee",whiteSpace:"nowrap"}}>{r.hora}</td>
+                          <td style={{padding:"8px"}}>{r.staffNombre}</td>
+                          <td style={{padding:"8px",color:"#64748b"}}>{r.clienteNombre||"—"}</td>
+                          <td style={{padding:"8px",color:"#475569",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.direccion}</td>
+                          <td style={{padding:"8px",textAlign:"center"}}>{r.autos}</td>
+                          <td style={{padding:"8px",color:"#94a3b8"}}>{r.tamano}</td>
+                          <td style={{padding:"8px",color:"#34d399",fontWeight:700}}>{formatP(r.precio)}</td>
+                          <td style={{padding:"8px"}}><span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:r.metodo==="mp"?"#a78bfa18":"#34d39918",border:`1px solid ${r.metodo==="mp"?"#a78bfa44":"#34d39944"}`,color:r.metodo==="mp"?"#c4b5fd":"#6ee7b7"}}>{r.metodo==="mp"?"MP":"Ef."}</span></td>
+                          <td style={{padding:"8px"}}>{r.esFZ&&<span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:"#a78bfa18",border:"1px solid #a78bfa44",color:"#c4b5fd"}}>⬡</span>}</td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot><tr style={{borderTop:"2px solid #1e3a5f"}}>
-                      <td colSpan={6} style={{padding:"10px 8px",color:"#475569",fontSize:10}}>TOTALES</td>
-                      <td style={{padding:"10px 8px",color:"#22d3ee",fontFamily:"'Bebas Neue',sans-serif",fontSize:16}}>{formatPesos(totalDia)}</td>
-                      <td colSpan={3} style={{padding:"10px 8px",color:"#475569",fontSize:10}}>MP: {formatPesos(totalMP)} · Ef: {formatPesos(totalEfect)}</td>
+                      <td colSpan={6} style={{padding:"9px 8px",color:"#475569",fontSize:10}}>TOTALES</td>
+                      <td style={{padding:"9px 8px",color:"#22d3ee",fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{formatP(totalDia)}</td>
+                      <td colSpan={2} style={{padding:"9px 8px",color:"#475569",fontSize:10}}>MP:{formatP(totalMP)} Ef:{formatP(totalEfect)}</td>
                     </tr></tfoot>
                   </table>
                 </div>
             }
           </div>
         )}
+
       </main>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODALES
+//  MODAL CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════
+function ModalConfig({tamanos,fzPct,geminiKey,onGuardar,onClose}) {
+  const [tams,  setTams]  = useState(tamanos.map(t=>({...t})));
+  const [fz,    setFz]    = useState(fzPct);
+  const [gKey,  setGKey]  = useState(geminiKey||"");
 
-function ModalDetalleTurno({ turno, staff, asistencia, horas, onCancelar, onReasignar, onPagar, onClose }) {
-  const [modo, setModo]       = useState("detalle"); // detalle | reasignar
-  const [nuevoStaff,setNS]    = useState(turno.staffId);
-  const [nuevaHora, setNH]    = useState(turno.hora);
-  const formatP = n => "$" + Number(n||0).toLocaleString("es-AR");
-  const staffLavadores = staff.filter(s=>s.rol!=="encargado"&&asistencia[s.id]?.presente);
-  return (
-    <Modal titulo={modo==="detalle"?"Detalle del turno":"Reasignar turno"} onClose={onClose}>
-      {modo==="detalle" && <>
-        <div style={{display:"flex",flexDirection:"column",gap:8,fontSize:12,marginBottom:16}}>
-          {[
-            ["Lavador",   turno.staffNombre],
-            ["Hora",      turno.hora],
-            ["Cliente",   turno.cliente||"—"],
-            ["Dirección", turno.direccion],
-            ["Autos",     turno.cantAutos],
-            ["Servicio",  turno.servicio],
-            ["Total",     formatP(turno.totalFinal)],
-            ["Pago",      turno.metodo==="mp"?"Mercado Pago":"Efectivo"],
-            ["Estado",    turno.pagado?"✓ Cobrado":"💰 Pendiente"],
-            ["Notas",     turno.notas||"—"],
-          ].map(([k,v])=>(
-            <div key={k} style={{display:"flex",justifyContent:"space-between",borderBottom:"1px solid #1e2d40",paddingBottom:6}}>
-              <span style={{color:"#475569"}}>{k}</span>
-              <span style={{color:"#e2e8f0",fontWeight:600}}>{v}</span>
-            </div>
-          ))}
-        </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {!turno.pagado && <button onClick={()=>onPagar(turno)} style={{flex:1,background:"linear-gradient(135deg,#d97706,#b45309)",color:"#fff",border:"none",borderRadius:8,padding:"9px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💰 Registrar cobro</button>}
-          <button onClick={()=>setModo("reasignar")} style={{flex:1,background:"linear-gradient(135deg,#0e7490,#1d4ed8)",color:"#fff",border:"none",borderRadius:8,padding:"9px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🔄 Reasignar</button>
-          <button onClick={()=>onCancelar(turno)} style={{flex:1,background:"#dc2626",color:"#fff",border:"none",borderRadius:8,padding:"9px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕ Cancelar turno</button>
-        </div>
-      </>}
-      {modo==="reasignar" && <>
-        <div style={{marginBottom:14,fontSize:12,color:"#64748b"}}>Cambiá el lavador y/o el horario del turno.</div>
-        <div style={{marginBottom:10}}>
-          <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5}}>NUEVO LAVADOR</div>
-          <select value={nuevoStaff} onChange={e=>setNS(e.target.value)}>
-            {staffLavadores.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </select>
-        </div>
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5}}>NUEVO HORARIO</div>
-          <select value={nuevaHora} onChange={e=>setNH(e.target.value)}>
-            {horas.map(h=><option key={h} value={h}>{h}</option>)}
-          </select>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setModo("detalle")} style={{flex:1,background:"transparent",border:"1px solid #1e3a5f",color:"#64748b",borderRadius:8,padding:"9px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>← Volver</button>
-          <button onClick={()=>onReasignar(turno,nuevoStaff,nuevaHora)} style={{flex:2,background:"linear-gradient(135deg,#0e7490,#1d4ed8)",color:"#fff",border:"none",borderRadius:8,padding:"9px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Confirmar reasignación</button>
-        </div>
-      </>}
-    </Modal>
-  );
-}
+  function updTam(id,field,val) {
+    setTams(prev=>prev.map(t=>t.id===id?{...t,[field]:field==="precio"?Number(val):val}:t));
+  }
 
-function ModalNuevoStaff({ onGuardar, onClose, colorNuevo }) {
-  const [nombre,    setNombre]    = useState("");
-  const [transporte,setTransporte]= useState("moto");
-  const [rol,       setRol]       = useState("lavador");
-  const [whatsapp,  setWhatsapp]  = useState(true);
-  const [especial,  setEspecial]  = useState("");
-  return (
-    <Modal titulo="Agregar integrante" onClose={onClose}>
-      <Input label="NOMBRE" value={nombre} onChange={setNombre} placeholder="Nombre del lavador"/>
-      <div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5}}>ROL</div>
-        <div style={{display:"flex",gap:8}}>
-          {["lavador","encargado"].map(r=>(
-            <button key={r} onClick={()=>setRol(r)} style={{flex:1,background:rol===r?"#22d3ee0a":"transparent",border:`1px solid ${rol===r?"#22d3ee":"#1e3a5f"}`,color:rol===r?"#22d3ee":"#64748b",borderRadius:8,padding:"8px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:rol===r?700:400}}>
-              {r==="lavador"?"🚗 Lavador":"👷 Encargado"}
-            </button>
-          ))}
-        </div>
-      </div>
-      {rol==="lavador" && <>
-        <div style={{marginBottom:10}}>
-          <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5}}>TRANSPORTE</div>
-          <div style={{display:"flex",gap:8}}>
-            {["moto","bici"].map(t=>(
-              <button key={t} onClick={()=>setTransporte(t)} style={{flex:1,background:transporte===t?"#22d3ee0a":"transparent",border:`1px solid ${transporte===t?"#22d3ee":"#1e3a5f"}`,color:transporte===t?"#22d3ee":"#64748b",borderRadius:8,padding:"8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-                {t==="moto"?"🏍 Moto":"🚲 Bici"}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{marginBottom:10}}>
-          <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5}}>WHATSAPP</div>
-          <div style={{display:"flex",gap:8}}>
-            {[true,false].map(v=>(
-              <button key={String(v)} onClick={()=>setWhatsapp(v)} style={{flex:1,background:whatsapp===v?"#22d3ee0a":"transparent",border:`1px solid ${whatsapp===v?"#22d3ee":"#1e3a5f"}`,color:whatsapp===v?"#22d3ee":"#64748b",borderRadius:8,padding:"8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-                {v?"✓ Tiene WA":"✗ Sin WA"}
-              </button>
-            ))}
-          </div>
-        </div>
-        {!whatsapp && (
-          <div style={{marginBottom:10}}>
-            <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5}}>CÓMO AVISAR</div>
-            <div style={{display:"flex",gap:8}}>
-              {[["avisar_presencia","👁 En persona"],["llamar_telefono","📞 Por teléfono"]].map(([v,l])=>(
-                <button key={v} onClick={()=>setEspecial(v)} style={{flex:1,background:especial===v?"#22d3ee0a":"transparent",border:`1px solid ${especial===v?"#22d3ee":"#1e3a5f"}`,color:especial===v?"#22d3ee":"#64748b",borderRadius:8,padding:"8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </>}
-      <div style={{display:"flex",gap:8,marginTop:4}}>
-        <button onClick={onClose} style={{flex:1,background:"transparent",border:"1px solid #1e3a5f",color:"#64748b",borderRadius:8,padding:"9px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancelar</button>
-        <button onClick={()=>{if(!nombre.trim()) return; onGuardar({nombre:nombre.trim(),transporte,rol,whatsapp,especial,color:colorNuevo});}} style={{flex:2,background:"linear-gradient(135deg,#0e7490,#1d4ed8)",color:"#fff",border:"none",borderRadius:8,padding:"9px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-          Agregar integrante
-        </button>
-      </div>
-    </Modal>
-  );
-}
+  return <Modal titulo="⚙ Configuración" onClose={onClose} wide>
+    <div style={{fontSize:11,color:"#475569",marginBottom:14}}>Editá precios base, recargo FZ y la API Key de Gemini.</div>
 
-function ModalEditarStaff({ miembro, onGuardar, onBorrar, onClose }) {
-  const [nombre,    setNombre]    = useState(miembro.nombre);
-  const [transporte,setTransporte]= useState(miembro.transporte);
-  const [rol,       setRol]       = useState(miembro.rol||"lavador");
-  const [whatsapp,  setWhatsapp]  = useState(miembro.whatsapp!==false);
-  const [especial,  setEspecial]  = useState(miembro.especial||"");
-  const [confirm,   setConfirm]   = useState(false);
-  return (
-    <Modal titulo={`Editar: ${miembro.nombre}`} onClose={onClose}>
-      <Input label="NOMBRE" value={nombre} onChange={setNombre}/>
-      <div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5}}>ROL</div>
-        <div style={{display:"flex",gap:8}}>
-          {["lavador","encargado"].map(r=>(
-            <button key={r} onClick={()=>setRol(r)} style={{flex:1,background:rol===r?"#22d3ee0a":"transparent",border:`1px solid ${rol===r?"#22d3ee":"#1e3a5f"}`,color:rol===r?"#22d3ee":"#64748b",borderRadius:8,padding:"8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-              {r==="lavador"?"🚗 Lavador":"👷 Encargado"}
-            </button>
-          ))}
-        </div>
+    <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:8,fontWeight:700}}>PRECIOS POR TAMAÑO DE AUTO</div>
+    {tams.map(t=>(
+      <div key={t.id} style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:8,marginBottom:8,alignItems:"center"}}>
+        <input value={t.label} onChange={e=>updTam(t.id,"label",e.target.value)} placeholder="Nombre"/>
+        <input type="number" value={t.precio} onChange={e=>updTam(t.id,"precio",e.target.value)} placeholder="Precio base"/>
       </div>
-      {rol==="lavador" && <>
-        <div style={{marginBottom:10}}>
-          <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5}}>TRANSPORTE HABITUAL</div>
-          <div style={{display:"flex",gap:8}}>
-            {["moto","bici"].map(t=>(
-              <button key={t} onClick={()=>setTransporte(t)} style={{flex:1,background:transporte===t?"#22d3ee0a":"transparent",border:`1px solid ${transporte===t?"#22d3ee":"#1e3a5f"}`,color:transporte===t?"#22d3ee":"#64748b",borderRadius:8,padding:"8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-                {t==="moto"?"🏍 Moto":"🚲 Bici"}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{marginBottom:10}}>
-          <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5}}>WHATSAPP</div>
-          <div style={{display:"flex",gap:8}}>
-            {[true,false].map(v=>(
-              <button key={String(v)} onClick={()=>setWhatsapp(v)} style={{flex:1,background:whatsapp===v?"#22d3ee0a":"transparent",border:`1px solid ${whatsapp===v?"#22d3ee":"#1e3a5f"}`,color:whatsapp===v?"#22d3ee":"#64748b",borderRadius:8,padding:"8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-                {v?"✓ Tiene WA":"✗ Sin WA"}
-              </button>
-            ))}
-          </div>
-        </div>
-        {!whatsapp && (
-          <div style={{marginBottom:10}}>
-            <div style={{fontSize:10,color:"#334155",letterSpacing:".15em",marginBottom:5}}>CÓMO AVISAR</div>
-            <div style={{display:"flex",gap:8}}>
-              {[["avisar_presencia","👁 En persona"],["llamar_telefono","📞 Por teléfono"]].map(([v,l])=>(
-                <button key={v} onClick={()=>setEspecial(v)} style={{flex:1,background:especial===v?"#22d3ee0a":"transparent",border:`1px solid ${especial===v?"#22d3ee":"#1e3a5f"}`,color:especial===v?"#22d3ee":"#64748b",borderRadius:8,padding:"8px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </>}
-      <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
-        {!confirm
-          ? <button onClick={()=>setConfirm(true)} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:8,padding:"9px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Eliminar</button>
-          : <button onClick={()=>onBorrar(miembro.id)} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:8,padding:"9px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>¿Confirmar eliminación?</button>
-        }
-        <button onClick={onClose} style={{flex:1,background:"transparent",border:"1px solid #1e3a5f",color:"#64748b",borderRadius:8,padding:"9px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancelar</button>
-        <button onClick={()=>onGuardar(miembro.id,{nombre,transporte,rol,whatsapp,especial})} style={{flex:2,background:"linear-gradient(135deg,#0e7490,#1d4ed8)",color:"#fff",border:"none",borderRadius:8,padding:"9px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-          Guardar cambios
-        </button>
-      </div>
-    </Modal>
-  );
+    ))}
+    <div style={{marginBottom:14,marginTop:4}}>
+      <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>RECARGO FZ (%)</div>
+      <input type="number" value={fz} onChange={e=>setFz(Number(e.target.value))} style={{maxWidth:100}}/>
+    </div>
+
+    <div style={{height:1,background:"linear-gradient(90deg,transparent,#1e3a5f,transparent)",margin:"12px 0"}}/>
+
+    <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>GEMINI API KEY (IA gratis)</div>
+    <input value={gKey} onChange={e=>setGKey(e.target.value)} placeholder="AIzaSy..." type="password" style={{marginBottom:6}}/>
+    <div style={{fontSize:10,color:"#475569",marginBottom:14}}>
+      Obtené la key gratis en <span style={{color:"#22d3ee"}}>aistudio.google.com</span> → Get API Key. El plan gratuito tiene límite generoso para este uso.
+    </div>
+
+    <div style={{display:"flex",gap:8}}>
+      <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
+      <Btn full color="#0e7490" onClick={()=>onGuardar(tams,fz,gKey)} style={{flex:2}}>Guardar configuración</Btn>
+    </div>
+  </Modal>;
 }
