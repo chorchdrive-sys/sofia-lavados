@@ -95,13 +95,32 @@ function distKm(lat1,lng1,lat2,lng2) {
 // Convertir km a cuadras (~100m por cuadra)
 const kmToCuadras = km => km * 10;
 
-// Simular coordenadas desde dirección (en producción: geocoding API)
-// Usamos hash determinístico relativo a la base de Olivos
-function coordsSimuladas(dir) {
+// Cache de geocoding para no repetir llamadas
+const _geocache = {};
+async function geocodificar(dir) {
+  if(!dir) return { lat:BASE_LAT, lng:BASE_LNG };
+  if(_geocache[dir]) return _geocache[dir];
+  try {
+    const q = encodeURIComponent(`${dir}, Buenos Aires, Argentina`);
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,{
+      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/4.1"}
+    });
+    const data = await res.json();
+    if(data.length>0) {
+      const coords = { lat:parseFloat(data[0].lat), lng:parseFloat(data[0].lon) };
+      _geocache[dir] = coords;
+      return coords;
+    }
+  } catch {}
+  // Fallback simulación
   const h = (dir||"").split("").reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0),0);
-  const lat = BASE_LAT + (((h & 0xFF) - 127) / 10000);
-  const lng = BASE_LNG + ((((h >> 8) & 0xFF) - 127) / 8000);
-  return { lat, lng };
+  return { lat:BASE_LAT+(((h&0xFF)-127)/10000), lng:BASE_LNG+((((h>>8)&0xFF)-127)/8000) };
+}
+// Versión síncrona fallback (para CeldaTurno que no es async)
+function coordsSimuladas(dir) {
+  if(_geocache[dir]) return _geocache[dir];
+  const h = (dir||"").split("").reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0),0);
+  return { lat:BASE_LAT+(((h&0xFF)-127)/10000), lng:BASE_LNG+((((h>>8)&0xFF)-127)/8000) };
 }
 
 // Slots bloqueados por cantidad de autos
@@ -347,10 +366,15 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
   const [autos,    setAutos]    = useState(cliente?.autosHabituales||1);
   const [nota,     setNota]     = useState(cliente?.nota||"");
   const [confirm,  setConfirm]  = useState(false);
+  const telValido = /^[0-9]{8,12}$/.test(tel.replace(/\s/g,""));
 
   return <Modal titulo={esNuevo?"Nuevo cliente":"Editar cliente"} onClose={onClose}>
     <Inp label="NOMBRE *" value={nombre} onChange={setNombre} placeholder="Nombre o empresa"/>
-    <Inp label="TELÉFONO *" value={tel} onChange={setTel} placeholder="Ej: 1155551234" type="tel"/>
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>TELÉFONO * <span style={{color:tel&&!telValido?"#f87171":"#334155"}}>{tel&&!telValido?"✗ solo números, 8-12 dígitos":""}</span></div>
+      <input type="tel" value={tel} onChange={e=>setTel(e.target.value.replace(/[^0-9]/g,""))} placeholder="Ej: 1155551234"
+        style={{background:"#0b1220",border:`1px solid ${tel&&!telValido?"#f87171":"#1e3a5f"}`,borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none"}}/>
+    </div>
     <Inp label="DIRECCIÓN" value={dir} onChange={setDir} placeholder="Dirección habitual"/>
     <Inp label="AUTOS HABITUALES" value={autos} onChange={v=>setAutos(Number(v))} type="number"/>
     <div style={{marginBottom:10}}>
@@ -362,7 +386,7 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
       {!esNuevo&&!confirm&&<Btn danger sm onClick={()=>setConfirm(true)}>Eliminar</Btn>}
       {!esNuevo&&confirm&&<Btn danger sm onClick={()=>onBorrar(cliente.id)}>¿Confirmar?</Btn>}
       <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
-      <Btn full color="#0e7490" onClick={()=>{if(!nombre.trim()||!tel.trim())return;onGuardar({nombre,telefono:tel,direccion:dir,autosHabituales:autos,nota});}} style={{flex:2}}>
+      <Btn full color="#0e7490" disabled={!nombre.trim()||!telValido} onClick={()=>onGuardar({nombre,telefono:tel,direccion:dir,autosHabituales:autos,nota})} style={{flex:2}}>
         {esNuevo?"Agregar cliente":"Guardar"}
       </Btn>
     </div>
@@ -400,7 +424,7 @@ function CeldaTurno({s,hora,turnos,asistencia,dir,listaVacia,sel,onSel,onDetalle
   const turno = turnos.find(t=>t.staffId===s.id&&t.horasOcupadas?.includes(hora));
   const esPpal = turno?.hora===hora;
   const trans  = asistencia[s.id]?.transporte||s.transporte;
-  const radio  = trans==="moto"?25:15;
+  const radio  = trans==="moto"?25:trans==="pie"?7:15;
 
   let geo = "libre";
   if(!turno&&dir) {
@@ -482,6 +506,7 @@ export default function SofiaV4() {
   const [sugs,        setSugs]         = useState([]);
   const [clienteSel,  setClienteSel]   = useState(null); // objeto cliente
   const [direccion,   setDireccion]    = useState("");
+  const [geocodOk,    setGeocodOk]     = useState(false);
   const [cantAutos,   setCantAutos]    = useState(1);
   const [tamano,      setTamano]       = useState("mediano");
   const [precio,      setPrecio]       = useState("");
@@ -504,8 +529,10 @@ export default function SofiaV4() {
   const [iaPanel, setIaPanel] = useState(false);
   const [geminiKey,setGKey]   = useState("");
 
-  // ── Reporte semanal
-  const [semana,  setSemana]  = useState(null);
+  // ── Módulo contable multifecha
+  const [rangoC,     setRangoC]    = useState("hoy");   // hoy | semana | mes
+  const [regMulti,   setRegMulti]  = useState([]);
+  const [loadMulti,  setLoadMulti] = useState(false);
 
   const showToast = (msg,tipo="ok") => setToast({msg,tipo});
   const diaHoy = hoy();
@@ -557,10 +584,52 @@ export default function SofiaV4() {
     setFbLoad(false);
   }
 
+  // Generar fechas de rango
+  function fechasRango(rango) {
+    const dias = [];
+    const hoyDate = new Date();
+    if(rango==="hoy") {
+      dias.push(hoy());
+    } else if(rango==="semana") {
+      for(let i=6;i>=0;i--) {
+        const d=new Date(hoyDate); d.setDate(d.getDate()-i);
+        dias.push(d.toISOString().split("T")[0]);
+      }
+    } else if(rango==="mes") {
+      for(let i=29;i>=0;i--) {
+        const d=new Date(hoyDate); d.setDate(d.getDate()-i);
+        dias.push(d.toISOString().split("T")[0]);
+      }
+    }
+    return dias;
+  }
+
+  async function cargarMultiFecha(rango) {
+    setLoadMulti(true);
+    try {
+      const fechas = fechasRango(rango);
+      const todos = [];
+      for(const f of fechas) {
+        const r = await fsList(`cierre_${f}`);
+        todos.push(...r.map(x=>({...x,fecha:f})));
+      }
+      setRegMulti(todos);
+      if(rango==="hoy") setRegistros(todos.filter(r=>r.fecha===hoy()));
+    } catch {}
+    setLoadMulti(false);
+  }
+
   async function recargar() {
     const t = await fsList(`turnos_${diaHoy}`); setTurnos(t);
     const r = await fsList(`cierre_${diaHoy}`); setRegistros(r);
   }
+
+  // Geocodificar al cambiar dirección (debounce 800ms)
+  useEffect(()=>{
+    if(!direccion||direccion.length<6) return;
+    const t = setTimeout(()=>{ geocodificar(direccion).then(c=>setGeocodOk(!!c)); }, 800);
+    return ()=>clearTimeout(t);
+  },[direccion]);
 
   // Listener tiempo real
   useEffect(()=>{
@@ -603,7 +672,7 @@ export default function SofiaV4() {
     if(!staffSelId||!horaSelec) return;
     setGuardando(true);
     const slotsUsados = slotsOcupados(horaSelec, servicioEsp?.slotsPersonalizados||cantAutos);
-    const destCoords  = coordsSimuladas(direccion);
+    const destCoords  = await geocodificar(direccion);
     const turnoData   = {
       staffId:staffSelId, staffNombre:staffSelObj?.nombre,
       staffTransporte: asistencia[staffSelId]?.transporte||staffSelObj?.transporte,
@@ -732,6 +801,7 @@ export default function SofiaV4() {
     /* GRILLA SCROLL HORIZONTAL */
     .grilla-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
     .grilla-inner{min-width:600px}
+    @keyframes pulse_y{0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,.4)}50%{box-shadow:0 0 0 8px rgba(251,191,36,0)}}
     /* MOBILE FIRST */
     @media(max-width:768px){
       .layout-turno{grid-template-columns:1fr!important}
@@ -749,7 +819,7 @@ export default function SofiaV4() {
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={()=>setToast(null)}/>}
 
       {/* MODALES */}
-      {modal?.tipo==="wa"       && <ModalWA      turno={modal.data} staff={staff} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="wa"       && <ModalWA      turno={modal.data} staff={staff} onClose={()=>{setModal(null);resetForm();}}/>}
       {modal?.tipo==="detalle"  && <ModalDetalle turno={modal.data} staff={staff} asistencia={asistencia} onCancelar={cancelarTurno} onReasignar={reasignarTurno} onPagar={registrarPago} onWA={t=>setModal({tipo:"wa",data:t})} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="nstaff"   && <ModalStaff   esNuevo staff={staff} onGuardar={async m=>{const id=await fsAdd("staff",m);setStaff(p=>[...p,{id,...m}]);showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="estaff"   && <ModalStaff   miembro={modal.data} staff={staff} onGuardar={async(m)=>{await fsUpdate("staff",modal.data.id,m);setStaff(p=>p.map(s=>s.id===modal.data.id?{...s,...m}:s));showToast("Guardado ✓");setModal(null);}} onBorrar={async id=>{await fsDel("staff",id);setStaff(p=>p.filter(s=>s.id!==id));showToast("Eliminado","warn");setModal(null);}} onClose={()=>setModal(null)}/>}
@@ -779,8 +849,6 @@ export default function SofiaV4() {
             {id:"config",  l:"Config",      ico:"⚙"},
           ].map(v=>(
             <button key={v.id} className={`nt ${vista===v.id?"on":""}`} onClick={()=>v.id==="config"?setModal({tipo:"config"}):setVista(v.id)}>
-              <span className="nav-labels">{v.l}</span>
-              <span className="nav-icons" style={{display:"none"}}>{v.ico}</span>
               {v.l}
             </button>
           ))}
@@ -873,6 +941,14 @@ export default function SofiaV4() {
                 </Btn>
               </div>
 
+              {/* ALERTA CLIENTE ESPECIAL */}
+              {paso>=3&&staffSelId&&horaSelec&&notas&&["detallista","complicado","insoportable","ojo","no usar revividor","cuidado","problematico"].some(k=>notas.toLowerCase().includes(k))&&(
+                <div style={{padding:"12px 16px",background:"#fbbf2418",border:"2px solid #fbbf24",borderRadius:10,color:"#fbbf24",fontWeight:800,fontSize:13,animation:"pulse_y 1s infinite",textAlign:"center"}}>
+                  ⚠️ ATENCIÓN: Cliente con requerimientos especiales.<br/>
+                  <span style={{fontSize:11,fontWeight:400,color:"#fde68a"}}>Informar al lavador antes de confirmar.</span>
+                </div>
+              )}
+
               {/* PASO 3: Confirmar */}
               {paso>=3&&staffSelId&&horaSelec&&(
                 <div className="card fade" style={{borderColor:"#34d39933"}}>
@@ -944,7 +1020,7 @@ export default function SofiaV4() {
                           {staffFiltrado.map(s=>(
                             <div key={s.id} style={{fontSize:11,textAlign:"center",padding:"5px 3px",color:s.color,borderBottom:`2px solid ${s.color}44`,lineHeight:1.5}}>
                               <div style={{fontWeight:700}}>{s.nombre}</div>
-                              <div style={{fontSize:14}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":"🚲"}</div>
+                              <div style={{fontSize:20}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":(asistencia[s.id]?.transporte||s.transporte)==="pie"?"🚶":"🚲"}</div>
                               {s.especial==="rapido"&&<div style={{fontSize:9}}>⚡</div>}
                             </div>
                           ))}
@@ -1006,7 +1082,7 @@ export default function SofiaV4() {
                     {staffActivo.filter(s=>s.rol!=="encargado").map(s=>(
                       <div key={s.id} style={{fontSize:11,textAlign:"center",padding:"5px 3px",color:s.color,borderBottom:`2px solid ${s.color}33`,lineHeight:1.5}}>
                         <div style={{fontWeight:700}}>{s.nombre}</div>
-                        <div style={{fontSize:14}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":"🚲"}</div>
+                        <div style={{fontSize:20}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":(asistencia[s.id]?.transporte||s.transporte)==="pie"?"🚶":"🚲"}</div>
                       </div>
                     ))}
                     {FRANJAS.map(hora=>(
@@ -1052,14 +1128,14 @@ export default function SofiaV4() {
                   </div>
                   <div style={{flex:1}}>
                     <div style={{fontWeight:700,color:s.color,fontSize:13,marginBottom:4}}>{s.nombre}</div>
-                    <div style={{display:"flex",gap:5}}>
-                      {["moto","bici"].map(t=>(
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                      {["moto","bici","pie"].map(t=>(
                         <button key={t} onClick={async()=>{
                           const upd={...(asistencia[s.id]||{}),transporte:t};
                           setAsist(p=>({...p,[s.id]:upd}));
                           await fsSave("asistencia",diaHoy,{[s.id]:upd});
                         }} className={`chip ${trans===t?"on":""}`} style={{padding:"3px 8px",fontSize:9}}>
-                          {t==="moto"?"🏍":"🚲"}
+                          {t==="moto"?"🏍 Moto":t==="bici"?"🚲 Bici":"🚶 Pie"}
                         </button>
                       ))}
                     </div>
@@ -1134,7 +1210,7 @@ export default function SofiaV4() {
               {staff.map(s=>(
                 <div key={s.id} className="card" style={{borderColor:`${s.color}33`,cursor:"pointer"}} onClick={()=>setModal({tipo:"estaff",data:s})}>
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                    <div style={{width:38,height:38,borderRadius:"50%",background:`${s.color}22`,border:`2px solid ${s.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>
+                    <div style={{width:44,height:44,borderRadius:"50%",background:`${s.color}22`,border:`2px solid ${s.color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>
                       {s.rol==="encargado"?"👷":s.transporte==="moto"?"🏍":"🚲"}
                     </div>
                     <div style={{flex:1}}>
@@ -1157,21 +1233,71 @@ export default function SofiaV4() {
         {/* ══ CIERRE ══ */}
         {vista==="cierre"&&(
           <div className="fade">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
               <div style={{fontSize:10,color:"#334155",letterSpacing:".15em"}}>CIERRE — {diaHoy}</div>
-              <div style={{display:"flex",gap:7}}>
-                <Btn sm ghost onClick={recargar}>⟳</Btn>
-                <Btn sm ghost onClick={backup}>⬇ Backup</Btn>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {["hoy","semana","mes"].map(r=>(
+                  <button key={r} className={`chip ${rangoC===r?"on":""}`} onClick={()=>{setRangoC(r);cargarMultiFecha(r);}}>
+                    {r==="hoy"?"📅 Hoy":r==="semana"?"📆 Semana":"🗓 Mes"}
+                  </button>
+                ))}
+                <Btn sm ghost onClick={()=>cargarMultiFecha(rangoC)}>{loadMulti?"⟳":"⟳"}</Btn>
+                <Btn sm ghost onClick={backup}>⬇</Btn>
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
-              {[{l:"TOTAL DÍA",v:formatP(totalDia),c:"#22d3ee"},{l:"MERC. PAGO",v:formatP(totalMP),c:"#a78bfa"},{l:"EFECTIVO",v:formatP(totalEfect),c:"#34d399"},{l:"SIN COBRAR",v:pendientes,c:"#f87171"}].map(s=>(
-                <div key={s.l} className="card" style={{textAlign:"center",borderColor:`${s.c}33`}}>
-                  <div style={{fontSize:8,color:"#334155",marginBottom:5,letterSpacing:".12em"}}>{s.l}</div>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:s.c}}>{s.v}</div>
+            {/* Totales del rango */}
+            {(()=>{
+              const regs = rangoC==="hoy" ? registros : regMulti;
+              const tTotal = regs.reduce((s,r)=>s+Number(r.precio||0),0);
+              const tMP    = regs.filter(r=>r.metodo==="mp").reduce((s,r)=>s+Number(r.precio||0),0);
+              const tEf    = regs.filter(r=>r.metodo==="efectivo").reduce((s,r)=>s+Number(r.precio||0),0);
+              return <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
+                {[{l:`TOTAL ${rangoC.toUpperCase()}`,v:formatP(tTotal),c:"#22d3ee"},{l:"MERC. PAGO",v:formatP(tMP),c:"#a78bfa"},{l:"EFECTIVO",v:formatP(tEf),c:"#34d399"},{l:"SIN COBRAR",v:pendientes,c:"#f87171"}].map(s=>(
+                  <div key={s.l} className="card" style={{textAlign:"center",borderColor:`${s.c}33`}}>
+                    <div style={{fontSize:8,color:"#334155",marginBottom:5,letterSpacing:".12em"}}>{s.l}</div>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:s.c}}>{s.v}</div>
+                  </div>
+                ))}
+              </div>;
+            })()}
+            {/* LIQUIDACIÓN SEMANAL POR LAVADOR */}
+            {rangoC!=="hoy"&&regMulti.length>0&&(()=>{
+              const porLavador = {};
+              regMulti.forEach(r=>{
+                const n=r.staffNombre||"?";
+                if(!porLavador[n]) porLavador[n]={nombre:n,total:0,efectivo:0,mp:0,turnos:0};
+                porLavador[n].total    += Number(r.precio||0);
+                porLavador[n].efectivo += r.metodo==="efectivo"?Number(r.precio||0):0;
+                porLavador[n].mp       += r.metodo==="mp"?Number(r.precio||0):0;
+                porLavador[n].turnos   += 1;
+              });
+              const lavs = Object.values(porLavador).sort((a,b)=>b.total-a.total);
+              return <div style={{marginBottom:14}}>
+                <div style={{fontSize:10,color:"#a78bfa",letterSpacing:".1em",marginBottom:8,fontWeight:700}}>
+                  💼 LIQUIDACIÓN POR LAVADOR — {rangoC==="semana"?"SEMANA":"MES"}
                 </div>
-              ))}
-            </div>
+                <div className="card" style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                    <thead><tr style={{borderBottom:"1px solid #1e2d40"}}>
+                      {["LAVADOR","TURNOS","COMISIONES TOTALES","EFECTIVO EN MANO","SALDO A TRANSFERIR"].map(h=>(
+                        <th key={h} style={{padding:"7px 9px",textAlign:"left",color:"#334155",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {lavs.map(l=>(
+                        <tr key={l.nombre} style={{borderBottom:"1px solid #0b1220"}}>
+                          <td style={{padding:"9px",fontWeight:700}}>{l.nombre}</td>
+                          <td style={{padding:"9px",textAlign:"center",color:"#94a3b8"}}>{l.turnos}</td>
+                          <td style={{padding:"9px",color:"#22d3ee",fontWeight:700}}>{formatP(l.total)}</td>
+                          <td style={{padding:"9px",color:"#34d399"}}>{formatP(l.efectivo)}</td>
+                          <td style={{padding:"9px",color:"#a78bfa",fontWeight:700}}>{formatP(l.total-l.efectivo)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>;
+            })()}
             {pendientes>0&&(
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:10,color:"#f87171",letterSpacing:".1em",marginBottom:8}}>💰 PENDIENTES</div>
@@ -1187,8 +1313,8 @@ export default function SofiaV4() {
                 </div>
               </div>
             )}
-            {registros.length===0
-              ? <div className="card" style={{textAlign:"center",color:"#1e3a5f",padding:28}}>Sin registros todavía.</div>
+            {(()=>{const regs=rangoC==="hoy"?registros:regMulti; return regs.length===0
+              ? <div className="card" style={{textAlign:"center",color:"#1e3a5f",padding:28}}>{loadMulti?"Cargando…":"Sin registros para este período."}</div>
               : <div className="card" style={{overflowX:"auto"}}>
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                     <thead><tr style={{borderBottom:"1px solid #1e2d40"}}>
