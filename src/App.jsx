@@ -664,7 +664,15 @@ export default function SofiaV4() {
     .icono-asist-xl { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; }
     .icono-header-xl { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
   `;
-
+  // Activar zoom y escalado táctil en móviles
+  const [viewportSet, setViewportSet] = useState(false);
+  if (!viewportSet) {
+    const meta = document.createElement('meta');
+    meta.name = 'viewport';
+    meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes';
+    document.head.appendChild(meta);
+    setViewportSet(true);
+  }
   return (
     <div className="ff" style={{background:"#080c18",minHeight:"100vh",color:"#e2e8f0"}}>
       <style>{css}</style>
