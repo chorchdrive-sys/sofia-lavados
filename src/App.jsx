@@ -66,12 +66,49 @@ const STAFF_SEED = [
   {nombre:"Gastón",    transporte:"bici",color:"#fb923c",whatsapp:false,rol:"lavador",especial:"llamar_telefono"},
 ];
 
+// ═══════════════════════════════════════════════════════════════
+//  CLIENTES SEED (con frecuencia del Excel de Marzo 2026)
+// ═══════════════════════════════════════════════════════════════
+// 💤 Ocasional (1 vez al mes) · ⭐ Frecuente (2-8 veces al mes) · 🔥 Top (9+ veces al mes)
 const CLIENTES_SEED = [
-  {nombre:"Victoria", telefono:"1100000001", direccion:"Dardo Rocha 3278",           autosHabituales:3, nota:""},
-  {nombre:"Martin",   telefono:"1100000002", direccion:"Colectora Panamericana 2065", autosHabituales:3, nota:""},
-  {nombre:"Micaela",  telefono:"1100000003", direccion:"Eduardo Costa 902",           autosHabituales:1, nota:""},
-  {nombre:"Hyundai",  telefono:"1100000004", direccion:"Av. Santa Fe 2627",           autosHabituales:4, nota:"Confirmar cantidad (3-5 autos)"},
-  {nombre:"Mariana",  telefono:"1100000005", direccion:"Diagonal Salta 557",          autosHabituales:1, nota:""},
+  // ⭐ Frecuente (2-8 veces al mes)
+  {nombre:"Victoria", telefono:"1100000001", direccion:"Dardo Rocha 3278",           autosHabituales:3, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Martin",   telefono:"1100000002", direccion:"Colectora Panamericana 2065", autosHabituales:3, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Micaela",  telefono:"1100000003", direccion:"Eduardo Costa 902",           autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Hyundai",  telefono:"1100000004", direccion:"Av. Santa Fe 2627",           autosHabituales:4, nota:"Confirmar cantidad (3-5 autos)", tipo:"🔥 Top"},
+  {nombre:"Mariana",  telefono:"1100000005", direccion:"Diagonal Salta 557",          autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Caro",     telefono:"1100000006", direccion:"Las Heras 1533, Martínez",    autosHabituales:3, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Salva",    telefono:"1100000007", direccion:"Hipólito Yrigoyen 2647, Martínez", autosHabituales:1, nota:"Silicina en llantas y paragolpes", tipo:"⭐ Frecuente"},
+  {nombre:"Johana",   telefono:"1100000008", direccion:"Blas Parera 429, Boulogne",   autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Karina",   telefono:"1100000009", direccion:"Cangallo 846",                autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Andres",   telefono:"1100000010", direccion:"Paraná 374",                  autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Barby",    telefono:"1100000011", direccion:"Fray Justo Sarmiento 3304",   autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Tomás",    telefono:"1100000012", direccion:"Córdoba 596, Martínez",       autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"HernanC",  telefono:"1100000013", direccion:"Beruti 1583, Martínez",       autosHabituales:2, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Agustín",  telefono:"1100000014", direccion:"Colectora Panamericana 2065", autosHabituales:1, nota:"Llamar antes", tipo:"⭐ Frecuente"},
+  {nombre:"Candelaria",telefono:"1100000015", direccion:"Ladislao Martínez 440",      autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  // 💤 Ocasional (1 vez al mes)
+  {nombre:"Vero",     telefono:"1100000016", direccion:"Entre Ríos 2397, Martínez",   autosHabituales:1, nota:"Confirmar", tipo:"💤 Ocasional"},
+  {nombre:"Avri",     telefono:"1100000017", direccion:"Entre Ríos 2983, Martínez",   autosHabituales:1, nota:"", tipo:"💤 Ocasional"},
+  {nombre:"Ale",      telefono:"1100000018", direccion:"Sáenz Valiente 2163",         autosHabituales:1, nota:"", tipo:"💤 Ocasional"},
+  {nombre:"GabyC",    telefono:"1100000019", direccion:"Catamarca 1304",              autosHabituales:2, nota:"", tipo:"💤 Ocasional"},
+  {nombre:"Pablo",    telefono:"1100000020", direccion:"Ezpeleta 531, Martínez",      autosHabituales:2, nota:"", tipo:"💤 Ocasional"},
+];
+
+// ═══════════════════════════════════════════════════════════════
+//  NOTAS OPERATIVAS PREDEFINIDAS
+// ═══════════════════════════════════════════════════════════════
+const NOTAS_PREDEFINIDAS = [
+  "Cliente detallista",
+  "Insectos de ruta",
+  "Barro extremo",
+  "Decir precio antes de empezar",
+  "Avisar cuando va",
+  "Llamar antes de entrar",
+  "No usar revividor",
+  "Llevar doble alargue",
+  "Auto muy sucio",
+  "Cliente nuevo",
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -97,7 +134,7 @@ async function geocodificar(dir) {
   try {
     const q = encodeURIComponent(`${dir}, Buenos Aires, Argentina`);
     const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,{
-      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/4.1"}
+      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/4.2"}
     });
     const data = await res.json();
     if(data.length>0) {
@@ -167,7 +204,7 @@ function Btn({children,onClick,color="#0e7490",ghost,danger,disabled,full,sm,sty
 
 function Inp({label,value,onChange,placeholder,type="text",style={}}) {
   return <div style={{marginBottom:10}}>
-    {label&&<div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>{label}</div>}
+    {label&&<div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>{label}</div>}
     <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
       style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none",...style}}/>
   </div>;
@@ -175,7 +212,7 @@ function Inp({label,value,onChange,placeholder,type="text",style={}}) {
 
 function Sel({label,value,onChange,children,style={}}) {
   return <div style={{marginBottom:10}}>
-    {label&&<div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>{label}</div>}
+    {label&&<div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>{label}</div>}
     <select value={value} onChange={e=>onChange(e.target.value)}
       style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none",...style}}>
       {children}
@@ -255,7 +292,7 @@ function ModalDetalle({turno,staff,asistencia,onCancelar,onReasignar,onPagar,onW
           ["Notas",      turno.notas||"—"],
         ].map(([k,v])=>(
           <div key={k} style={{display:"flex",justifyContent:"space-between",borderBottom:"1px solid #1e2d40",paddingBottom:5}}>
-            <span style={{color:"#475569"}}>{k}</span>
+            <span style={{color:"#94a3b8"}}>{k}</span>
             <span style={{color:"#e2e8f0",fontWeight:600,textAlign:"right",maxWidth:"60%"}}>{v}</span>
           </div>
         ))}
@@ -269,7 +306,7 @@ function ModalDetalle({turno,staff,asistencia,onCancelar,onReasignar,onPagar,onW
       </div>
     </>}
     {modo==="reasignar" && <>
-      <div style={{fontSize:12,color:"#64748b",marginBottom:12}}>Cambiá el lavador y/o el horario.</div>
+      <div style={{fontSize:12,color:"#94a3b8",marginBottom:12}}>Cambiá el lavador y/o el horario.</div>
       <Sel label="NUEVO LAVADOR" value={nStaff} onChange={setNS}>
         {staffActivos.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
       </Sel>
@@ -298,7 +335,7 @@ function ModalStaff({miembro,staff,esNuevo,onGuardar,onBorrar,onClose}) {
   return <Modal titulo={esNuevo?"Agregar integrante":`Editar: ${miembro?.nombre}`} onClose={onClose}>
     <Inp label="NOMBRE" value={nombre} onChange={setNombre}/>
     <div style={{marginBottom:10}}>
-      <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>ROL</div>
+      <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>ROL</div>
       <div style={{display:"flex",gap:8}}>
         {["lavador","encargado"].map(r=>(
           <Btn key={r} full ghost={rol!==r} color="#0e7490" onClick={()=>setRol(r)} style={{flex:1}}>
@@ -309,7 +346,7 @@ function ModalStaff({miembro,staff,esNuevo,onGuardar,onBorrar,onClose}) {
     </div>
     {rol==="lavador"&&<>
       <div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>TRANSPORTE HABITUAL</div>
+        <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>TRANSPORTE HABITUAL</div>
         <div style={{display:"flex",gap:8}}>
           {["moto","bici"].map(t=>(
             <Btn key={t} full ghost={transporte!==t} color="#0e7490" onClick={()=>setTrans(t)} style={{flex:1}}>
@@ -319,7 +356,7 @@ function ModalStaff({miembro,staff,esNuevo,onGuardar,onBorrar,onClose}) {
         </div>
       </div>
       <div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>WHATSAPP</div>
+        <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>WHATSAPP</div>
         <div style={{display:"flex",gap:8}}>
           {[[true,"✓ Tiene WA"],[false,"✗ Sin WA"]].map(([v,l])=>(
             <Btn key={String(v)} full ghost={wa!==v} color="#0e7490" onClick={()=>setWa(v)} style={{flex:1}}>{l}</Btn>
@@ -327,7 +364,7 @@ function ModalStaff({miembro,staff,esNuevo,onGuardar,onBorrar,onClose}) {
         </div>
       </div>
       {!wa&&<div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>CÓMO AVISAR</div>
+        <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>CÓMO AVISAR</div>
         <div style={{display:"flex",gap:8}}>
           {[["avisar_presencia","👁 En persona"],["llamar_telefono","📞 Por teléfono"]].map(([v,l])=>(
             <Btn key={v} full ghost={especial!==v} color="#0e7490" onClick={()=>setEspecial(v)} style={{flex:1}}>{l}</Btn>
@@ -355,20 +392,26 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
   const [dir,      setDir]      = useState(cliente?.direccion||"");
   const [autos,    setAutos]    = useState(cliente?.autosHabituales||1);
   const [nota,     setNota]     = useState(cliente?.nota||"");
+  const [tipo,     setTipo]     = useState(cliente?.tipo||"💤 Ocasional");
   const [confirm,  setConfirm]  = useState(false);
   const telValido = /^[0-9]{8,12}$/.test(tel.replace(/\s/g,""));
 
   return <Modal titulo={esNuevo?"Nuevo cliente":"Editar cliente"} onClose={onClose}>
     <Inp label="NOMBRE *" value={nombre} onChange={setNombre} placeholder="Nombre o empresa"/>
     <div style={{marginBottom:10}}>
-      <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>TELÉFONO * <span style={{color:tel&&!telValido?"#f87171":"#334155"}}>{tel&&!telValido?"✗ solo números, 8-12 dígitos":""}</span></div>
+      <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>TELÉFONO * <span style={{color:tel&&!telValido?"#f87171":"#94a3b8"}}>{tel&&!telValido?"✗ solo números, 8-12 dígitos":""}</span></div>
       <input type="tel" value={tel} onChange={e=>setTel(e.target.value.replace(/[^0-9]/g,""))} placeholder="Ej: 1155551234"
         style={{background:"#0b1220",border:`1px solid ${tel&&!telValido?"#f87171":"#1e3a5f"}`,borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none"}}/>
     </div>
     <Inp label="DIRECCIÓN" value={dir} onChange={setDir} placeholder="Dirección habitual"/>
     <Inp label="AUTOS HABITUALES" value={autos} onChange={v=>setAutos(Number(v))} type="number"/>
+    <Sel label="TIPO DE CLIENTE" value={tipo} onChange={setTipo}>
+      <option value="💤 Ocasional">💤 Ocasional (1 vez al mes)</option>
+      <option value="⭐ Frecuente">⭐ Frecuente (2-8 veces al mes)</option>
+      <option value="🔥 Top">🔥 Top (9+ veces al mes)</option>
+    </Sel>
     <div style={{marginBottom:10}}>
-      <div style={{fontSize:10,color:"#334155",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>NOTA</div>
+      <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>NOTA</div>
       <textarea value={nota} onChange={e=>setNota(e.target.value)} placeholder="Detallista, complicado, etc."
         style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none",resize:"none",height:60}}/>
     </div>
@@ -376,7 +419,7 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
       {!esNuevo&&!confirm&&<Btn danger sm onClick={()=>setConfirm(true)}>Eliminar</Btn>}
       {!esNuevo&&confirm&&<Btn danger sm onClick={()=>onBorrar(cliente.id)}>¿Confirmar?</Btn>}
       <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
-      <Btn full color="#0e7490" disabled={!nombre.trim()||!telValido} onClick={()=>onGuardar({nombre,telefono:tel,direccion:dir,autosHabituales:autos,nota})} style={{flex:2}}>
+      <Btn full color="#0e7490" disabled={!nombre.trim()||!telValido} onClick={()=>onGuardar({nombre,telefono:tel,direccion:dir,autosHabituales:autos,nota,tipo})} style={{flex:2}}>
         {esNuevo?"Agregar cliente":"Guardar"}
       </Btn>
     </div>
@@ -434,12 +477,12 @@ function CeldaTurno({s,hora,turnos,asistencia,dir,listaVacia,sel,onSel,onDetalle
   const bloq = turno&&!esPpal;
 
   const estilos = {
-    libre:     {bg:"#0b122066",bd:"#1e2d40",  txt:"#1e3a5f",lbl:"·"},
+    libre:     {bg:"#0b122066",bd:"#1e2d40",  txt:"#94a3b8",lbl:"·"},
     verde:     {bg:"#34d39913",bd:"#34d39955",txt:"#6ee7b7",lbl:"● libre"},
     amarillo:  {bg:"#fbbf2413",bd:"#fbbf2455",txt:"#fde68a",lbl:"◐ lejos"},
     fz:        {bg:"#a78bfa13",bd:"#a78bfa55",txt:"#c4b5fd",lbl:"⬡ FZ"},
     fz_ok:     {bg:"#7c3aed18",bd:"#7c3aed88",txt:"#ddd6fe",lbl:"⬡ FZ ok"},
-  }[geo]||{bg:"#0b122066",bd:"#1e2d40",txt:"#1e3a5f",lbl:"·"};
+  }[geo]||{bg:"#0b122066",bd:"#1e2d40",txt:"#94a3b8",lbl:"·"};
 
   if(ocupado) return (
     <div onClick={()=>onDetalle(turno)}
@@ -449,9 +492,9 @@ function CeldaTurno({s,hora,turnos,asistencia,dir,listaVacia,sel,onSel,onDetalle
         color:bloq?"#1e2d40":s.color,lineHeight:1.4,minHeight:50}}>
       {esPpal?<>
         <div style={{fontWeight:700,fontSize:11}}>{turno.clienteNombre||turno.cliente||"turno"}</div>
-        <div style={{color:"#475569",fontSize:9,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{turno.direccion?.split(",")[0]}</div>
+        <div style={{color:"#94a3b8",fontSize:9,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{turno.direccion?.split(",")[0]}</div>
         <div style={{fontSize:9,marginTop:2}}>{turno.pagado?<span style={{color:"#34d399"}}>✓ cobrado</span>:<span style={{color:"#fde68a"}}>💰 pendiente</span>}</div>
-      </>:<div style={{fontSize:9,color:"#334155",textAlign:"center",paddingTop:12}}>↓</div>}
+      </>:<div style={{fontSize:9,color:"#94a3b8",textAlign:"center",paddingTop:12}}>↓</div>}
     </div>
   );
 
@@ -624,7 +667,7 @@ export default function SofiaV4() {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
       const d = await res.json();
       setIaResp(d.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta de Gemini.");
-    } catch { setIaResp("Error — verificá la Gemini API Key en Configuración."); }
+    } catch { setIaResp("Error — verificá la Gemini API Key en Precios."); }
     setIaLoad(false);
   }
 
@@ -695,7 +738,7 @@ export default function SofiaV4() {
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:".1em",color:"#f1f5f9",lineHeight:1}}>SOFÍA v4</div>
         </div>
         <div style={{display:"flex",gap:2,overflowX:"auto"}}>
-          {[{id:"turno",l:"+ Turno"},{id:"agenda",l:`Agenda${turnos.length?` (${turnos.length})`:""}`},{id:"asist",l:"Asistencia"},{id:"clientes",l:"Clientes"},{id:"staff",l:"Staff"},{id:"cierre",l:`Cierre${registros.length?` (${registros.length})`:""}`},{id:"config",l:"Config"}].map(v=>(
+          {[{id:"turno",l:"+ Turno"},{id:"agenda",l:`Agenda${turnos.length?` (${turnos.length})`:""}`},{id:"asist",l:"Asistencia"},{id:"clientes",l:"Clientes"},{id:"staff",l:"Staff"},{id:"cierre",l:`Cierre${registros.length?` (${registros.length})`:""}`},{id:"config",l:"Precios"}].map(v=>(
             <button key={v.id} className={`nt ${vista===v.id?"on":""}`} onClick={()=>v.id==="config"?setModal({tipo:"config"}):setVista(v.id)}>{v.l}</button>
           ))}
         </div>
@@ -748,8 +791,20 @@ export default function SofiaV4() {
                   <div><div className="lbl">PRECIO MANUAL (opcional)</div><input type="number" placeholder={`Base: ${formatP(servicioEsp?.precio||(tamanoObj?.precio||0)*cantAutos)}`} value={precio} onChange={e=>setPrecio(e.target.value)}/></div>
                   <button onClick={()=>setModal({tipo:"servEsp"})} style={{background:"#7c3aed22",border:"1px solid #7c3aed55",color:"#c4b5fd",borderRadius:8,padding:"9px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>⚡ Especial</button>
                 </div>
+                {/* NOTAS OPERATIVAS PREDEFINIDAS */}
                 <div className="lbl">NOTAS OPERATIVAS</div>
-                <textarea rows={2} placeholder="" value={notas} onChange={e=>setNotas(e.target.value)} style={{marginBottom:8}}/>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
+                  {NOTAS_PREDEFINIDAS.map(n=>(
+                    <button key={n} onClick={()=>setNotas(prev=>prev.includes(n)?prev.replace(n+", ","").replace(n,""):prev+(prev?", ":"")+n)}
+                      style={{padding:"4px 8px",borderRadius:6,fontSize:9,cursor:"pointer",
+                        background:notas.includes(n)?"#22d3ee22":"#1e2d40",
+                        border:`1px solid ${notas.includes(n)?"#22d3ee55":"#1e2d40"}`,
+                        color:notas.includes(n)?"#22d3ee":"#94a3b8",fontFamily:"inherit",transition:"all .15s"}}>
+                      {notas.includes(n)?"✓ ":""}{n}
+                    </button>
+                  ))}
+                </div>
+                <textarea rows={2} placeholder="O escribí una nota personalizada…" value={notas} onChange={e=>setNotas(e.target.value)} style={{marginBottom:8}}/>
                 {slotsAUsar.length>1&&<div style={{padding:"6px 10px",background:"#fbbf2410",border:"1px solid #fbbf2433",borderRadius:7,fontSize:10,color:"#fde68a",marginBottom:8}}>⏱ Ocupa: {slotsAUsar.join(", ")}</div>}
                 <Btn full color="#0e7490" disabled={!direccion} onClick={()=>setPaso(Math.max(paso,2))}>Ver disponibilidad →</Btn>
               </div>
@@ -814,7 +869,7 @@ export default function SofiaV4() {
                     {iaPanel&&<button style={{background:"#1d4ed8",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontSize:10,padding:"3px 8px",fontFamily:"inherit"}} onClick={consultarIA} disabled={iaLoad}>{iaLoad?"⟳":"Consultar"}</button>}
                   </div>
                 </div>
-                {iaPanel&&<div className="fade">{iaLoad&&<div style={{color:"#6366f1",fontSize:11}}>● Analizando…</div>}{iaResp&&<div style={{fontSize:11,color:"#a5b4fc",lineHeight:1.7,borderTop:"1px solid #1e3a5f",paddingTop:8}}>{iaResp}</div>}{!iaResp&&!iaLoad&&<div style={{fontSize:11,color:"#94a3b8"}}>{geminiKey?"Completá los datos y consultá.":"Configurá la Gemini API Key en ⚙ Config."}</div>}</div>}
+                {iaPanel&&<div className="fade">{iaLoad&&<div style={{color:"#6366f1",fontSize:11}}>● Analizando…</div>}{iaResp&&<div style={{fontSize:11,color:"#a5b4fc",lineHeight:1.7,borderTop:"1px solid #1e3a5f",paddingTop:8}}>{iaResp}</div>}{!iaResp&&!iaLoad&&<div style={{fontSize:11,color:"#94a3b8"}}>{geminiKey?"Completá los datos y consultá.":"Configurá la Gemini API Key en ⚙ Precios."}</div>}</div>}
               </div>
             </div>
           </div>
@@ -827,8 +882,43 @@ export default function SofiaV4() {
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>{staff.filter(s=>s.rol!=="encargado").map(s=>{const a=asistencia[s.id]||{};const pres=a.presente===true;const trans=a.transporte||s.transporte;return <div key={`asist-${s.id}`} className="card" style={{borderColor:`${s.color}33`,display:"flex",alignItems:"center",gap:14}}><div className="icono-asist-xl" style={{background:`${s.color}33`,border:`2px solid ${s.color}`}}>{trans==="moto"?"🏍":trans==="pie"?"🚶":"🚲"}</div><div style={{flex:1}}><div style={{fontWeight:700,color:s.color,fontSize:14,marginBottom:6}}>{s.nombre}</div><div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{["moto","bici","pie"].map(t=>(<button key={t} onClick={async()=>{const upd={...(asistencia[s.id]||{}),transporte:t};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd});}} className={`chip ${trans===t?"on":""}`} style={{padding:"4px 10px",fontSize:10}}>{t==="moto"?"🏍 Moto":t==="bici"?"🚲 Bici":"🚶 Pie"}</button>))}</div></div><button className={`tog ${pres?"on_":"off"}`} onClick={async()=>{const upd={...(asistencia[s.id]||{transporte:s.transporte}),presente:!pres};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd});}}/></div>;})}</div>
         {staff.filter(s=>s.rol==="encargado").length>0&&<><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em",margin:"18px 0 10px"}}>ENCARGADOS</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8}}>{staff.filter(s=>s.rol==="encargado").map(s=>(<div key={`enc-${s.id}`} className="card" style={{borderColor:`${s.color}33`,display:"flex",alignItems:"center",gap:12}}><div className="icono-staff-xl" style={{background:`${s.color}33`,border:`2px solid ${s.color}`}}>👷</div><div><div style={{fontWeight:700,color:s.color,fontSize:13}}>{s.nombre}</div><div style={{fontSize:10,color:"#94a3b8"}}>Encargado</div></div></div>))}</div></>}</div>)}
 
-        {vista==="clientes"&&(<div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CLIENTES — {clientes.length}</div><Btn sm color="#0e7490" onClick={()=>setModal({tipo:"ncliente"})}>+ Nuevo cliente</Btn></div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>{clientes.map(c=>(<div key={c.id} className="card" style={{cursor:"pointer",borderColor:"#22d3ee22"}} onClick={()=>setModal({tipo:"ecliente",data:c})}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div className="icono-staff-xl" style={{background:"#22d3ee22",border:"2px solid #22d3ee55",fontSize:22}}>👤</div><div style={{flex:1}}><div style={{fontWeight:700,color:"#22d3ee",fontSize:13}}>{c.nombre}</div><div style={{fontSize:10,color:"#94a3b8"}}>{c.telefono}</div></div><div style={{fontSize:12,color:"#94a3b8"}}>✏️</div></div>{c.direccion&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4}}>📍 {c.direccion}</div>}{c.nota&&<div style={{fontSize:10,color:"#fbbf24"}}>⚠ {c.nota}</div>}<div style={{display:"flex",gap:6,marginTop:6}}><a href={`tel:${c.telefono}`} onClick={e=>e.stopPropagation()} style={{textDecoration:"none"}}><button style={{background:"#34d39918",border:"1px solid #34d39944",color:"#6ee7b7",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>📞 Llamar</button></a><button onClick={e=>{e.stopPropagation();setClienteInput(c.nombre);setClienteSel(c);setDireccion(c.direccion||"");setCantAutos(c.autosHabituales||1);if(c.nota)setNotas(c.nota);setVista("turno");}} style={{background:"#22d3ee18",border:"1px solid #22d3ee44",color:"#22d3ee",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>+ Turno</button></div></div>))}</div></div>)}
+        {vista==="clientes"&&(<div className="fade">
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CLIENTES — {clientes.length}</div>
+            <Btn sm color="#0e7490" onClick={()=>setModal({tipo:"ncliente"})}>+ Nuevo cliente</Btn>
+          </div>
+          {/* LEYENDA DE TIPOS */}
+          <div style={{fontSize:9,color:"#475569",marginBottom:10,display:"flex",gap:12,flexWrap:"wrap"}}>
+            <span>💤 Ocasional (1 vez al mes)</span>
+            <span>⭐ Frecuente (2 a 8 veces al mes)</span>
+            <span>🔥 Top (9 o más veces al mes)</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+            {clientes.map(c=>(
+              <div key={c.id} className="card" style={{cursor:"pointer",borderColor:"#22d3ee22"}} onClick={()=>setModal({tipo:"ecliente",data:c})}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                  <div className="icono-staff-xl" style={{background:"#22d3ee22",border:"2px solid #22d3ee55",fontSize:22}}>👤</div>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{fontWeight:700,color:"#22d3ee",fontSize:13}}>{c.nombre}</span>
+                      <span style={{fontSize:10,color:"#fbbf24"}}>{c.tipo||"💤 Ocasional"}</span>
+                    </div>
+                    <div style={{fontSize:10,color:"#94a3b8"}}>{c.telefono}</div>
+                  </div>
+                  <div style={{fontSize:12,color:"#94a3b8"}}>✏️</div>
+                </div>
+                {c.direccion&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4}}>📍 {c.direccion}</div>}
+                {c.nota&&<div style={{fontSize:10,color:"#fbbf24"}}>⚠ {c.nota}</div>}
+                <div style={{display:"flex",gap:6,marginTop:6}}>
+                  <a href={`tel:${c.telefono}`} onClick={e=>e.stopPropagation()} style={{textDecoration:"none"}}>
+                    <button style={{background:"#34d39918",border:"1px solid #34d39944",color:"#6ee7b7",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>📞 Llamar</button>
+                  </a>
+                  <button onClick={e=>{e.stopPropagation();setClienteInput(c.nombre);setClienteSel(c);setDireccion(c.direccion||"");setCantAutos(c.autosHabituales||1);if(c.nota)setNotas(c.nota);setVista("turno");}} style={{background:"#22d3ee18",border:"1px solid #22d3ee44",color:"#22d3ee",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>+ Turno</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>)}
 
         {vista==="staff"&&(<div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>STAFF — {staff.length}</div><div style={{display:"flex",gap:8}}><Btn sm ghost onClick={backup}>⬇ Backup</Btn><Btn sm color="#0e7490" onClick={()=>setModal({tipo:"nstaff"})}>+ Agregar</Btn></div></div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>{staff.map(s=>(<div key={s.id} className="card" style={{borderColor:`${s.color}33`,cursor:"pointer"}} onClick={()=>setModal({tipo:"estaff",data:s})}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div className="icono-staff-xl" style={{background:`${s.color}33`,border:`2px solid ${s.color}`}}>{s.rol==="encargado"?"👷":s.transporte==="moto"?"🏍":"🚲"}</div><div style={{flex:1}}><div style={{fontWeight:700,color:s.color,fontSize:14}}>{s.nombre}</div><div style={{fontSize:10,color:"#94a3b8"}}>{s.rol==="encargado"?"Encargado":`${s.transporte} · ${s.transporte==="moto"?25:15} cuas.`}</div></div><span style={{fontSize:14,color:"#94a3b8"}}>✏️</span></div><div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{padding:"3px 7px",borderRadius:4,fontSize:10,background:s.whatsapp?"#34d39918":"#ef444418",border:`1px solid ${s.whatsapp?"#34d39944":"#ef444444"}`,color:s.whatsapp?"#6ee7b7":"#fca5a5"}}>{s.whatsapp?"✓ WA":"✗ Sin WA"}</span>{s.especial==="rapido"&&<span style={{padding:"3px 7px",borderRadius:4,fontSize:10,background:"#fbbf2418",border:"1px solid #fbbf2444",color:"#fde68a"}}>⚡ Rápido</span>}{asistencia[s.id]?.presente&&<span style={{padding:"3px 7px",borderRadius:4,fontSize:10,background:"#34d39918",border:"1px solid #34d39933",color:"#6ee7b7"}}>● Hoy</span>}</div></div>))}</div></div>)}
@@ -846,14 +936,14 @@ export default function SofiaV4() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL CONFIGURACIÓN
+//  MODAL CONFIGURACIÓN (PRECIOS)
 // ═══════════════════════════════════════════════════════════════
 function ModalConfig({tamanos,fzPct,geminiKey,onGuardar,onClose}) {
   const [tams, setTams] = useState(tamanos.map(t=>({...t})));
   const [fz,   setFz]   = useState(fzPct);
   const [gKey, setGKey] = useState(geminiKey||"");
   function updTam(id,field,val) { setTams(prev=>prev.map(t=>t.id===id?{...t,[field]:field==="precio"?Number(val):val}:t)); }
-  return <Modal titulo="⚙ Configuración" onClose={onClose} wide>
+  return <Modal titulo="⚙ Precios y Configuración" onClose={onClose} wide>
     <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>Editá precios base, recargo FZ y la API Key de Gemini.</div>
     <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:8,fontWeight:700}}>PRECIOS POR TAMAÑO DE AUTO</div>
     {tams.map(t=>(<div key={t.id} style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:8,marginBottom:8,alignItems:"center"}}><input value={t.label} onChange={e=>updTam(t.id,"label",e.target.value)} placeholder="Nombre"/><input type="number" value={t.precio} onChange={e=>updTam(t.id,"precio",e.target.value)} placeholder="Precio base"/></div>))}
