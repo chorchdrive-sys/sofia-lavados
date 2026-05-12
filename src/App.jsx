@@ -67,7 +67,7 @@ const STAFF_SEED = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
-//  TABLA DE BARRIOS (3 letras, auto-expandible) - CORREGIDA
+//  TABLA DE BARRIOS
 // ═══════════════════════════════════════════════════════════════
 const BARRIOS_INICIALES = {
   "olivos":"OLI","martinez":"MAR","florida":"FLO","san isidro":"SIS",
@@ -75,52 +75,55 @@ const BARRIOS_INICIALES = {
   "munro":"MUN","villa adelina":"VAD","beccar":"BEC","la lucila":"LAL",
   "mart?nez":"MAR","martínez":"MAR",
 };
-function codigoBarrio(dir) {
-  if(!dir) return "GEN";
-  const d = dir.toLowerCase().replace(/[áéíóú]/g, m=>({á:"a",é:"e",í:"i",ó:"o",ú:"u"}[m]||m));
-  for(const [k,v] of Object.entries(BARRIOS_INICIALES)) {
-    if(d.includes(k)) return v;
-  }
-  const palabras = d.split(/[\s,]+/).filter(w=>w.length>=4);
-  for(const p of palabras) {
-    const cod = p.substring(0,3).toUpperCase();
-    if(!Object.values(BARRIOS_INICIALES).includes(cod)) {
-      BARRIOS_INICIALES[p] = cod;
-      return cod;
-    }
-  }
-  return "GEN";
+// Lista de barrios para el selector (se actualiza sola)
+let LISTA_BARRIOS = Object.keys(BARRIOS_INICIALES).map(k=>k.charAt(0).toUpperCase()+k.slice(1));
+function codigoBarrio(barrioNombre) {
+  if(!barrioNombre) return "GEN";
+  const b = barrioNombre.toLowerCase().replace(/[áéíóú]/g, m=>({á:"a",é:"e",í:"i",ó:"o",ú:"u"}[m]||m));
+  if(BARRIOS_INICIALES[b]) return BARRIOS_INICIALES[b];
+  const cod = b.replace(/[\s,]+/g,"").substring(0,3).toUpperCase();
+  BARRIOS_INICIALES[b] = cod;
+  LISTA_BARRIOS.push(barrioNombre);
+  return cod;
 }
 
 // ═══════════════════════════════════════════════════════════════
 //  CLIENTES SEED
 // ═══════════════════════════════════════════════════════════════
 const CLIENTES_SEED = [
-  {nombre:"Victoria", telefono:"1100000001", direccion:"Dardo Rocha 3278, Olivos",           autosHabituales:3, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Martin",   telefono:"1100000002", direccion:"Colectora Panamericana 2065, San Isidro", autosHabituales:3, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Micaela",  telefono:"1100000003", direccion:"Eduardo Costa 902, Acassuso",           autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Hyundai",  telefono:"1100000004", direccion:"Av. Santa Fe 2627, Martínez",           autosHabituales:4, nota:"Confirmar cantidad (3-5 autos)", tipo:"🔥 Top"},
-  {nombre:"Mariana",  telefono:"1100000005", direccion:"Diagonal Salta 557, Olivos",          autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Caro",     telefono:"1100000006", direccion:"Las Heras 1533, Martínez",    autosHabituales:3, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Salva",    telefono:"1100000007", direccion:"Hipólito Yrigoyen 2647, Martínez", autosHabituales:1, nota:"Silicina en llantas y paragolpes", tipo:"⭐ Frecuente"},
-  {nombre:"Johana",   telefono:"1100000008", direccion:"Blas Parera 429, Boulogne",   autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Karina",   telefono:"1100000009", direccion:"Cangallo 846, Martínez",                autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Andres",   telefono:"1100000010", direccion:"Paraná 374, Martínez",                  autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Barby",    telefono:"1100000011", direccion:"Fray Justo Sarmiento 3304, Olivos",   autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Tomás",    telefono:"1100000012", direccion:"Córdoba 596, Martínez",       autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"HernanC",  telefono:"1100000013", direccion:"Beruti 1583, Martínez",       autosHabituales:2, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Agustín",  telefono:"1100000014", direccion:"Colectora Panamericana 2065, San Isidro", autosHabituales:1, nota:"Llamar antes", tipo:"⭐ Frecuente"},
-  {nombre:"Candelaria",telefono:"1100000015", direccion:"Ladislao Martínez 440, Martínez",      autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
-  {nombre:"Vero",     telefono:"1100000016", direccion:"Entre Ríos 2397, Martínez",   autosHabituales:1, nota:"Confirmar", tipo:"💤 Ocasional"},
-  {nombre:"Avri",     telefono:"1100000017", direccion:"Entre Ríos 2983, Martínez",   autosHabituales:1, nota:"", tipo:"💤 Ocasional"},
-  {nombre:"Ale",      telefono:"1100000018", direccion:"Sáenz Valiente 2163, Olivos",         autosHabituales:1, nota:"", tipo:"💤 Ocasional"},
-  {nombre:"GabyC",    telefono:"1100000019", direccion:"Catamarca 1304, Florida",              autosHabituales:2, nota:"", tipo:"💤 Ocasional"},
-  {nombre:"Pablo",    telefono:"1100000020", direccion:"Ezpeleta 531, Martínez",      autosHabituales:2, nota:"", tipo:"💤 Ocasional"},
+  {nombre:"Victoria", telefono:"", direccion:"Dardo Rocha 3278", barrio:"Olivos", autosHabituales:3, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Martin",   telefono:"", direccion:"Colectora Panamericana 2065", barrio:"San Isidro", autosHabituales:3, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Micaela",  telefono:"", direccion:"Eduardo Costa 902", barrio:"Acassuso", autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Hyundai",  telefono:"", direccion:"Av. Santa Fe 2627", barrio:"Martínez", autosHabituales:4, nota:"Confirmar cantidad (3-5 autos)", tipo:"🔥 Top"},
+  {nombre:"Mariana",  telefono:"", direccion:"Diagonal Salta 557", barrio:"Olivos", autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Caro",     telefono:"", direccion:"Las Heras 1533", barrio:"Martínez", autosHabituales:3, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Salva",    telefono:"", direccion:"Hipólito Yrigoyen 2647", barrio:"Martínez", autosHabituales:1, nota:"Silicina en llantas y paragolpes", tipo:"⭐ Frecuente"},
+  {nombre:"Johana",   telefono:"", direccion:"Blas Parera 429", barrio:"Boulogne", autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Karina",   telefono:"", direccion:"Cangallo 846", barrio:"Martínez", autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Andres",   telefono:"", direccion:"Paraná 374", barrio:"Martínez", autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Barby",    telefono:"", direccion:"Fray Justo Sarmiento 3304", barrio:"Olivos", autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Tomás",    telefono:"", direccion:"Córdoba 596", barrio:"Martínez", autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"HernanC",  telefono:"", direccion:"Beruti 1583", barrio:"Martínez", autosHabituales:2, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Agustín",  telefono:"", direccion:"Colectora Panamericana 2065", barrio:"San Isidro", autosHabituales:1, nota:"Llamar antes", tipo:"⭐ Frecuente"},
+  {nombre:"Candelaria",telefono:"", direccion:"Ladislao Martínez 440", barrio:"Martínez", autosHabituales:1, nota:"", tipo:"⭐ Frecuente"},
+  {nombre:"Vero",     telefono:"", direccion:"Entre Ríos 2397", barrio:"Martínez", autosHabituales:1, nota:"Confirmar", tipo:"💤 Ocasional"},
+  {nombre:"Avri",     telefono:"", direccion:"Entre Ríos 2983", barrio:"Martínez", autosHabituales:1, nota:"", tipo:"💤 Ocasional"},
+  {nombre:"Ale",      telefono:"", direccion:"Sáenz Valiente 2163", barrio:"Olivos", autosHabituales:1, nota:"", tipo:"💤 Ocasional"},
+  {nombre:"GabyC",    telefono:"", direccion:"Catamarca 1304", barrio:"Florida", autosHabituales:2, nota:"", tipo:"💤 Ocasional"},
+  {nombre:"Pablo",    telefono:"", direccion:"Ezpeleta 531", barrio:"Martínez", autosHabituales:2, nota:"", tipo:"💤 Ocasional"},
 ];
 
 const NOTAS_PREDEFINIDAS = [
   "Cliente detallista","Insectos de ruta","Barro extremo","Decir precio antes de empezar",
   "Avisar cuando va","No usar revividor","Llevar doble alargue","Auto muy sucio","Cliente nuevo",
+];
+
+const MOTIVOS_DESCUENTO = [
+  "Error de cambio",
+  "Descuento por queja",
+  "Lavado gratis (compensación total)",
+  "Lavado con descuento (compensación parcial)",
+  "Otro",
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -131,6 +134,8 @@ const franjaFin   = h  => { const [hr,mn]=h.split(":").map(Number); const t=hr*6
 const esTarde     = h  => FRANJAS.indexOf(h) >= FRANJA_TARDE;
 const formatP     = n  => "$" + Number(n||0).toLocaleString("es-AR");
 const colorNuevo  = (staff) => COLORES.find(c=>!staff.map(s=>s.color).includes(c)) || "#94a3b8";
+// Quitar acentos para búsquedas
+const sinAcentos = s => (s||"").toLowerCase().replace(/[áéíóúü]/g, m=>({á:"a",é:"e",í:"i",ó:"o",ú:"u",ü:"u"}[m]||m));
 
 function distKm(lat1,lng1,lat2,lng2) {
   const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
@@ -138,7 +143,6 @@ function distKm(lat1,lng1,lat2,lng2) {
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 const kmToCuadras = km => km * 10;
-// Tiempo estimado: moto 2 min/cuadra, bici 4 min/cuadra, pie 8 min/cuadra
 const tiempoViaje = (cuadras, trans) => Math.round(cuadras * (trans==="moto"?2:trans==="pie"?8:4));
 
 const _geocache = {};
@@ -148,7 +152,7 @@ async function geocodificar(dir) {
   try {
     const q = encodeURIComponent(`${dir}, Buenos Aires, Argentina`);
     const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,{
-      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/4.3"}
+      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/4.4"}
     });
     const data = await res.json();
     if(data.length>0) {
@@ -337,11 +341,13 @@ function ModalDetalle({turno,staff,asistencia,onCancelar,onReasignar,onPagar,onW
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL COBRO (pop-up de cambio) - CORREGIDO
+//  MODAL COBRO (con descuentos y motivos)
 // ═══════════════════════════════════════════════════════════════
 function ModalCobro({turno,onRegistrar,onClose}) {
   const [importeReal, setImporteReal] = useState(turno.precio||0);
   const [estado, setEstado] = useState("💵 Cobrado (sin rendir)");
+  const [motivo, setMotivo] = useState("");
+  const [motivoManual, setMotivoManual] = useState("");
   const importeEsperado = turno.precio||0;
   const dif = importeReal - importeEsperado;
 
@@ -354,15 +360,22 @@ function ModalCobro({turno,onRegistrar,onClose}) {
       <div className="lbl">IMPORTE REAL COBRADO</div>
       <input type="number" value={importeReal} onChange={e=>setImporteReal(Number(e.target.value))}
         style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:14,padding:"9px 13px",width:"100%",outline:"none"}}/>
-      {dif<0 && <div style={{padding:"8px 12px",background:"#fbbf2418",border:"1px solid #fbbf2433",borderRadius:8,color:"#fde68a",fontSize:11}}>⚠️ Debe: {formatP(Math.abs(dif))} — Queda pendiente de rendición</div>}
+      {dif<0 && <>
+        <div style={{padding:"8px 12px",background:"#fbbf2418",border:"1px solid #fbbf2433",borderRadius:8,color:"#fde68a",fontSize:11}}>⚠️ Debe: {formatP(Math.abs(dif))}</div>
+        <Sel label="MOTIVO DEL DESCUENTO" value={motivo} onChange={setMotivo}>
+          <option value="">Seleccionar motivo...</option>
+          {MOTIVOS_DESCUENTO.map(m=><option key={m} value={m}>{m}</option>)}
+        </Sel>
+        {motivo==="Otro" && <Inp label="Describí el motivo" value={motivoManual} onChange={setMotivoManual} placeholder="Ej: Se rompió un espejo"/>}
+      </>}
       {dif>0 && <div style={{padding:"8px 12px",background:"#a78bfa18",border:"1px solid #a78bfa33",borderRadius:8,color:"#c4b5fd",fontSize:11}}>📝 A favor: {formatP(dif)} — El lavador se queda con la diferencia</div>}
       {dif===0 && <div style={{padding:"8px 12px",background:"#34d39918",border:"1px solid #34d39933",borderRadius:8,color:"#6ee7b7",fontSize:11}}>✅ Importe exacto</div>}
       <div style={{padding:"8px 12px",background:"#1e2d4022",border:"1px solid #1e2d40",borderRadius:8,fontSize:10,color:"#94a3b8"}}>
-        💡 El lavador queda en estado <strong>"Cobrado (sin rendir)"</strong> hasta que entregue el dinero en base. La rendición la hace el administrativo.
+        💡 El lavador queda en estado <strong>"Cobrado (sin rendir)"</strong> hasta que entregue el dinero en base.
       </div>
       <div style={{display:"flex",gap:8,marginTop:4}}>
         <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
-        <Btn full color="#d97706" onClick={()=>onRegistrar(turno,importeReal,estado,dif)}>Registrar</Btn>
+        <Btn full color="#d97706" onClick={()=>onRegistrar(turno,importeReal,estado,dif,motivo==="Otro"?motivoManual:motivo)}>Registrar</Btn>
       </div>
     </div>
   </Modal>;
@@ -379,7 +392,7 @@ function ModalPrestamo({lavador,onRegistrar,onClose}) {
       <input type="number" value={monto} onChange={e=>setMonto(Number(e.target.value))}
         style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:14,padding:"9px 13px",width:"100%",outline:"none"}}/>
       <div style={{padding:"8px 12px",background:"#1e2d4022",border:"1px solid #1e2d40",borderRadius:8,fontSize:10,color:"#94a3b8"}}>
-        💡 Este monto se registrará como <strong>"Debe"</strong> y se descontará de futuras rendiciones.
+        💡 Este monto se descontará de futuras rendiciones.
       </div>
       <div style={{display:"flex",gap:8,marginTop:4}}>
         <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
@@ -390,88 +403,67 @@ function ModalPrestamo({lavador,onRegistrar,onClose}) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL STAFF
+//  MODAL CLIENTE NUEVO (desde Turno)
 // ═══════════════════════════════════════════════════════════════
-function ModalStaff({miembro,staff,esNuevo,onGuardar,onBorrar,onClose}) {
-  const [nombre,    setNombre]    = useState(miembro?.nombre||"");
-  const [transporte,setTrans]     = useState(miembro?.transporte||"moto");
-  const [rol,       setRol]       = useState(miembro?.rol||"lavador");
-  const [wa,        setWa]        = useState(miembro?.whatsapp!==false);
-  const [especial,  setEspecial]  = useState(miembro?.especial||"");
-  const [confirmar, setConfirmar] = useState(false);
+function ModalClienteRapido({nombreInicial,onGuardar,onClose}) {
+  const [nombre, setNombre] = useState(nombreInicial||"");
+  const [tel, setTel] = useState("");
+  const [dir, setDir] = useState("");
+  const [barrio, setBarrio] = useState("");
+  const [barrioManual, setBarrioManual] = useState("");
+  const [autos, setAutos] = useState(1);
+  const telValido = !tel || /^[0-9]{8,12}$/.test(tel.replace(/\s/g,""));
 
-  return <Modal titulo={esNuevo?"Agregar integrante":`Editar: ${miembro?.nombre}`} onClose={onClose}>
-    <Inp label="NOMBRE" value={nombre} onChange={setNombre}/>
-    <div style={{marginBottom:10}}>
-      <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>ROL</div>
-      <div style={{display:"flex",gap:8}}>
-        {["lavador","encargado"].map(r=>(
-          <Btn key={r} full ghost={rol!==r} color="#0e7490" onClick={()=>setRol(r)} style={{flex:1}}>
-            {r==="lavador"?"🚗 Lavador":"👷 Encargado"}
-          </Btn>
-        ))}
+  return <Modal titulo="🆕 Nuevo cliente" onClose={onClose}>
+    <div style={{display:"flex",flexDirection:"column",gap:10,fontSize:12}}>
+      <Inp label="NOMBRE *" value={nombre} onChange={setNombre}/>
+      <Inp label="TELÉFONO" value={tel} onChange={v=>setTel(v.replace(/[^0-9]/g,""))} placeholder="Ej: 1155551234"/>
+      <Inp label="DIRECCIÓN *" value={dir} onChange={setDir} placeholder="Calle y número"/>
+      <Sel label="BARRIO *" value={barrio} onChange={v=>{setBarrio(v);if(v!=="otro")setBarrioManual("");}}>
+        <option value="">Seleccionar barrio...</option>
+        {LISTA_BARRIOS.map(b=><option key={b} value={b}>{b}</option>)}
+        <option value="otro">➕ Otro (escribir)</option>
+      </Sel>
+      {barrio==="otro" && <Inp label="NOMBRE DEL BARRIO NUEVO" value={barrioManual} onChange={setBarrioManual} placeholder="Ej: Tigre"/>}
+      <Inp label="AUTOS HABITUALES" value={autos} onChange={v=>setAutos(Number(v))} type="number"/>
+      {!telValido && <div style={{color:"#f87171",fontSize:10}}>El teléfono debe tener entre 8 y 12 dígitos.</div>}
+      <div style={{display:"flex",gap:8,marginTop:4}}>
+        <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
+        <Btn full color="#0e7490" disabled={!nombre.trim()||!dir.trim()||(!barrio&&!barrioManual)||!telValido} onClick={()=>{
+          const barrioFinal = barrio==="otro"?barrioManual:barrio;
+          onGuardar({nombre,telefono:tel,direccion:dir,barrio:barrioFinal,autosHabituales:autos,nota:"",tipo:"💤 Ocasional"});
+        }}>Guardar y continuar</Btn>
       </div>
-    </div>
-    {rol==="lavador"&&<>
-      <div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>TRANSPORTE HABITUAL</div>
-        <div style={{display:"flex",gap:8}}>
-          {["moto","bici"].map(t=>(
-            <Btn key={t} full ghost={transporte!==t} color="#0e7490" onClick={()=>setTrans(t)} style={{flex:1}}>
-              {t==="moto"?"🏍 Moto (25 cuas)":"🚲 Bici (15 cuas)"}
-            </Btn>
-          ))}
-        </div>
-      </div>
-      <div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>WHATSAPP</div>
-        <div style={{display:"flex",gap:8}}>
-          {[[true,"✓ Tiene WA"],[false,"✗ Sin WA"]].map(([v,l])=>(
-            <Btn key={String(v)} full ghost={wa!==v} color="#0e7490" onClick={()=>setWa(v)} style={{flex:1}}>{l}</Btn>
-          ))}
-        </div>
-      </div>
-      {!wa&&<div style={{marginBottom:10}}>
-        <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:6,fontWeight:700}}>CÓMO AVISAR</div>
-        <div style={{display:"flex",gap:8}}>
-          {[["avisar_presencia","👁 En persona"],["llamar_telefono","📞 Por teléfono"]].map(([v,l])=>(
-            <Btn key={v} full ghost={especial!==v} color="#0e7490" onClick={()=>setEspecial(v)} style={{flex:1}}>{l}</Btn>
-          ))}
-        </div>
-      </div>}
-    </>}
-    <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
-      {!esNuevo&&!confirmar&&<Btn danger sm onClick={()=>setConfirmar(true)}>Eliminar</Btn>}
-      {!esNuevo&&confirmar&&<Btn danger sm onClick={()=>onBorrar(miembro.id)}>¿Confirmar?</Btn>}
-      <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
-      <Btn full color="#0e7490" onClick={()=>{if(!nombre.trim())return;onGuardar({nombre,transporte,rol,whatsapp:wa,especial,color:esNuevo?colorNuevo(staff):miembro?.color});}} style={{flex:2}}>
-        {esNuevo?"Agregar":"Guardar cambios"}
-      </Btn>
     </div>
   </Modal>;
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL CLIENTE
+//  MODAL CLIENTE (edición completa)
 // ═══════════════════════════════════════════════════════════════
 function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
   const [nombre,   setNombre]   = useState(cliente?.nombre||"");
   const [tel,      setTel]      = useState(cliente?.telefono||"");
   const [dir,      setDir]      = useState(cliente?.direccion||"");
+  const [barrio,   setBarrio]   = useState(cliente?.barrio||"");
+  const [barrioManual, setBarrioManual] = useState("");
   const [autos,    setAutos]    = useState(cliente?.autosHabituales||1);
   const [nota,     setNota]     = useState(cliente?.nota||"");
   const [tipo,     setTipo]     = useState(cliente?.tipo||"💤 Ocasional");
   const [confirm,  setConfirm]  = useState(false);
-  const telValido = /^[0-9]{8,12}$/.test(tel.replace(/\s/g,""));
+  const telValido = !tel || /^[0-9]{8,12}$/.test(tel.replace(/\s/g,""));
 
   return <Modal titulo={esNuevo?"Nuevo cliente":"Editar cliente"} onClose={onClose}>
     <Inp label="NOMBRE *" value={nombre} onChange={setNombre} placeholder="Nombre o empresa"/>
-    <div style={{marginBottom:10}}>
-      <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>TELÉFONO * <span style={{color:tel&&!telValido?"#f87171":"#94a3b8"}}>{tel&&!telValido?"✗ solo números, 8-12 dígitos":""}</span></div>
-      <input type="tel" value={tel} onChange={e=>setTel(e.target.value.replace(/[^0-9]/g,""))} placeholder="Ej: 1155551234"
-        style={{background:"#0b1220",border:`1px solid ${tel&&!telValido?"#f87171":"#1e3a5f"}`,borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none"}}/>
-    </div>
-    <Inp label="DIRECCIÓN" value={dir} onChange={setDir} placeholder="Dirección habitual, barrio"/>
+    <Inp label="TELÉFONO" value={tel} onChange={v=>setTel(v.replace(/[^0-9]/g,""))} placeholder="Ej: 1155551234"/>
+    {!telValido && <div style={{color:"#f87171",fontSize:10,marginTop:-8,marginBottom:8}}>El teléfono debe tener entre 8 y 12 dígitos.</div>}
+    <Inp label="DIRECCIÓN" value={dir} onChange={setDir} placeholder="Dirección habitual"/>
+    <Sel label="BARRIO *" value={barrio} onChange={v=>{setBarrio(v);if(v!=="otro")setBarrioManual("");}}>
+      <option value="">Seleccionar barrio...</option>
+      {LISTA_BARRIOS.map(b=><option key={b} value={b}>{b}</option>)}
+      <option value="otro">➕ Otro (escribir)</option>
+    </Sel>
+    {barrio==="otro" && <Inp label="NOMBRE DEL BARRIO NUEVO" value={barrioManual} onChange={setBarrioManual} placeholder="Ej: Tigre"/>}
     <Inp label="AUTOS HABITUALES" value={autos} onChange={v=>setAutos(Number(v))} type="number"/>
     <Sel label="TIPO DE CLIENTE" value={tipo} onChange={setTipo}>
       <option value="💤 Ocasional">💤 Ocasional (1 vez al mes)</option>
@@ -487,9 +479,10 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
       {!esNuevo&&!confirm&&<Btn danger sm onClick={()=>setConfirm(true)}>Eliminar</Btn>}
       {!esNuevo&&confirm&&<Btn danger sm onClick={()=>onBorrar(cliente.id)}>¿Confirmar?</Btn>}
       <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
-      <Btn full color="#0e7490" disabled={!nombre.trim()||!telValido} onClick={()=>onGuardar({nombre,telefono:tel,direccion:dir,autosHabituales:autos,nota,tipo})} style={{flex:2}}>
-        {esNuevo?"Agregar cliente":"Guardar"}
-      </Btn>
+      <Btn full color="#0e7490" disabled={!nombre.trim()||(!barrio&&!barrioManual)||!telValido} onClick={()=>{
+        const barrioFinal = barrio==="otro"?barrioManual:barrio;
+        onGuardar({nombre,telefono:tel,direccion:dir,barrio:barrioFinal,autosHabituales:autos,nota,tipo});
+      }} style={{flex:2}}>{esNuevo?"Agregar cliente":"Guardar"}</Btn>
     </div>
   </Modal>;
 }
@@ -628,7 +621,7 @@ export default function SofiaV4() {
   const staffActivo    = staff.filter(s=>asistencia[s.id]?.presente&&s.rol!=="encargado");
   const staffFiltrado  = staffActivo.filter(s=>
     (filtroT==="todos"||(asistencia[s.id]?.transporte||s.transporte)===filtroT)&&
-    (!filtroBus||s.nombre.toLowerCase().includes(filtroBus.toLowerCase()))
+    (!filtroBus||sinAcentos(s.nombre).includes(sinAcentos(filtroBus)))
   );
   const staffSelObj    = staff.find(s=>s.id===staffSelId);
   const tamanoObj      = tamanos.find(t=>t.id===tamano);
@@ -642,13 +635,14 @@ export default function SofiaV4() {
   const totalMP        = registros.filter(r=>r.metodo==="mp").reduce((s,r)=>s+Number(r.precio||0),0);
   const totalEfect     = registros.filter(r=>r.metodo==="efectivo").reduce((s,r)=>s+Number(r.precio||0),0);
 
-  // Filtro inteligente de clientes (busca por código, nombre, calle, barrio, teléfono)
+  // Filtro inteligente sin acentos
   const clientesFiltrados = clientes.filter(c=>{
     if(!buscaCli) return true;
-    const b = buscaCli.toLowerCase();
-    return (c.nroCliente||"").toLowerCase().includes(b) ||
-           (c.nombre||"").toLowerCase().includes(b) ||
-           (c.direccion||"").toLowerCase().includes(b) ||
+    const b = sinAcentos(buscaCli);
+    return sinAcentos(c.nroCliente||"").includes(b) ||
+           sinAcentos(c.nombre||"").includes(b) ||
+           sinAcentos(c.direccion||"").includes(b) ||
+           sinAcentos(c.barrio||"").includes(b) ||
            (c.telefono||"").includes(b);
   });
 
@@ -668,19 +662,18 @@ export default function SofiaV4() {
           const existe = cl.find(x=>x.nombre===c.nombre);
           if(!existe) {
             const nro = cl.length+1;
-            const cod = codigoBarrio(c.direccion);
+            const cod = codigoBarrio(c.barrio);
             const id=await fsAdd("clientes",{...c, nroCliente:`${cod}-${String(nro).padStart(3,"0")}`});
             cl.push({id,...c, nroCliente:`${cod}-${String(nro).padStart(3,"0")}`});
           }
         }
       }
-      cl = cl.map((c,i)=>({...c, nroCliente:c.nroCliente||`${codigoBarrio(c.direccion)}-${String(i+1).padStart(3,"0")}`}));
+      cl = cl.map((c,i)=>({...c, nroCliente:c.nroCliente||`${codigoBarrio(c.barrio)}-${String(i+1).padStart(3,"0")}`}));
       setClientes(cl);
       const cfg = await fsGet("config","precios");
       if(cfg?.tamanos) setTamanos(cfg.tamanos);
       if(cfg?.fzPct)   setFzPct(cfg.fzPct);
       if(cfg?.geminiKey) setGKey(cfg.geminiKey);
-      // Cargar préstamos del día
       const pDoc = await fsGet("prestamos", diaHoy);
       if(pDoc) { const{id:_,_ts:__,...p}=pDoc; setPrestamos(p); }
       await recargar();
@@ -722,7 +715,13 @@ export default function SofiaV4() {
     return()=>u();
   },[]);
 
-  function handleClienteInput(val){setClienteInput(val);if(val.length>=2)setSugs(clientes.filter(c=>c.nombre.toLowerCase().startsWith(val.toLowerCase())));else setSugs([]);}
+  function handleClienteInput(val){
+    setClienteInput(val);
+    if(val.length>=2) {
+      const v = sinAcentos(val);
+      setSugs(clientes.filter(c=>sinAcentos(c.nombre).startsWith(v)));
+    } else setSugs([]);
+  }
   function aplicarCliente(c){setClienteInput(c.nombre);setClienteSel(c);setDireccion(c.direccion||"");setCantAutos(c.autosHabituales||1);if(c.nota)setNotas(c.nota);setSugs([]);}
   function selTurno(sId,hora,geo){setStaffSelId(sId);setHoraSelec(hora);setGeoSelec(geo);setPaso(Math.max(paso,3));}
   function resetForm(){setClienteInput("");setClienteSel(null);setDireccion("");setCantAutos(1);setTamano("mediano");setPrecio("");setNotas("");setMetodo("efectivo");setStaffSelId(null);setHoraSelec("");setGeoSelec("");setServicioEsp(null);setIaResp("");setPaso(1);setSugerenciaIdx(0);setMostrarNotas(false);}
@@ -744,13 +743,12 @@ export default function SofiaV4() {
   async function cancelarTurno(turno){await fsDel(`turnos_${diaHoy}`,turno.id);setTurnos(prev=>prev.filter(t=>t.id!==turno.id));showToast("Turno cancelado","warn");setModal(null);}
   async function reasignarTurno(turno,nStaff,nHora){const ns=staff.find(s=>s.id===nStaff);const horasOcupadas=slotsOcupados(nHora,turno.cantAutos);const upd={staffId:nStaff,staffNombre:ns?.nombre,hora:nHora,horasOcupadas};await fsUpdate(`turnos_${diaHoy}`,turno.id,upd);setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,...upd}:t));showToast(`Reasignado a ${ns?.nombre} ✓`);setModal(null);}
 
-  async function registrarCobro(turno,importeReal,estado,dif) {
-    // Siempre queda como "Cobrado (sin rendir)" hasta que el administrativo rinda
+  async function registrarCobro(turno,importeReal,estado,dif,motivo) {
     const estadoFinal = estado==="✅ Rendido" ? "✅ Rendido" : "💵 Cobrado (sin rendir)";
-    const reg={turnoId:turno.id,hora:turno.hora,staffNombre:turno.staffNombre,clienteNombre:turno.clienteNombre||turno.cliente,direccion:turno.direccion,autos:turno.cantAutos,tamano:turno.tamano,precio:importeReal,precioEsperado:turno.precio,metodo:turno.metodo,esFZ:turno.esFZ,notas:turno.notas,fecha:diaHoy,estadoPago:estadoFinal,diferencia:dif,ts:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})};
+    const reg={turnoId:turno.id,hora:turno.hora,staffNombre:turno.staffNombre,clienteNombre:turno.clienteNombre||turno.cliente,direccion:turno.direccion,autos:turno.cantAutos,tamano:turno.tamano,precio:importeReal,precioEsperado:turno.precio,metodo:turno.metodo,esFZ:turno.esFZ,notas:turno.notas,fecha:diaHoy,estadoPago:estadoFinal,diferencia:dif,motivo:motivo||"",ts:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})};
     await fsAdd(`cierre_${diaHoy}`,reg);
-    await fsUpdate(`turnos_${diaHoy}`,turno.id,{estadoPago:estadoFinal,diferencia:dif});
-    setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,estadoPago:estadoFinal,diferencia:dif}:t));
+    await fsUpdate(`turnos_${diaHoy}`,turno.id,{estadoPago:estadoFinal,diferencia:dif,motivo:motivo||""});
+    setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,estadoPago:estadoFinal,diferencia:dif,motivo:motivo||""}:t));
     setRegistros(prev=>[...prev,{id:Date.now(),...reg}]);
     showToast(`Cobro registrado ✓`);
     setModal(null);
@@ -764,7 +762,7 @@ export default function SofiaV4() {
     setModal(null);
   }
 
-  // Sugerir lavador (algoritmo interno) - CORREGIDO: un solo lavador, con distancia y tiempo
+  // Sugerir lavador con criterios JUSTOS
   function sugerirLavador() {
     if(!direccion) { showToast("Falta la dirección","warn"); return; }
     if(staffActivo.length===0) { showToast("Sin lavadores activos","warn"); return; }
@@ -774,8 +772,16 @@ export default function SofiaV4() {
       const radio = trans==="moto"?25:trans==="pie"?7:15;
       const cuadras = kmToCuadras(distKm(BASE_LAT,BASE_LNG,dest.lat,dest.lng));
       const libre = FRANJAS.find(h=>!turnos.some(t=>t.staffId===s.id&&t.horasOcupadas?.includes(h)));
-      const score = (libre?200:0) + Math.max(0,radio-cuadras) - (cuadras*0.5);
-      return {s,cuadras,hora:libre,score,tiempo:tiempoViaje(cuadras,trans)};
+      const turnosHoy = turnos.filter(t=>t.staffId===s.id).length;
+      const ocupadoAhora = turnos.some(t=>t.staffId===s.id&&t.horasOcupadas?.includes(FRANJAS[Math.max(0,FRANJAS.indexOf(horaSelec||"09:00")-1)]));
+      // Score: sin trabajo = +500, dentro del radio = +200, más cerca = +100
+      let score = 0;
+      if(turnosHoy===0) score += 500; // Sin trabajo hoy
+      if(!ocupadoAhora) score += 300; // Puede salir ahora
+      if(cuadras<=radio) score += 200; // Dentro del radio
+      score += Math.max(0,100-cuadras); // Más cerca, mejor
+      if(turnosHoy>0) score -= turnosHoy*30; // Ya tiene trabajo
+      return {s,cuadras,hora:libre,score,tiempo:tiempoViaje(cuadras,trans),turnosHoy};
     }).filter(r=>r.hora).sort((a,b)=>b.score-a.score);
     if(rankings.length===0) { showToast("No hay horarios disponibles","warn"); return; }
     const idx = sugerenciaIdx % rankings.length;
@@ -783,7 +789,7 @@ export default function SofiaV4() {
     setStaffSelId(r.s.id); setHoraSelec(r.hora); setGeoSelec(r.cuadras<=((asistencia[r.s.id]?.transporte||r.s.transporte)==="moto"?25:15)?"verde":"fz");
     setPaso(Math.max(paso,3));
     setSugerenciaIdx(prev=>prev+1);
-    const top3 = rankings.slice(0,3).map(x=>`${x.s.nombre} — ${x.hora} (${Math.round(x.cuadras)} cuas, ~${x.tiempo} min)`).join("\n");
+    const top3 = rankings.slice(0,3).map(x=>`${x.s.nombre} — ${x.hora} (${Math.round(x.cuadras)} cuas, ~${x.tiempo} min, ${x.turnosHoy} turnos hoy)`).join("\n");
     setIaResp(`🎯 Sugerencia #${idx+1}: ${r.s.nombre} a las ${r.hora} — ${Math.round(r.cuadras)} cuas (~${r.tiempo} min)\n\nTop 3:\n${top3}\n\nTocá ✨ para ver otro`);
   }
 
@@ -845,10 +851,11 @@ export default function SofiaV4() {
       {modal?.tipo==="detalle"  && <ModalDetalle turno={modal.data} staff={staff} asistencia={asistencia} onCancelar={cancelarTurno} onReasignar={reasignarTurno} onPagar={(t)=>setModal({tipo:"cobro",data:t})} onWA={t=>setModal({tipo:"wa",data:t})} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="cobro"    && <ModalCobro   turno={modal.data} onRegistrar={registrarCobro} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="prestamo" && <ModalPrestamo lavador={modal.data} onRegistrar={registrarPrestamo} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="nclienteR"&& <ModalClienteRapido nombreInicial={modal.data} onGuardar={async m=>{const nro=clientes.length+1;const cod=codigoBarrio(m.barrio);const id=await fsAdd("clientes",{...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`});setClientes(p=>[...p,{id,...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`}]);setClienteInput(m.nombre);setClienteSel({...m,id});setDireccion(m.direccion||"");setCantAutos(m.autosHabituales||1);showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="nstaff"   && <ModalStaff   esNuevo staff={staff} onGuardar={async m=>{const id=await fsAdd("staff",m);setStaff(p=>[...p,{id,...m}]);showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="estaff"   && <ModalStaff   miembro={modal.data} staff={staff} onGuardar={async(m)=>{await fsUpdate("staff",modal.data.id,m);setStaff(p=>p.map(s=>s.id===modal.data.id?{...s,...m}:s));showToast("Guardado ✓");setModal(null);}} onBorrar={async id=>{await fsDel("staff",id);setStaff(p=>p.filter(s=>s.id!==id));showToast("Eliminado","warn");setModal(null);}} onClose={()=>setModal(null)}/>}
-      {modal?.tipo==="ncliente" && <ModalCliente esNuevo onGuardar={async m=>{const nro=clientes.length+1;const cod=codigoBarrio(m.direccion);const id=await fsAdd("clientes",{...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`});setClientes(p=>[...p,{id,...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`}]);showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
-      {modal?.tipo==="ecliente" && <ModalCliente cliente={modal.data} onGuardar={async m=>{const cod=codigoBarrio(m.direccion);await fsUpdate("clientes",modal.data.id,{...m,nroCliente:modal.data.nroCliente||`${cod}-${String(clientes.length+1).padStart(3,"0")}`});setClientes(p=>p.map(c=>c.id===modal.data.id?{...c,...m,nroCliente:c.nroCliente||`${cod}-${String(clientes.length+1).padStart(3,"0")}`}:c));showToast("Guardado ✓");setModal(null);}} onBorrar={async id=>{await fsDel("clientes",id);setClientes(p=>p.filter(c=>c.id!==id));showToast("Eliminado","warn");setModal(null);}} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="ncliente" && <ModalCliente esNuevo onGuardar={async m=>{const nro=clientes.length+1;const cod=codigoBarrio(m.barrio);const id=await fsAdd("clientes",{...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`});setClientes(p=>[...p,{id,...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`}]);showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="ecliente" && <ModalCliente cliente={modal.data} onGuardar={async m=>{const cod=codigoBarrio(m.barrio);await fsUpdate("clientes",modal.data.id,{...m,nroCliente:modal.data.nroCliente||`${cod}-${String(clientes.length+1).padStart(3,"0")}`});setClientes(p=>p.map(c=>c.id===modal.data.id?{...c,...m,nroCliente:c.nroCliente||`${cod}-${String(clientes.length+1).padStart(3,"0")}`}:c));showToast("Guardado ✓");setModal(null);}} onBorrar={async id=>{await fsDel("clientes",id);setClientes(p=>p.filter(c=>c.id!==id));showToast("Eliminado","warn");setModal(null);}} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="servEsp"  && <ModalServicioEsp onAplicar={s=>{setServicioEsp(s);setPrecio(String(s.precio));setModal(null);showToast(`Servicio especial: ${s.nombre}`);}} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="config"   && <ModalConfig tamanos={tamanos} fzPct={fzPct} geminiKey={geminiKey} onGuardar={guardarConfig} onClose={()=>setModal(null)}/>}
 
@@ -895,10 +902,15 @@ export default function SofiaV4() {
                       {sugs.map(c=>(
                         <div key={c.id} onClick={()=>aplicarCliente(c)} style={{padding:"9px 12px",cursor:"pointer",fontSize:12,borderBottom:"1px solid #1e2d40"}} onMouseEnter={e=>e.currentTarget.style.background="#22d3ee0a"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                           <div style={{color:"#22d3ee",fontWeight:700}}>{c.nroCliente} — {c.nombre}</div>
-                          <div style={{color:"#94a3b8",fontSize:10}}>{c.telefono} · {c.direccion?.split(",")[0]}</div>
+                          <div style={{color:"#94a3b8",fontSize:10}}>{c.telefono||"📞 Sin registrar"} · {c.direccion?.split(",")[0]}</div>
                           {c.nota&&<div style={{color:"#fbbf24",fontSize:9}}>⚠ {c.nota}</div>}
                         </div>
                       ))}
+                      {sugs.length===0&&clienteInput.length>=2&&(
+                        <div onClick={()=>setModal({tipo:"nclienteR",data:clienteInput})} style={{padding:"12px",cursor:"pointer",fontSize:12,color:"#22d3ee",textAlign:"center",borderBottom:"1px solid #1e2d40",background:"#0b1220"}}>
+                          🆕 "{clienteInput}" no encontrado — <strong>Registrar como cliente nuevo</strong>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1002,18 +1014,18 @@ export default function SofiaV4() {
         {vista==="clientes"&&(<div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CLIENTES — {clientes.length}</div><Btn sm color="#0e7490" onClick={()=>setModal({tipo:"ncliente"})}>+ Nuevo cliente</Btn></div>
         <input placeholder="🔍 Buscar por código, nombre, calle, barrio o teléfono…" value={buscaCli} onChange={e=>setBuscaCli(e.target.value)} style={{marginBottom:10}}/>
         <div style={{fontSize:9,color:"#475569",marginBottom:10,display:"flex",gap:12,flexWrap:"wrap"}}><span>💤 Ocasional (1 vez al mes)</span><span>⭐ Frecuente (2 a 8 veces al mes)</span><span>🔥 Top (9 o más veces al mes)</span></div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>{clientesFiltrados.map(c=>(<div key={c.id} className="card" style={{cursor:"pointer",borderColor:"#22d3ee22"}} onClick={()=>setModal({tipo:"ecliente",data:c})}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div className="icono-staff-xl" style={{background:"#22d3ee22",border:"2px solid #22d3ee55",fontSize:22}}>👤</div><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontWeight:700,color:"#22d3ee",fontSize:13}}>{c.nroCliente} — {c.nombre}</span><span style={{fontSize:10,color:"#fbbf24"}}>{c.tipo||"💤 Ocasional"}</span></div><div style={{fontSize:10,color:"#94a3b8"}}>{c.telefono}</div></div><div style={{fontSize:12,color:"#94a3b8"}}>✏️</div></div>{c.direccion&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4}}>📍 {c.direccion}</div>}{c.nota&&<div style={{fontSize:10,color:"#fbbf24"}}>⚠ {c.nota}</div>}<div style={{display:"flex",gap:6,marginTop:6}}><a href={`tel:${c.telefono}`} onClick={e=>e.stopPropagation()} style={{textDecoration:"none"}}><button style={{background:"#34d39918",border:"1px solid #34d39944",color:"#6ee7b7",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>📞 Llamar</button></a><button onClick={e=>{e.stopPropagation();setClienteInput(c.nombre);setClienteSel(c);setDireccion(c.direccion||"");setCantAutos(c.autosHabituales||1);if(c.nota)setNotas(c.nota);setVista("turno");}} style={{background:"#22d3ee18",border:"1px solid #22d3ee44",color:"#22d3ee",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>+ Turno</button></div></div>))}</div></div>)}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>{clientesFiltrados.map(c=>(<div key={c.id} className="card" style={{cursor:"pointer",borderColor:"#22d3ee22"}} onClick={()=>setModal({tipo:"ecliente",data:c})}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div className="icono-staff-xl" style={{background:"#22d3ee22",border:"2px solid #22d3ee55",fontSize:22}}>👤</div><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontWeight:700,color:"#22d3ee",fontSize:13}}>{c.nroCliente} — {c.nombre}</span><span style={{fontSize:10,color:"#fbbf24"}}>{c.tipo||"💤 Ocasional"}</span></div><div style={{fontSize:10,color:c.telefono?"#94a3b8":"#475569"}}>{c.telefono||"📞 Sin registrar"}</div></div><div style={{fontSize:12,color:"#94a3b8"}}>✏️</div></div>{c.direccion&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4}}>📍 {c.direccion} ({c.barrio||""})</div>}{c.nota&&<div style={{fontSize:10,color:"#fbbf24"}}>⚠ {c.nota}</div>}<div style={{display:"flex",gap:6,marginTop:6}}><a href={`tel:${c.telefono}`} onClick={e=>e.stopPropagation()} style={{textDecoration:"none"}}><button style={{background:"#34d39918",border:"1px solid #34d39944",color:"#6ee7b7",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>📞 Llamar</button></a><button onClick={e=>{e.stopPropagation();setClienteInput(c.nombre);setClienteSel(c);setDireccion(c.direccion||"");setCantAutos(c.autosHabituales||1);if(c.nota)setNotas(c.nota);setVista("turno");}} style={{background:"#22d3ee18",border:"1px solid #22d3ee44",color:"#22d3ee",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>+ Turno</button></div></div>))}</div></div>)}
         {vista==="staff"&&(<div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>STAFF — {staff.length}</div><div style={{display:"flex",gap:8}}><Btn sm ghost onClick={backup}>⬇ Backup</Btn><Btn sm color="#0e7490" onClick={()=>setModal({tipo:"nstaff"})}>+ Agregar</Btn></div></div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>{staff.map(s=>{const saldoLav = (prestamos[s.id]||0) + registros.filter(r=>r.staffNombre===s.nombre).reduce((acc,r)=>acc+(r.diferencia||0),0);return <div key={s.id} className="card" style={{borderColor:`${s.color}33`,cursor:"pointer"}} onClick={()=>setModal({tipo:"estaff",data:s})}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div className="icono-staff-xl" style={{background:`${s.color}33`,border:`2px solid ${s.color}`}}>{s.rol==="encargado"?"👷":s.transporte==="moto"?"🏍":"🚲"}</div><div style={{flex:1}}><div style={{fontWeight:700,color:s.color,fontSize:14}}>{s.nombre}</div><div style={{fontSize:10,color:"#94a3b8"}}>{s.rol==="encargado"?"Encargado":`${s.transporte} · ${s.transporte==="moto"?25:15} cuas.`}</div><div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Saldo: {formatP(-saldoLav)}</div>{saldoLav>0&&<div style={{fontSize:10,color:"#fbbf24",marginTop:2}}>⚠️ Debe {formatP(saldoLav)}</div>}{saldoLav<0&&<div style={{fontSize:10,color:"#a78bfa",marginTop:2}}>📝 A favor {formatP(Math.abs(saldoLav))}</div>}</div><span style={{fontSize:14,color:"#94a3b8"}}>✏️</span></div><div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{padding:"3px 7px",borderRadius:4,fontSize:10,background:s.whatsapp?"#34d39918":"#ef444418",border:`1px solid ${s.whatsapp?"#34d39944":"#ef444444"}`,color:s.whatsapp?"#6ee7b7":"#fca5a5"}}>{s.whatsapp?"✓ WA":"✗ Sin WA"}</span>{s.especial==="rapido"&&<span style={{padding:"3px 7px",borderRadius:4,fontSize:10,background:"#fbbf2418",border:"1px solid #fbbf2444",color:"#fde68a"}}>⚡ Rápido</span>}{asistencia[s.id]?.presente&&<span style={{padding:"3px 7px",borderRadius:4,fontSize:10,background:"#34d39918",border:"1px solid #34d39933",color:"#6ee7b7"}}>● Hoy</span>}</div></div>;})}</div></div>)}
         {vista==="cierre"&&(<div className="fade">
           <div style={{fontSize:9,color:"#475569",marginBottom:10,padding:"8px 12px",background:"#1e2d4022",border:"1px solid #1e2d40",borderRadius:8}}>
-            💡 Los turnos con ✅ ya fueron rendidos. Los pendientes esperan rendición en base. Los préstamos aparecen como "Debe" hasta que se descuenten.
+            💡 Los turnos con ✅ ya fueron rendidos. Los pendientes esperan rendición en base.
           </div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CIERRE — {diaHoy}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["hoy","semana","mes"].map(r=>(<button key={r} className={`chip ${rangoC===r?"on":""}`} onClick={()=>{setRangoC(r);cargarMultiFecha(r);}}>{r==="hoy"?"📅 Hoy":r==="semana"?"📆 Semana":"🗓 Mes"}</button>))}<Btn sm ghost onClick={()=>cargarMultiFecha(rangoC)}>{loadMulti?"⟳":"⟳"}</Btn><Btn sm ghost onClick={backup}>⬇</Btn></div></div>
         {(()=>{const regs = rangoC==="hoy" ? registros : regMulti;const tTotal = regs.reduce((s,r)=>s+Number(r.precio||0),0);const tMP = regs.filter(r=>r.metodo==="mp").reduce((s,r)=>s+Number(r.precio||0),0);const tEf = regs.filter(r=>r.metodo==="efectivo").reduce((s,r)=>s+Number(r.precio||0),0);return <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>{[{l:`TOTAL ${rangoC.toUpperCase()}`,v:formatP(tTotal),c:"#22d3ee"},{l:"MERC. PAGO",v:formatP(tMP),c:"#a78bfa"},{l:"EFECTIVO",v:formatP(tEf),c:"#34d399"},{l:"SIN RENDIR",v:pendientes,c:"#f87171"}].map(s=>(<div key={s.l} className="card" style={{textAlign:"center",borderColor:`${s.c}33`}}><div style={{fontSize:8,color:"#94a3b8",marginBottom:5,letterSpacing:".12em"}}>{s.l}</div><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:s.c}}>{s.v}</div></div>))}</div>;})()}
         {rangoC!=="hoy"&&regMulti.length>0&&(()=>{const porLavador = {};regMulti.forEach(r=>{const n=r.staffNombre||"?";if(!porLavador[n]) porLavador[n]={nombre:n,total:0,efectivo:0,mp:0,turnos:0,debe:0,favor:0};porLavador[n].total += Number(r.precio||0);porLavador[n].efectivo += r.metodo==="efectivo"?Number(r.precio||0):0;porLavador[n].mp += r.metodo==="mp"?Number(r.precio||0):0;porLavador[n].turnos += 1;if(r.estadoPago==="⚠️ Debe") porLavador[n].debe += Math.abs(r.diferencia||0);if(r.estadoPago==="📝 A favor") porLavador[n].favor += Math.abs(r.diferencia||0);});const lavs = Object.values(porLavador).sort((a,b)=>b.total-a.total);return <div style={{marginBottom:14}}><div style={{fontSize:10,color:"#a78bfa",letterSpacing:".1em",marginBottom:8,fontWeight:700}}>💼 LIQUIDACIÓN POR LAVADOR — {rangoC==="semana"?"SEMANA":"MES"}</div><div className="card" style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"1px solid #1e2d40"}}>{["LAVADOR","TURNOS","TOTAL","EFECTIVO","DEBE","A FAVOR"].map(h=>(<th key={h} style={{padding:"7px 9px",textAlign:"left",color:"#94a3b8",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead><tbody>{lavs.map(l=>(<tr key={l.nombre} style={{borderBottom:"1px solid #0b1220"}}><td style={{padding:"9px",fontWeight:700}}>{l.nombre}</td><td style={{padding:"9px",textAlign:"center",color:"#94a3b8"}}>{l.turnos}</td><td style={{padding:"9px",color:"#22d3ee",fontWeight:700}}>{formatP(l.total)}</td><td style={{padding:"9px",color:"#34d399"}}>{formatP(l.efectivo)}</td><td style={{padding:"9px",color:"#fbbf24"}}>{l.debe>0?formatP(l.debe):"—"}</td><td style={{padding:"9px",color:"#a78bfa"}}>{l.favor>0?formatP(l.favor):"—"}</td></tr>))}</tbody></table></div></div>;})()}
         {pendientes>0&&(<div style={{marginBottom:14}}><div style={{fontSize:10,color:"#f87171",letterSpacing:".1em",marginBottom:8}}>💰 PENDIENTES DE RENDICIÓN</div><div style={{display:"flex",flexDirection:"column",gap:6}}>{turnos.filter(t=>!t.estadoPago||t.estadoPago==="💰 Pendiente"||t.estadoPago==="💵 Cobrado (sin rendir)").map(t=>(<div key={t.id} style={{display:"flex",alignItems:"center",gap:10,background:"#0b1220",border:"1px solid #f8717133",borderRadius:8,padding:"9px 12px",flexWrap:"wrap",gap:8}}><span style={{color:"#22d3ee",fontSize:11,fontWeight:700}}>{t.hora}</span><span style={{color:"#94a3b8",fontSize:11,flex:1}}>{t.staffNombre} → {t.clienteNombre||t.cliente}</span><span style={{color:"#34d399",fontWeight:700,fontSize:11}}>{formatP(t.precio)}</span><span style={{fontSize:10,color:t.estadoPago==="💵 Cobrado (sin rendir)"?"#fde68a":"#f87171"}}>{t.estadoPago||"💰 Pendiente"}</span><Btn sm color="#d97706" onClick={()=>setModal({tipo:"cobro",data:t})}>Registrar</Btn></div>))}</div></div>)}
-        {(()=>{const regs=rangoC==="hoy"?registros:regMulti;return regs.length===0?<div className="card" style={{textAlign:"center",color:"#94a3b8",padding:28}}>{loadMulti?"Cargando…":"Sin registros para este período."}</div>:<div className="card" style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"1px solid #1e2d40"}}>{["HORA","LAVADOR","CLIENTE","DIR.","AUTOS","PRECIO","PAGO","ESTADO","DIF."].map(h=>(<th key={h} style={{padding:"6px 8px",textAlign:"left",color:"#94a3b8",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead><tbody>{regs.map((r,i)=>(<tr key={r.id||i} style={{borderBottom:"1px solid #0b1220"}}><td style={{padding:"8px",color:"#22d3ee",whiteSpace:"nowrap"}}>{r.hora}</td><td style={{padding:"8px"}}>{r.staffNombre}</td><td style={{padding:"8px",color:"#94a3b8"}}>{r.clienteNombre||"—"}</td><td style={{padding:"8px",color:"#94a3b8",maxWidth:100,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.direccion}</td><td style={{padding:"8px",textAlign:"center"}}>{r.autos}</td><td style={{padding:"8px",color:"#34d399",fontWeight:700}}>{formatP(r.precio)} {r.precio!==r.precioEsperado&&<span style={{fontSize:9,color:"#fde68a"}}>({formatP(r.precioEsperado)})</span>}</td><td style={{padding:"8px"}}><span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:r.metodo==="mp"?"#a78bfa18":"#34d39918",border:`1px solid ${r.metodo==="mp"?"#a78bfa44":"#34d39944"}`,color:r.metodo==="mp"?"#c4b5fd":"#6ee7b7"}}>{r.metodo==="mp"?"MP":"Ef."}</span></td><td style={{padding:"8px",fontSize:10}}>{r.estadoPago||"—"}</td><td style={{padding:"8px",color:r.diferencia<0?"#fbbf24":r.diferencia>0?"#a78bfa":"#94a3b8",fontSize:10}}>{r.diferencia!==0?formatP(r.diferencia):"—"}</td></tr>))}</tbody><tfoot><tr style={{borderTop:"2px solid #1e3a5f"}}><td colSpan={5} style={{padding:"9px 8px",color:"#94a3b8",fontSize:10}}>TOTALES</td><td style={{padding:"9px 8px",color:"#22d3ee",fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{formatP(totalDia)}</td><td colSpan={3} style={{padding:"9px 8px",color:"#94a3b8",fontSize:10}}>MP:{formatP(totalMP)} Ef:{formatP(totalEfect)}</td></tr></tfoot></table></div>})()}
+        {(()=>{const regs=rangoC==="hoy"?registros:regMulti;return regs.length===0?<div className="card" style={{textAlign:"center",color:"#94a3b8",padding:28}}>{loadMulti?"Cargando…":"Sin registros para este período."}</div>:<div className="card" style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"1px solid #1e2d40"}}>{["HORA","LAVADOR","CLIENTE","DIR.","AUTOS","PRECIO","PAGO","ESTADO","DIF.","MOTIVO"].map(h=>(<th key={h} style={{padding:"6px 8px",textAlign:"left",color:"#94a3b8",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead><tbody>{regs.map((r,i)=>(<tr key={r.id||i} style={{borderBottom:"1px solid #0b1220"}}><td style={{padding:"8px",color:"#22d3ee",whiteSpace:"nowrap"}}>{r.hora}</td><td style={{padding:"8px"}}>{r.staffNombre}</td><td style={{padding:"8px",color:"#94a3b8"}}>{r.clienteNombre||"—"}</td><td style={{padding:"8px",color:"#94a3b8",maxWidth:100,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.direccion}</td><td style={{padding:"8px",textAlign:"center"}}>{r.autos}</td><td style={{padding:"8px",color:"#34d399",fontWeight:700}}>{formatP(r.precio)} {r.precio!==r.precioEsperado&&<span style={{fontSize:9,color:"#fde68a"}}>({formatP(r.precioEsperado)})</span>}</td><td style={{padding:"8px"}}><span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:r.metodo==="mp"?"#a78bfa18":"#34d39918",border:`1px solid ${r.metodo==="mp"?"#a78bfa44":"#34d39944"}`,color:r.metodo==="mp"?"#c4b5fd":"#6ee7b7"}}>{r.metodo==="mp"?"MP":"Ef."}</span></td><td style={{padding:"8px",fontSize:10}}>{r.estadoPago||"—"}</td><td style={{padding:"8px",color:r.diferencia<0?"#fbbf24":r.diferencia>0?"#a78bfa":"#94a3b8",fontSize:10}}>{r.diferencia!==0?formatP(r.diferencia):"—"}</td><td style={{padding:"8px",color:"#94a3b8",fontSize:9,maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.motivo||"—"}</td></tr>))}</tbody><tfoot><tr style={{borderTop:"2px solid #1e3a5f"}}><td colSpan={5} style={{padding:"9px 8px",color:"#94a3b8",fontSize:10}}>TOTALES</td><td style={{padding:"9px 8px",color:"#22d3ee",fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{formatP(totalDia)}</td><td colSpan={4} style={{padding:"9px 8px",color:"#94a3b8",fontSize:10}}>MP:{formatP(totalMP)} Ef:{formatP(totalEfect)}</td></tr></tfoot></table></div>})()}
         </div>)}
 
       </main>
