@@ -1219,9 +1219,62 @@ export default function App() {
         <div className="card grilla-wrap">{staffActivo.filter(s=>s.rol!=="encargado").length===0?<div style={{textAlign:"center",padding:28,color:"#94a3b8"}}>Sin lavadores activos. Marcá la asistencia.</div>:<div className="grilla-inner" style={{display:"grid",gridTemplateColumns:`56px repeat(${staffActivo.filter(s=>s.rol!=="encargado").length},minmax(100px,1fr))`,gap:3}}><div style={{fontSize:9,color:"#94a3b8",padding:"5px"}}>HORA</div>{staffActivo.filter(s=>s.rol!=="encargado").map(s=>(<div key={`agenda-hdr-${s.id}`} style={{fontSize:11,textAlign:"center",padding:"5px 3px",color:s.color,borderBottom:`2px solid ${s.color}33`,lineHeight:1.5}}><div style={{fontWeight:700}}>{s.nombre}</div><div style={{fontSize:24}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":(asistencia[s.id]?.transporte||s.transporte)==="pie"?"🚶":"🚲"}</div></div>))}{FRANJAS.map(hora=>(<div key={`fila-agenda-${hora}`} style={{display:"contents"}}><div style={{fontSize:10,padding:"8px 5px",color:esTarde(hora)?"#a78bfa":"#94a3b8",fontWeight:700}}>{hora}</div>{staffActivo.filter(s=>s.rol!=="encargado").map(s=>{const t=turnos.find(x=>x.staffId===s.id&&x.horasOcupadas?.includes(hora));const pp=t?.hora===hora;return <div key={`agenda-${s.id}-${hora}`} onClick={()=>t&&setModal({tipo:"detalle",data:t})} style={{padding:"8px 6px",borderRadius:8,fontSize:10,cursor:t?"pointer":"default",lineHeight:1.4,minHeight:55,background:t?`${s.color}18`:"#0b122088",border:`1px solid ${t?s.color+"44":"#1e2d40"}`,color:t?s.color:"#94a3b8"}}>{pp?<><div style={{fontWeight:700,fontSize:11}}>{t.clienteNombre||t.cliente||"turno"}</div><div style={{color:"#94a3b8",fontSize:9,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.direccion?.split(",")[0]}</div><div style={{fontSize:9,marginTop:2}}>{t.estadoPago||"💰"}</div></>:t?<div style={{fontSize:9,color:"#94a3b8",textAlign:"center",paddingTop:12}}>↓</div>:"·"}</div>;})}</div>))}</div></div>}</div>)}
 
         {/* ══ ASISTENCIA ══ */}
-        {vista==="asist"&&(<div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>ASISTENCIA — {diaHoy}</div><span style={{fontSize:11,color:"#94a3b8"}}>{staffActivo.length} presentes</span></div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>{staff.filter(s=>s.rol!=="encargado").map(s=>{const a=asistencia[s.id]||{};const pres=a.presente===true;const trans=a.transporte||s.transporte;const saldoLav=(prestamos[s.id]||0)+registros.filter(r=>r.staffNombre===s.nombre).reduce((acc,r)=>acc+(r.diferencia||0),0);return <div key={`asist-${s.id}`} className="card" style={{borderColor:`${s.color}33`,display:"flex",alignItems:"center",gap:14}}><div className="icono-asist-xl" style={{background:`${s.color}33`,border:`2px solid ${s.color}`}}>{trans==="moto"?"🏍":trans==="pie"?"🚶":"🚲"}</div><div style={{flex:1}}><div style={{fontWeight:700,color:s.color,fontSize:14,marginBottom:6}}>{s.nombre}</div><div style={{fontSize:10,color:"#94a3b8",marginBottom:2}}>Saldo: {formatP(-saldoLav)}</div>{saldoLav>0&&<div style={{fontSize:10,color:"#fbbf24",marginBottom:4}}>⚠️ Debe {formatP(saldoLav)}</div>}{saldoLav<0&&<div style={{fontSize:10,color:"#a78bfa",marginBottom:4}}>📝 A favor {formatP(Math.abs(saldoLav))}</div>}<div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{["moto","bici","pie"].map(t=>(<button key={t} onClick={async()=>{const upd={...(asistencia[s.id]||{}),transporte:t};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd});}} className={`chip ${trans===t?"on":""}`} style={{padding:"4px 10px",fontSize:10}}>{t==="moto"?"🏍 Moto":t==="bici"?"🚲 Bici":"🚶 Pie"}</button>))}</div></div><div style={{display:"flex",flexDirection:"column",gap:4}}><button className={`tog ${pres?"on_":"off"}`} onClick={async()=>{const upd={...(asistencia[s.id]||{transporte:s.transporte}),presente:!pres};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd});}}/><button onClick={(e)=>{e.stopPropagation();setModal({tipo:"operacion",data:s});}} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"3px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>💰 Operación</button></div></div>;})}</div>
-        {staff.filter(s=>s.rol==="encargado").length>0&&<><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em",margin:"18px 0 10px"}}>ENCARGADOS</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8}}>{staff.filter(s=>s.rol==="encargado").map(s=>(<div key={`enc-${s.id}`} className="card" style={{borderColor:`${s.color}33`,display:"flex",alignItems:"center",gap:12}}><div className="icono-staff-xl" style={{background:`${s.color}33`,border:`2px solid ${s.color}`}}>👷</div><div><div style={{fontWeight:700,color:s.color,fontSize:13}}>{s.nombre}</div><div style={{fontSize:10,color:"#94a3b8"}}>Encargado</div></div></div>))}</div></>}</div>)}
+        {vista==="asist"&&(
+          <div className="fade">
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>ASISTENCIA — {diaHoy}</div>
+              <span style={{fontSize:11,color:"#94a3b8"}}>{staffActivo.length} presentes</span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+              {staff.filter(s=>s.rol!=="encargado").map(s=>{
+                const a=asistencia[s.id]||{};
+                const pres=a.presente===true;
+                const trans=a.transporte||s.transporte;
+                const saldoLav=(prestamos[s.id]||0)+registros.filter(r=>r.staffNombre===s.nombre).reduce((acc,r)=>acc+(r.diferencia||0),0);
+                return (
+                  <div key={`asist-${s.id}`} className="card" style={{borderColor:`${s.color}33`,display:"flex",alignItems:"center",gap:14}}>
+                    <div className="icono-asist-xl" style={{background:`${s.color}33`,border:`2px solid ${s.color}`}}>
+                      {trans==="moto"?"🏍":trans==="pie"?"🚶":"🚲"}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,color:s.color,fontSize:14,marginBottom:6}}>{s.nombre}</div>
+                      <div style={{fontSize:10,color:"#94a3b8",marginBottom:2}}>Saldo: {formatP(-saldoLav)}</div>
+                      {saldoLav>0&&<div style={{fontSize:10,color:"#fbbf24",marginBottom:4}}>⚠️ Debe {formatP(saldoLav)}</div>}
+                      {saldoLav<0&&<div style={{fontSize:10,color:"#a78bfa",marginBottom:4}}>📝 A favor {formatP(Math.abs(saldoLav))}</div>}
+                      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                        {["moto","bici","pie"].map(t=>(
+                          <button key={t} onClick={async()=>{const upd={...(asistencia[s.id]||{}),transporte:t};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd});}} className={`chip ${trans===t?"on":""}`} style={{padding:"4px 10px",fontSize:10}}>
+                            {t==="moto"?"🏍 Moto":t==="bici"?"🚲 Bici":"🚶 Pie"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                      <button className={`tog ${pres?"on_":"off"}`} onClick={async()=>{const upd={...(asistencia[s.id]||{transporte:s.transporte}),presente:!pres};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd});}}/>
+                      <button onClick={(e)=>{e.stopPropagation();setModal({tipo:"operacion",data:s});}} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"3px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>💰 Operación</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {staff.filter(s=>s.rol==="encargado").length>0&&(
+              <>
+                <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em",margin:"18px 0 10px"}}>ENCARGADOS</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8}}>
+                  {staff.filter(s=>s.rol==="encargado").map(s=>(
+                    <div key={`enc-${s.id}`} className="card" style={{borderColor:`${s.color}33`,display:"flex",alignItems:"center",gap:12}}>
+                      <div className="icono-staff-xl" style={{background:`${s.color}33`,border:`2px solid ${s.color}`}}>👷</div>
+                      <div>
+                        <div style={{fontWeight:700,color:s.color,fontSize:13}}>{s.nombre}</div>
+                        <div style={{fontSize:10,color:"#94a3b8"}}>Encargado</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* ══ CLIENTES ══ */}
         {vista==="clientes"&&(<div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CLIENTES — {clientes.length}</div><Btn sm color="#0e7490" onClick={()=>setModal({tipo:"ncliente"})}>+ Nuevo cliente</Btn></div>
