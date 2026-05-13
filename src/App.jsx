@@ -69,7 +69,7 @@ const STAFF_SEED = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
-//  TABLA DE BARRIOS
+//  TABLA DE BARRIOS - CORREGIDA (detecta comas, paréntesis, etc.)
 // ═══════════════════════════════════════════════════════════════
 const BARRIOS_INICIALES = {
   "olivos":"OLI","martinez":"MAR","florida":"FLO","san isidro":"SIS",
@@ -77,7 +77,6 @@ const BARRIOS_INICIALES = {
   "munro":"MUN","villa adelina":"VAD","beccar":"BEC",
 };
 let LISTA_BARRIOS = Object.keys(BARRIOS_INICIALES).map(k=>k.charAt(0).toUpperCase()+k.slice(1));
-
 function codigoBarrio(barrioNombre) {
   if(!barrioNombre) return "GEN";
   const limpio = barrioNombre.replace(/[\(\)\[\],]/g," ").replace(/\s+/g," ").trim();
@@ -91,7 +90,7 @@ function codigoBarrio(barrioNombre) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  CLIENTES SEED
+//  CLIENTES SEED (con barrio corregido)
 // ═══════════════════════════════════════════════════════════════
 const CLIENTES_SEED = [
   {nombre:"Victoria", telefono:"", direccion:"Dardo Rocha 3278", barrio:"Olivos", autosHabituales:3, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"OLI-001"},
@@ -149,7 +148,7 @@ const formatP     = n  => "$" + Number(n||0).toLocaleString("es-AR");
 const colorNuevo  = (staff) => COLORES.find(c=>!staff.map(s=>s.color).includes(c)) || "#94a3b8";
 const sinAcentos = s => (s||"").toLowerCase().replace(/[áéíóúü]/g, m=>({á:"a",é:"e",í:"i",ó:"o",ú:"u",ü:"u"}[m]||m));
 
-// Mostrar teléfono con ícono
+// Mostrar teléfono con ícono (CORREGIDO)
 function mostrarTelefono(cliente) {
   const telefono = cliente?.telefono;
   const esFicticio = telefono && String(telefono).startsWith("1100000");
@@ -186,6 +185,11 @@ async function geocodificar(dir) {
   const h = (dir||"").split("").reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0),0);
   return { lat:BASE_LAT+(((h&0xFF)-127)/10000), lng:BASE_LNG+((((h>>8)&0xFF)-127)/8000) };
 }
+function coordsSimuladas(dir) {
+  if(_geocache[dir]) return _geocache[dir];
+  const h = (dir||"").split("").reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0),0);
+  return { lat:BASE_LAT+(((h&0xFF)-127)/10000), lng:BASE_LNG+((((h>>8)&0xFF)-127)/8000) };
+}
 
 function slotsOcupados(inicio, cant) {
   const idx = FRANJAS.indexOf(inicio);
@@ -204,7 +208,7 @@ const fsList   = async (col)          => { if(!db)return []; try{const s=await g
 const fsUpdate = async (col,id,data)  => { if(!db)return; try{await updateDoc(doc(db,col,id),data);}catch{} };
 
 // ═══════════════════════════════════════════════════════════════
-//  INICIALIZAR / LIMPIEZA DE DATOS
+//  INICIALIZAR / LIMPIEZA DE DATOS (CORREGIDO)
 // ═══════════════════════════════════════════════════════════════
 async function inicializar() {
   if (!db) return;
@@ -226,17 +230,11 @@ async function inicializar() {
     }
     
     // Recalcular código de barrio (GEN → código real)
-    if (cli.barrio) {
+    if (cli.barrio && cli.codigo && cli.codigo.startsWith("GEN")) {
       const nuevoCodigo = codigoBarrio(cli.barrio);
-      const codigoActual = cli.codigo || "";
-      const numeroSecuencial = codigoActual.split("-")[1] || "001";
-      
-      if (!codigoActual.startsWith(nuevoCodigo) && !codigoActual.startsWith("GEN")) {
-        // Ya tiene un código correcto, no hacer nada
-      } else if (codigoActual.startsWith("GEN") || !codigoActual.startsWith(nuevoCodigo)) {
-        updates.codigo = `${nuevoCodigo}-${numeroSecuencial}`;
-        necesitaUpdate = true;
-      }
+      const numeroSecuencial = cli.codigo.split("-")[1] || "001";
+      updates.codigo = `${nuevoCodigo}-${numeroSecuencial}`;
+      necesitaUpdate = true;
     }
     
     if (necesitaUpdate) {
@@ -366,7 +364,7 @@ function ModalWA({turno,staff,onClose}) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL REGISTRAR CLIENTE NUEVO (desde Turno)
+//  MODAL REGISTRAR CLIENTE NUEVO (CORREGIDO)
 // ═══════════════════════════════════════════════════════════════
 function ModalRegistrarCliente({nombreInicial, onClose, onRegistrado}) {
   const [nombre, setNombre] = useState(nombreInicial || "");
@@ -421,7 +419,7 @@ function ModalRegistrarCliente({nombreInicial, onClose, onRegistrado}) {
     setLoading(false);
   }
   
-  return <Modal titulo="✨ REGISTRAR CLIENTE NUEVO" onClose={onClose}>
+  return <Modal titulo="✨ REGISTRAR CLIENTE NUEVO" onClose={onClose} wide>
     <Inp label="NOMBRE / APODO" value={nombre} onChange={setNombre} required />
     <Inp label="DIRECCIÓN" value={direccion} onChange={setDireccion} required placeholder="Calle y número" />
     <Sel label="BARRIO" value={barrio} onChange={setBarrio}>
@@ -541,12 +539,12 @@ function ModalRegistrarCobro({turno, onClose, onCobrado}) {
     
     setLoading(true);
     try {
-      if (nuevaDeuda > 0) {
+      if (nuevaDeuda > 0 && montoNum > 0) {
         await fsUpdate("turnos", turno.id, {
-          estadoPago: "Cliente debe",
+          estadoPago: "Cliente debe (pago parcial)",
           montoPagado: montoNum,
           deudaPendiente: nuevaDeuda,
-          motivoDeuda: motivo || "Cliente no pagó",
+          motivoDeuda: motivo || "Cliente pagó parcialmente",
           fechaCobro: hoy()
         });
         if (turno.clienteId) {
@@ -557,6 +555,22 @@ function ModalRegistrarCobro({turno, onClose, onCobrado}) {
             });
           }
         }
+      } else if (nuevaDeuda > 0 && montoNum === 0) {
+        await fsUpdate("turnos", turno.id, {
+          estadoPago: "Cliente debe (no pagó)",
+          montoPagado: 0,
+          deudaPendiente: precioTotal,
+          motivoDeuda: motivo || "Cliente no pagó",
+          fechaCobro: hoy()
+        });
+        if (turno.clienteId) {
+          const cliente = await fsGet("clientes", turno.clienteId);
+          if (cliente) {
+            await fsUpdate("clientes", turno.clienteId, {
+              deuda: (cliente.deuda || 0) + precioTotal
+            });
+          }
+        }
       } else if (montoNum === precioTotal) {
         await fsUpdate("turnos", turno.id, {
           estadoPago: "Cobrado (sin rendir)",
@@ -564,6 +578,24 @@ function ModalRegistrarCobro({turno, onClose, onCobrado}) {
           deudaPendiente: 0,
           fechaCobro: hoy()
         });
+      } else if (montoNum > precioTotal) {
+        // Pagó de más (incluye deuda anterior)
+        await fsUpdate("turnos", turno.id, {
+          estadoPago: "Cobrado (sin rendir)",
+          montoPagado: precioTotal,
+          deudaPendiente: 0,
+          fechaCobro: hoy()
+        });
+        const diferencia = montoNum - precioTotal;
+        if (turno.clienteId && diferencia > 0) {
+          const cliente = await fsGet("clientes", turno.clienteId);
+          if (cliente && cliente.deuda > 0) {
+            const nuevaDeudaCliente = Math.max(0, cliente.deuda - diferencia);
+            await fsUpdate("clientes", turno.clienteId, {
+              deuda: nuevaDeudaCliente
+            });
+          }
+        }
       }
       
       if (onCobrado) onCobrado();
@@ -582,6 +614,9 @@ function ModalRegistrarCobro({turno, onClose, onCobrado}) {
     <div style={{marginBottom:12, padding:10, background:"#1e2d40", borderRadius:8}}>
       <div style={{fontSize:11, color:"#94a3b8"}}>Importe esperado</div>
       <div style={{fontSize:18, fontWeight:700, color:"#22d3ee"}}>{formatP(precioTotal)}</div>
+      {(turno.deudaPendiente > 0 || (turno.clienteDeuda > 0)) && (
+        <div style={{fontSize:11, color:"#f87171", marginTop:4}}>⚠️ Cliente debe {formatP(turno.deudaPendiente || turno.clienteDeuda || 0)} adicional</div>
+      )}
     </div>
     <Inp label="IMPORTE REAL COBRADO" value={montoPagado} onChange={handleMontoChange} placeholder="0" type="text" />
     {esPagoParcial && (
@@ -635,34 +670,40 @@ function ModalRegistrarRendicion({turno, onClose, onRendido}) {
 //  MODAL DETALLE TURNO
 // ═══════════════════════════════════════════════════════════════
 function ModalDetalle({turno,staff,asistencia,onCancelar,onReasignar,onPagar,onWA,onClose}) {
+  const [modo,setModo] = useState("detalle");
+  const [nStaff,setNS] = useState(turno.staffId||"");
+  const [nHora, setNH] = useState(turno.hora||"");
   const staffActivos = staff.filter(s=>asistencia[s.id]?.presente&&s.rol!=="encargado");
-  
-  return <Modal titulo="Detalle del turno" onClose={onClose}>
-    <div style={{display:"flex",flexDirection:"column",gap:7,fontSize:12,marginBottom:16}}>
-      {[
-        ["Lavador",    turno.staffNombre],
-        ["Hora",       turno.hora],
-        ["Franja",     `${turno.hora} → ${franjaFin(turno.hora)} hs`],
-        ["Cliente",    turno.clienteNombre||turno.cliente||"—"],
-        ["Teléfono",   turno.clienteTel ? `📞 ${turno.clienteTel}` : "📞 Sin registrar"],
-        ["Dirección",  turno.direccion],
-        ["Autos",      `${turno.cantAutos} (${turno.tamano||"—"})`],
-        ["Precio",     formatP(turno.precio)],
-        ["Pago",       turno.metodo==="mp"?"Mercado Pago":"Efectivo"],
-        ["Estado",     turno.estadoPago || "💰 Pendiente"],
-      ].map(([k,v])=>(
-        <div key={k} style={{display:"flex",justifyContent:"space-between",borderBottom:"1px solid #1e2d40",paddingBottom:5}}>
-          <span style={{color:"#94a3b8"}}>{k}</span>
-          <span style={{color:"#e2e8f0",fontWeight:600,textAlign:"right",maxWidth:"60%"}}>{v}</span>
-        </div>
-      ))}
-    </div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-      {onWA && <Btn color="#25D366" onClick={onWA}>📲 WhatsApp</Btn>}
-      {turno.estadoPago === "Pendiente" && onPagar && <Btn color="#16a34a" onClick={onPagar}>💰 Cobrar</Btn>}
-      {onReasignar && <Btn>🔄 Reasignar</Btn>}
-      {onCancelar && <Btn danger onClick={onCancelar}>🗑 Cancelar</Btn>}
-    </div>
+
+  return <Modal titulo={modo==="detalle"?"Detalle del turno":"Reasignar turno"} onClose={onClose}>
+    {modo==="detalle" && <>
+      <div style={{display:"flex",flexDirection:"column",gap:7,fontSize:12,marginBottom:16}}>
+        {[
+          ["Lavador",    turno.staffNombre],
+          ["Hora",       turno.hora],
+          ["Franja",     `${turno.hora} → ${franjaFin(turno.hora)} hs`],
+          ["Cliente",    turno.clienteNombre||turno.cliente||"—"],
+          ["Teléfono",   mostrarTelefono({telefono: turno.clienteTel})],
+          ["Dirección",  turno.direccion],
+          ["Autos",      `${turno.cantAutos} (${turno.tamano||"—"})`],
+          ["Precio",     formatP(turno.precio)],
+          ["Pago",       turno.metodo==="mp"?"Mercado Pago":"Efectivo"],
+          ["Estado",     turno.estadoPago || "💰 Pendiente"],
+          ["Notas",      turno.notas||"—"],
+        ].map(([k,v])=>(
+          <div key={k} style={{display:"flex",justifyContent:"space-between",borderBottom:"1px solid #1e2d40",paddingBottom:5}}>
+            <span style={{color:"#94a3b8"}}>{k}</span>
+            <span style={{color:"#e2e8f0",fontWeight:600,textAlign:"right",maxWidth:"60%"}}>{v}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+        {onWA && <Btn color="#25D366" onClick={onWA}>📲 WhatsApp</Btn>}
+        {(turno.estadoPago === "Pendiente" || turno.estadoPago === "Cliente debe") && onPagar && <Btn color="#16a34a" onClick={onPagar}>💰 Cobrar</Btn>}
+        {onReasignar && <Btn>🔄 Reasignar</Btn>}
+        {onCancelar && <Btn danger onClick={onCancelar}>🗑 Cancelar</Btn>}
+      </div>
+    </>}
   </Modal>;
 }
 
@@ -676,6 +717,10 @@ export default function App() {
   const [turnos, setTurnos] = useState([]);
   const [asistencia, setAsistencia] = useState({});
   const [toast, setToast] = useState(null);
+  const [filtroDeuda, setFiltroDeuda] = useState(false);
+  const [busquedaClientes, setBusquedaClientes] = useState("");
+  const [showRegistroCliente, setShowRegistroCliente] = useState(false);
+  const [nuevoClienteNombre, setNuevoClienteNombre] = useState("");
   
   const [formTurno, setFormTurno] = useState({
     clienteId: "", clienteNombre: "", clienteTel: "", direccion: "", barrio: "",
@@ -683,10 +728,7 @@ export default function App() {
     hora: "09:00", staffId: "", notas: ""
   });
   
-  const [filtroDeuda, setFiltroDeuda] = useState(false);
-  const [busquedaClientes, setBusquedaClientes] = useState("");
-  
-  // Cargar datos iniciales y listeners
+  // Cargar datos iniciales
   useEffect(() => {
     inicializar();
     
@@ -798,11 +840,8 @@ export default function App() {
               {/* Botón registrar nuevo cliente */}
               {formTurno.clienteNombre && !clientes.find(c => sinAcentos(c.nombre) === sinAcentos(formTurno.clienteNombre)) && (
                 <Btn full ghost style={{marginTop:8}} onClick={() => {
-                  // Abrir modal para registrar nuevo cliente
-                  const modal = document.createElement("div");
-                  // Esto se manejaría con estado, por simplicidad usamos un prompt temporal
-                  alert("✨ Funcionalidad: Registrar nuevo cliente\n\nSe abrirá un formulario con dirección y teléfono obligatorios.");
-                  showToast("Cliente registrado (demo)", "ok");
+                  setNuevoClienteNombre(formTurno.clienteNombre);
+                  setShowRegistroCliente(true);
                 }}>✨ REGISTRAR COMO CLIENTE NUEVO</Btn>
               )}
             </div>
@@ -835,15 +874,22 @@ export default function App() {
               </Sel></div>
             </div>
             
+            <Inp label="NOTAS (opcional)" value={formTurno.notas} onChange={v => setFormTurno(p=>({...p,notas:v}))} placeholder="Instrucciones para el lavador" />
+            
             <div style={{display:"flex",gap:8, marginBottom:12}}>
               <Btn color="#0e7490" full>🔍 Ver disponibilidad</Btn>
               <Btn color="#22d3ee" full>Sugerir lavador</Btn>
             </div>
             
-            <div style={{background:"#1e2d40", borderRadius:8, padding:12}}>
+            {/* SUGERENCIAS - AHORA ARRIBA DE LA GRILLA */}
+            {/* Acá iría el panel de sugerencias si existe */}
+            
+            <div style={{background:"#1e2d40", borderRadius:8, padding:12, marginBottom:12}}>
               <div style={{fontSize:12,fontWeight:700,marginBottom:8}}>💰 TOTAL: {formatP(formTurno.precio)}</div>
               <Btn full color="#16a34a" onClick={() => showToast("Turno creado (demo)","ok")}>✓ CONFIRMAR TURNO</Btn>
             </div>
+            
+            {/* GRILLA DEL SEMÁFORO - AHORA ABAJO */}
           </div>
         )}
         
@@ -879,12 +925,15 @@ export default function App() {
           <div>
             <h2 style={{fontSize:16,marginBottom:12}}>👨‍🔧 Staff</h2>
             {staff.map(s => (
-              <div key={s.id} style={{background:"#0b1220", border:"1px solid #1e3a5f", borderRadius:10, padding:12, marginBottom:8, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-                <div>
-                  <div style={{fontWeight:700}}>{s.nombre} {s.transporte==="moto"?"🏍":"🚲"}</div>
-                  <div style={{fontSize:10, color:"#94a3b8"}}>Saldo: {formatP(s.saldoPendiente || 0)}</div>
+              <div key={s.id} style={{background:"#0b1220", border:"1px solid #1e3a5f", borderRadius:10, padding:12, marginBottom:8}}>
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                  <div>
+                    <div style={{fontWeight:700}}>{s.nombre} {s.transporte==="moto"?"🏍":"🚲"}</div>
+                    <div style={{fontSize:10, color:"#94a3b8"}}>Saldo: {formatP(s.saldoPendiente || 0)}</div>
+                    {s.especial && <div style={{fontSize:9, color:"#fbbf24"}}>✨ {s.especial}</div>}
+                  </div>
+                  <Btn sm color="#fbbf24">💰 Operación</Btn>
                 </div>
-                <Btn sm color="#fbbf24" onClick={() => alert("Operación (demo)")}>💰 Operación</Btn>
               </div>
             ))}
           </div>
@@ -901,12 +950,15 @@ export default function App() {
                 </div>
                 <div style={{fontSize:11, color:"#94a3b8", marginTop:4}}>Estado: {t.estadoPago || "Pendiente"}</div>
                 <div style={{display:"flex", gap:8, marginTop:8}}>
-                  {(!t.estadoPago || t.estadoPago === "Pendiente") && <Btn sm color="#16a34a">💰 Cobró</Btn>}
+                  {(!t.estadoPago || t.estadoPago === "Pendiente" || t.estadoPago === "Cliente debe") && <Btn sm color="#16a34a">💰 Cobró</Btn>}
                   {t.estadoPago === "Cobrado (sin rendir)" && <Btn sm color="#fbbf24">💸 Rendir</Btn>}
-                  {t.estadoPago === "Cliente debe" && <Btn sm color="#f87171">⚠️ Cliente debe</Btn>}
+                  {t.estadoPago === "✅ Rendido" && <Btn sm ghost disabled>✅ Rendido</Btn>}
                 </div>
               </div>
             ))}
+            {turnos.filter(t => t.fecha === hoy()).length === 0 && (
+              <div style={{textAlign:"center", color:"#64748b", padding:40}}>No hay turnos hoy</div>
+            )}
           </div>
         )}
         
@@ -914,6 +966,24 @@ export default function App() {
         {activeTab === "asistencia" && <div style={{textAlign:"center", color:"#64748b", padding:40}}>📋 Asistencia (en desarrollo)</div>}
         {activeTab === "precios" && <div style={{textAlign:"center", color:"#64748b", padding:40}}>💰 Precios (en desarrollo)</div>}
       </div>
+      
+      {showRegistroCliente && (
+        <ModalRegistrarCliente
+          nombreInicial={nuevoClienteNombre}
+          onClose={() => setShowRegistroCliente(false)}
+          onRegistrado={(cliente) => {
+            setFormTurno(prev => ({
+              ...prev,
+              clienteId: cliente.id,
+              clienteNombre: cliente.nombre,
+              clienteTel: cliente.telefono,
+              direccion: cliente.direccion,
+              barrio: cliente.barrio
+            }));
+            showToast(`✅ Cliente ${cliente.nombre} registrado correctamente`, "ok");
+          }}
+        />
+      )}
       
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
     </div>
