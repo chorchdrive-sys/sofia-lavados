@@ -1215,8 +1215,48 @@ export default function App() {
         )}
 
         {/* ══ AGENDA ══ */}
-        {vista==="agenda"&&(<div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>AGENDA — {diaHoy}</div><button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={recargar}>⟳</button></div>
-        <div className="card grilla-wrap">{staffActivo.filter(s=>s.rol!=="encargado").length===0?<div style={{textAlign:"center",padding:28,color:"#94a3b8"}}>Sin lavadores activos. Marcá la asistencia.</div>:<div className="grilla-inner" style={{display:"grid",gridTemplateColumns:`56px repeat(${staffActivo.filter(s=>s.rol!=="encargado").length},minmax(100px,1fr))`,gap:3}}><div style={{fontSize:9,color:"#94a3b8",padding:"5px"}}>HORA</div>{staffActivo.filter(s=>s.rol!=="encargado").map(s=>(<div key={`agenda-hdr-${s.id}`} style={{fontSize:11,textAlign:"center",padding:"5px 3px",color:s.color,borderBottom:`2px solid ${s.color}33`,lineHeight:1.5}}><div style={{fontWeight:700}}>{s.nombre}</div><div style={{fontSize:24}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":(asistencia[s.id]?.transporte||s.transporte)==="pie"?"🚶":"🚲"}</div></div>))}{FRANJAS.map(hora=>(<div key={`fila-agenda-${hora}`} style={{display:"contents"}}><div style={{fontSize:10,padding:"8px 5px",color:esTarde(hora)?"#a78bfa":"#94a3b8",fontWeight:700}}>{hora}</div>{staffActivo.filter(s=>s.rol!=="encargado").map(s=>{const t=turnos.find(x=>x.staffId===s.id&&x.horasOcupadas?.includes(hora));const pp=t?.hora===hora;return <div key={`agenda-${s.id}-${hora}`} onClick={()=>t&&setModal({tipo:"detalle",data:t})} style={{padding:"8px 6px",borderRadius:8,fontSize:10,cursor:t?"pointer":"default",lineHeight:1.4,minHeight:55,background:t?`${s.color}18`:"#0b122088",border:`1px solid ${t?s.color+"44":"#1e2d40"}`,color:t?s.color:"#94a3b8"}}>{pp?<><div style={{fontWeight:700,fontSize:11}}>{t.clienteNombre||t.cliente||"turno"}</div><div style={{color:"#94a3b8",fontSize:9,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.direccion?.split(",")[0]}</div><div style={{fontSize:9,marginTop:2}}>{t.estadoPago||"💰"}</div></>:t?<div style={{fontSize:9,color:"#94a3b8",textAlign:"center",paddingTop:12}}>↓</div>:"·"}</div>;})}</div>))}</div></div>}</div>)}
+        {vista==="agenda"&&(
+          <div className="fade">
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>AGENDA — {diaHoy}</div>
+              <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={recargar}>⟳</button>
+            </div>
+            <div className="card grilla-wrap">
+              {staffActivo.filter(s=>s.rol!=="encargado").length===0
+                ? <div style={{textAlign:"center",padding:28,color:"#94a3b8"}}>Sin lavadores activos. Marcá la asistencia.</div>
+                : <div className="grilla-inner" style={{display:"grid",gridTemplateColumns:`56px repeat(${staffActivo.filter(s=>s.rol!=="encargado").length},minmax(100px,1fr))`,gap:3}}>
+                    <div style={{fontSize:9,color:"#94a3b8",padding:"5px"}}>HORA</div>
+                    {staffActivo.filter(s=>s.rol!=="encargado").map(s=>(
+                      <div key={`agenda-hdr-${s.id}`} style={{fontSize:11,textAlign:"center",padding:"5px 3px",color:s.color,borderBottom:`2px solid ${s.color}33`,lineHeight:1.5}}>
+                        <div style={{fontWeight:700}}>{s.nombre}</div>
+                        <div style={{fontSize:24}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":(asistencia[s.id]?.transporte||s.transporte)==="pie"?"🚶":"🚲"}</div>
+                      </div>
+                    ))}
+                    {FRANJAS.map(hora=>(
+                      <div key={`fila-agenda-${hora}`} style={{display:"contents"}}>
+                        <div style={{fontSize:10,padding:"8px 5px",color:esTarde(hora)?"#a78bfa":"#94a3b8",fontWeight:700}}>{hora}</div>
+                        {staffActivo.filter(s=>s.rol!=="encargado").map(s=>{
+                          const t=turnos.find(x=>x.staffId===s.id&&x.horasOcupadas?.includes(hora));
+                          const pp=t?.hora===hora;
+                          return (
+                            <div key={`agenda-${s.id}-${hora}`} onClick={()=>t&&setModal({tipo:"detalle",data:t})}
+                              style={{padding:"8px 6px",borderRadius:8,fontSize:10,cursor:t?"pointer":"default",lineHeight:1.4,minHeight:55,
+                                background:t?`${s.color}18`:"#0b122088",border:`1px solid ${t?s.color+"44":"#1e2d40"}`,color:t?s.color:"#94a3b8"}}>
+                              {pp ? <>
+                                <div style={{fontWeight:700,fontSize:11}}>{t.clienteNombre||t.cliente||"turno"}</div>
+                                <div style={{color:"#94a3b8",fontSize:9,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.direccion?.split(",")[0]}</div>
+                                <div style={{fontSize:9,marginTop:2}}>{t.estadoPago||"💰"}</div>
+                              </> : t ? <div style={{fontSize:9,color:"#94a3b8",textAlign:"center",paddingTop:12}}>↓</div> : "·"}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+              }
+            </div>
+          </div>
+        )}
 
         {/* ══ ASISTENCIA ══ */}
         {vista==="asist"&&(
@@ -1277,32 +1317,226 @@ export default function App() {
         )}
 
         {/* ══ CLIENTES ══ */}
-        {vista==="clientes"&&(<div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CLIENTES — {clientes.length}</div><Btn sm color="#0e7490" onClick={()=>setModal({tipo:"ncliente"})}>+ Nuevo cliente</Btn></div>
-        <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-          <input placeholder="🔍 Buscar por código, nombre, calle, barrio o teléfono…" value={buscaCli} onChange={e=>setBuscaCli(e.target.value)} style={{flex:1}}/>
-          <button className={`chip ${filtroDeuda?"on":""}`} onClick={()=>setFiltroDeuda(!filtroDeuda)}>{filtroDeuda?"⭐ Todos":"🔄 Con deuda"}</button>
-        </div>
-        <div style={{fontSize:9,color:"#475569",marginBottom:10,display:"flex",gap:12,flexWrap:"wrap"}}><span>💤 Ocasional (1 vez al mes)</span><span>⭐ Frecuente (2 a 8 veces al mes)</span><span>🔥 Top (9 o más veces al mes)</span></div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>{clientesFiltrados.map(c=>(<div key={c.id} className="card" style={{cursor:"pointer",borderColor:c.deuda>0?"#f8717133":"#22d3ee22"}} onClick={()=>setModal({tipo:"ecliente",data:c})}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div className="icono-staff-xl" style={{background:"#22d3ee22",border:"2px solid #22d3ee55",fontSize:22}}>👤</div><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontWeight:700,color:"#22d3ee",fontSize:13}}>{c.nroCliente} — {c.nombre}</span><span style={{fontSize:10,color:"#fbbf24"}}>{c.tipo||"💤 Ocasional"}</span>{c.deuda>0&&<span className="badge-deuda">🔴 Debe {formatP(c.deuda)}</span>}</div><div style={{fontSize:10,color:c.telefono?"#94a3b8":"#475569"}}>{mostrarTelefono(c)}</div></div><div style={{fontSize:12,color:"#94a3b8"}}>✏️</div></div>{c.direccion&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4}}>📍 {c.direccion} ({c.barrio||""})</div>}{c.nota&&<div style={{fontSize:10,color:"#fbbf24"}}>⚠ {c.nota}</div>}<div style={{display:"flex",gap:6,marginTop:6}}>{c.telefono&&<a href={`tel:${c.telefono}`} onClick={e=>e.stopPropagation()} style={{textDecoration:"none"}}><button style={{background:"#34d39918",border:"1px solid #34d39944",color:"#6ee7b7",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>📞 Llamar</button></a>}<button onClick={e=>{e.stopPropagation();setClienteInput(c.nombre);setClienteSel(c);setDireccion(c.direccion||"");setCantAutos(c.autosHabituales||1);if(c.nota)setNotas(c.nota);if(c.deuda>0)showToast(`⚠️ Este cliente debe ${formatP(c.deuda)}`,"warn");setVista("turno");}} style={{background:"#22d3ee18",border:"1px solid #22d3ee44",color:"#22d3ee",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>+ Turno</button></div></div>))}</div></div>)}
+        {/* ══ CLIENTES ══ */}
+        {vista==="clientes"&&(
+          <div className="fade">
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CLIENTES — {clientes.length}</div>
+              <Btn sm color="#0e7490" onClick={()=>setModal({tipo:"ncliente"})}>+ Nuevo cliente</Btn>
+            </div>
+            <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+              <input placeholder="🔍 Buscar por código, nombre, calle, barrio o teléfono…" value={buscaCli} onChange={e=>setBuscaCli(e.target.value)} style={{flex:1}}/>
+              <button className={`chip ${filtroDeuda?"on":""}`} onClick={()=>setFiltroDeuda(!filtroDeuda)}>{filtroDeuda?"⭐ Todos":"🔄 Con deuda"}</button>
+            </div>
+            <div style={{fontSize:9,color:"#475569",marginBottom:10,display:"flex",gap:12,flexWrap:"wrap"}}>
+              <span>💤 Ocasional (1 vez al mes)</span><span>⭐ Frecuente (2 a 8 veces al mes)</span><span>🔥 Top (9 o más veces al mes)</span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+              {clientesFiltrados.map(c=>(
+                <div key={c.id} className="card" style={{cursor:"pointer",borderColor:c.deuda>0?"#f8717133":"#22d3ee22"}} onClick={()=>setModal({tipo:"ecliente",data:c})}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                    <div className="icono-staff-xl" style={{background:"#22d3ee22",border:"2px solid #22d3ee55",fontSize:22}}>👤</div>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        <span style={{fontWeight:700,color:"#22d3ee",fontSize:13}}>{c.nroCliente} — {c.nombre}</span>
+                        <span style={{fontSize:10,color:"#fbbf24"}}>{c.tipo||"💤 Ocasional"}</span>
+                        {c.deuda>0&&<span className="badge-deuda">🔴 Debe {formatP(c.deuda)}</span>}
+                      </div>
+                      <div style={{fontSize:10,color:c.telefono?"#94a3b8":"#475569"}}>{mostrarTelefono(c)}</div>
+                    </div>
+                    <div style={{fontSize:12,color:"#94a3b8"}}>✏️</div>
+                  </div>
+                  {c.direccion&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4}}>📍 {c.direccion} ({c.barrio||""})</div>}
+                  {c.nota&&<div style={{fontSize:10,color:"#fbbf24"}}>⚠ {c.nota}</div>}
+                  <div style={{display:"flex",gap:6,marginTop:6}}>
+                    {c.telefono&&<a href={`tel:${c.telefono}`} onClick={e=>e.stopPropagation()} style={{textDecoration:"none"}}>
+                      <button style={{background:"#34d39918",border:"1px solid #34d39944",color:"#6ee7b7",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>📞 Llamar</button>
+                    </a>}
+                    <button onClick={e=>{e.stopPropagation();setClienteInput(c.nombre);setClienteSel(c);setDireccion(c.direccion||"");setCantAutos(c.autosHabituales||1);if(c.nota)setNotas(c.nota);if(c.deuda>0)showToast(`⚠️ Este cliente debe ${formatP(c.deuda)}`,"warn");setVista("turno");}}
+                      style={{background:"#22d3ee18",border:"1px solid #22d3ee44",color:"#22d3ee",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>+ Turno</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ══ STAFF ══ */}
-        {vista==="staff"&&(<div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>STAFF — {staff.length}</div><div style={{display:"flex",gap:8}}><Btn sm ghost onClick={backup}>⬇ Backup</Btn><Btn sm color="#0e7490" onClick={()=>setModal({tipo:"nstaff"})}>+ Agregar</Btn></div></div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>{staff.map(s=>{const saldoLav=(prestamos[s.id]||0)+registros.filter(r=>r.staffNombre===s.nombre).reduce((acc,r)=>acc+(r.diferencia||0),0);return <div key={s.id} className="card" style={{borderColor:`${s.color}33`,cursor:"pointer"}} onClick={()=>setModal({tipo:"estaff",data:s})}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div className="icono-staff-xl" style={{background:`${s.color}33`,border:`2px solid ${s.color}`}}>{s.rol==="encargado"?"👷":s.transporte==="moto"?"🏍":"🚲"}</div><div style={{flex:1}}><div style={{fontWeight:700,color:s.color,fontSize:14}}>{s.nombre}</div><div style={{fontSize:10,color:"#94a3b8"}}>{s.rol==="encargado"?"Encargado":`${s.transporte} · ${s.transporte==="moto"?25:15} cuas.`}</div><div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Saldo: {formatP(-saldoLav)}</div>{saldoLav>0&&<div style={{fontSize:10,color:"#fbbf24",marginTop:2}}>⚠️ Debe {formatP(saldoLav)}</div>}{saldoLav<0&&<div style={{fontSize:10,color:"#a78bfa",marginTop:2}}>📝 A favor {formatP(Math.abs(saldoLav))}</div>}</div><span style={{fontSize:14,color:"#94a3b8"}}>✏️</span></div><div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span className="badge-ind" style={{background:s.whatsapp?"#34d39918":"#ef444418",border:`1px solid ${s.whatsapp?"#34d39944":"#ef444444"}`,color:s.whatsapp?"#6ee7b7":"#fca5a5"}}>{s.whatsapp?"✓ WA":"✗ Sin WA"}</span>{s.especial==="rapido"&&<span className="badge-ind" style={{background:"#fbbf2418",border:"1px solid #fbbf2444",color:"#fde68a"}}>⚡ Rápido</span>}{asistencia[s.id]?.presente&&<span className="badge-ind" style={{background:"#34d39918",border:"1px solid #34d39933",color:"#6ee7b7"}}>● Hoy</span>}</div><div style={{marginTop:6}}><button onClick={(e)=>{e.stopPropagation();setModal({tipo:"operacion",data:s});}} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"3px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>💰 Operación</button></div></div>;})}</div></div>)}
+        {vista==="staff"&&(
+          <div className="fade">
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>STAFF — {staff.length}</div>
+              <div style={{display:"flex",gap:8}}>
+                <Btn sm ghost onClick={backup}>⬇ Backup</Btn>
+                <Btn sm color="#0e7490" onClick={()=>setModal({tipo:"nstaff"})}>+ Agregar</Btn>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
+              {staff.map(s=>{
+                const saldoLav=(prestamos[s.id]||0)+registros.filter(r=>r.staffNombre===s.nombre).reduce((acc,r)=>acc+(r.diferencia||0),0);
+                return (
+                  <div key={s.id} className="card" style={{borderColor:`${s.color}33`,cursor:"pointer"}} onClick={()=>setModal({tipo:"estaff",data:s})}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <div className="icono-staff-xl" style={{background:`${s.color}33`,border:`2px solid ${s.color}`}}>
+                        {s.rol==="encargado"?"👷":s.transporte==="moto"?"🏍":"🚲"}
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:700,color:s.color,fontSize:14}}>{s.nombre}</div>
+                        <div style={{fontSize:10,color:"#94a3b8"}}>{s.rol==="encargado"?"Encargado":`${s.transporte} · ${s.transporte==="moto"?25:15} cuas.`}</div>
+                        <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Saldo: {formatP(-saldoLav)}</div>
+                        {saldoLav>0&&<div style={{fontSize:10,color:"#fbbf24",marginTop:2}}>⚠️ Debe {formatP(saldoLav)}</div>}
+                        {saldoLav<0&&<div style={{fontSize:10,color:"#a78bfa",marginTop:2}}>📝 A favor {formatP(Math.abs(saldoLav))}</div>}
+                      </div>
+                      <span style={{fontSize:14,color:"#94a3b8"}}>✏️</span>
+                    </div>
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                      <span className="badge-ind" style={{background:s.whatsapp?"#34d39918":"#ef444418",border:`1px solid ${s.whatsapp?"#34d39944":"#ef444444"}`,color:s.whatsapp?"#6ee7b7":"#fca5a5"}}>{s.whatsapp?"✓ WA":"✗ Sin WA"}</span>
+                      {s.especial==="rapido"&&<span className="badge-ind" style={{background:"#fbbf2418",border:"1px solid #fbbf2444",color:"#fde68a"}}>⚡ Rápido</span>}
+                      {asistencia[s.id]?.presente&&<span className="badge-ind" style={{background:"#34d39918",border:"1px solid #34d39933",color:"#6ee7b7"}}>● Hoy</span>}
+                    </div>
+                    <div style={{marginTop:6}}>
+                      <button onClick={(e)=>{e.stopPropagation();setModal({tipo:"operacion",data:s});}} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"3px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>💰 Operación</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ══ CIERRE ══ */}
-        {vista==="cierre"&&(<div className="fade">
-          <div style={{fontSize:9,color:"#475569",marginBottom:10,padding:"8px 12px",background:"#1e2d4022",border:"1px solid #1e2d40",borderRadius:8}}>
-            💡 Los turnos con ✅ ya fueron rendidos. Los pendientes esperan rendición en base. 🔴 = Cliente no pagó.
+        {vista==="cierre"&&(
+          <div className="fade">
+            <div style={{fontSize:9,color:"#475569",marginBottom:10,padding:"8px 12px",background:"#1e2d4022",border:"1px solid #1e2d40",borderRadius:8}}>
+              💡 Los turnos con ✅ ya fueron rendidos. Los pendientes esperan rendición en base. 🔴 = Cliente no pagó.
+            </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CIERRE — {diaHoy}</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {["hoy","semana","mes"].map(r=>(
+                  <button key={r} className={`chip ${rangoC===r?"on":""}`} onClick={()=>{setRangoC(r);cargarMultiFecha(r);}}>
+                    {r==="hoy"?"📅 Hoy":r==="semana"?"📆 Semana":"🗓 Mes"}
+                  </button>
+                ))}
+                <Btn sm ghost onClick={()=>cargarMultiFecha(rangoC)}>⟳</Btn>
+                <Btn sm ghost onClick={backup}>⬇</Btn>
+              </div>
+            </div>
+            {(()=>{
+              const regs=rangoC==="hoy"?registros:regMulti;
+              const tTotal=regs.reduce((s,r)=>s+Number(r.precio||0),0);
+              const tMP=regs.filter(r=>r.metodo==="mp").reduce((s,r)=>s+Number(r.precio||0),0);
+              const tEf=regs.filter(r=>r.metodo==="efectivo").reduce((s,r)=>s+Number(r.precio||0),0);
+              return (
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
+                  {[{l:`TOTAL ${rangoC.toUpperCase()}`,v:formatP(tTotal),c:"#22d3ee"},{l:"MERC. PAGO",v:formatP(tMP),c:"#a78bfa"},{l:"EFECTIVO",v:formatP(tEf),c:"#34d399"},{l:"SIN RENDIR",v:pendientes,c:"#f87171"}].map(s=>(
+                    <div key={s.l} className="card" style={{textAlign:"center",borderColor:`${s.c}33`}}>
+                      <div style={{fontSize:8,color:"#94a3b8",marginBottom:5,letterSpacing:".12em"}}>{s.l}</div>
+                      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:s.c}}>{s.v}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {rangoC!=="hoy"&&regMulti.length>0&&(()=>{
+              const porLavador={};
+              regMulti.forEach(r=>{
+                const n=r.staffNombre||"?";
+                if(!porLavador[n])porLavador[n]={nombre:n,total:0,efectivo:0,mp:0,turnos:0,debe:0,favor:0};
+                porLavador[n].total+=Number(r.precio||0);
+                porLavador[n].efectivo+=r.metodo==="efectivo"?Number(r.precio||0):0;
+                porLavador[n].mp+=r.metodo==="mp"?Number(r.precio||0):0;
+                porLavador[n].turnos+=1;
+                if(r.estadoPago==="⚠️ Debe"||r.estadoPago==="🔴 Cliente debe")porLavador[n].debe+=Math.abs(r.diferencia||r.precioEsperado||0);
+                if(r.estadoPago==="📝 A favor")porLavador[n].favor+=Math.abs(r.diferencia||0);
+              });
+              const lavs=Object.values(porLavador).sort((a,b)=>b.total-a.total);
+              return (
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:10,color:"#a78bfa",letterSpacing:".1em",marginBottom:8,fontWeight:700}}>💼 LIQUIDACIÓN POR LAVADOR — {rangoC==="semana"?"SEMANA":"MES"}</div>
+                  <div className="card" style={{overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                      <thead><tr style={{borderBottom:"1px solid #1e2d40"}}>
+                        {["LAVADOR","TURNOS","TOTAL","EFECTIVO","DEBE","A FAVOR"].map(h=>(
+                          <th key={h} style={{padding:"7px 9px",textAlign:"left",color:"#94a3b8",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>
+                        ))}
+                      </tr></thead>
+                      <tbody>
+                        {lavs.map(l=>(
+                          <tr key={l.nombre} style={{borderBottom:"1px solid #0b1220"}}>
+                            <td style={{padding:"9px",fontWeight:700}}>{l.nombre}</td>
+                            <td style={{padding:"9px",textAlign:"center",color:"#94a3b8"}}>{l.turnos}</td>
+                            <td style={{padding:"9px",color:"#22d3ee",fontWeight:700}}>{formatP(l.total)}</td>
+                            <td style={{padding:"9px",color:"#34d399"}}>{formatP(l.efectivo)}</td>
+                            <td style={{padding:"9px",color:"#fbbf24"}}>{l.debe>0?formatP(l.debe):"—"}</td>
+                            <td style={{padding:"9px",color:"#a78bfa"}}>{l.favor>0?formatP(l.favor):"—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+            {pendientes>0&&(
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:10,color:"#f87171",letterSpacing:".1em",marginBottom:8}}>💰 PENDIENTES DE RENDICIÓN</div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {turnos.filter(t=>!t.estadoPago||t.estadoPago==="💰 Pendiente"||t.estadoPago==="💵 Cobrado (sin rendir)"||t.estadoPago==="🔴 Cliente debe").map(t=>(
+                    <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,background:"#0b1220",border:"1px solid #f8717133",borderRadius:8,padding:"9px 12px",flexWrap:"wrap"}}>
+                      <span style={{color:"#22d3ee",fontSize:11,fontWeight:700}}>{t.hora}</span>
+                      <span style={{color:"#94a3b8",fontSize:11,flex:1}}>{t.staffNombre} → {t.clienteNombre||t.cliente}</span>
+                      <span style={{color:"#34d399",fontWeight:700,fontSize:11}}>{formatP(t.precio)}</span>
+                      <span style={{fontSize:10,color:t.estadoPago==="💵 Cobrado (sin rendir)"?"#fde68a":t.estadoPago==="🔴 Cliente debe"?"#fca5a5":"#f87171"}}>{t.estadoPago||"💰 Pendiente"}</span>
+                      <Btn sm color={t.estadoPago==="💵 Cobrado (sin rendir)"?"#16a34a":"#d97706"} onClick={()=>setModal({tipo:t.estadoPago==="💵 Cobrado (sin rendir)"?"rendir":"cobro",data:t})}>
+                        {t.estadoPago==="💵 Cobrado (sin rendir)"?"💸 Rendir":"💰 Cobró"}
+                      </Btn>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(()=>{
+              const regs=rangoC==="hoy"?registros:regMulti;
+              return regs.length===0
+                ? <div className="card" style={{textAlign:"center",color:"#94a3b8",padding:28}}>{loadMulti?"Cargando…":"Sin registros para este período."}</div>
+                : <div className="card" style={{overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                      <thead><tr style={{borderBottom:"1px solid #1e2d40"}}>
+                        {["HORA","LAVADOR","CLIENTE","DIR.","AUTOS","PRECIO","PAGO","ESTADO","DIF.","MOTIVO"].map(h=>(
+                          <th key={h} style={{padding:"6px 8px",textAlign:"left",color:"#94a3b8",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>
+                        ))}
+                      </tr></thead>
+                      <tbody>
+                        {regs.map((r,i)=>(
+                          <tr key={r.id||i} style={{borderBottom:"1px solid #0b1220"}}>
+                            <td style={{padding:"8px",color:"#22d3ee",whiteSpace:"nowrap"}}>{r.hora}</td>
+                            <td style={{padding:"8px"}}>{r.staffNombre}</td>
+                            <td style={{padding:"8px",color:"#94a3b8"}}>{r.clienteNombre||"—"}</td>
+                            <td style={{padding:"8px",color:"#94a3b8",maxWidth:100,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.direccion}</td>
+                            <td style={{padding:"8px",textAlign:"center"}}>{r.autos}</td>
+                            <td style={{padding:"8px",color:"#34d399",fontWeight:700}}>{formatP(r.precio)}{r.precio!==r.precioEsperado&&<span style={{fontSize:9,color:"#fde68a"}}> ({formatP(r.precioEsperado)})</span>}</td>
+                            <td style={{padding:"8px"}}>
+                              <span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:r.metodo==="mp"?"#a78bfa18":"#34d39918",border:`1px solid ${r.metodo==="mp"?"#a78bfa44":"#34d39944"}`,color:r.metodo==="mp"?"#c4b5fd":"#6ee7b7"}}>{r.metodo==="mp"?"MP":"Ef."}</span>
+                            </td>
+                            <td style={{padding:"8px",fontSize:10}}>{r.estadoPago||"—"}</td>
+                            <td style={{padding:"8px",color:r.diferencia<0?"#fbbf24":r.diferencia>0?"#a78bfa":"#94a3b8",fontSize:10}}>{r.diferencia!==0?formatP(r.diferencia):"—"}</td>
+                            <td style={{padding:"8px",color:"#94a3b8",fontSize:9,maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.motivo||"—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{borderTop:"2px solid #1e3a5f"}}>
+                          <td colSpan={5} style={{padding:"9px 8px",color:"#94a3b8",fontSize:10}}>TOTALES</td>
+                          <td style={{padding:"9px 8px",color:"#22d3ee",fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{formatP(totalDia)}</td>
+                          <td colSpan={4} style={{padding:"9px 8px",color:"#94a3b8",fontSize:10}}>MP:{formatP(totalMP)} Ef:{formatP(totalEfect)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>;
+            })()}
           </div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CIERRE — {diaHoy}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["hoy","semana","mes"].map(r=>(<button key={r} className={`chip ${rangoC===r?"on":""}`} onClick={()=>{setRangoC(r);cargarMultiFecha(r);}}>{r==="hoy"?"📅 Hoy":r==="semana"?"📆 Semana":"🗓 Mes"}</button>))}<Btn sm ghost onClick={()=>cargarMultiFecha(rangoC)}>⟳</Btn><Btn sm ghost onClick={backup}>⬇</Btn></div></div>
-          {(()=>{const regs=rangoC==="hoy"?registros:regMulti;const tTotal=regs.reduce((s,r)=>s+Number(r.precio||0),0);const tMP=regs.filter(r=>r.metodo==="mp").reduce((s,r)=>s+Number(r.precio||0),0);const tEf=regs.filter(r=>r.metodo==="efectivo").reduce((s,r)=>s+Number(r.precio||0),0);return <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>{[{l:`TOTAL ${rangoC.toUpperCase()}`,v:formatP(tTotal),c:"#22d3ee"},{l:"MERC. PAGO",v:formatP(tMP),c:"#a78bfa"},{l:"EFECTIVO",v:formatP(tEf),c:"#34d399"},{l:"SIN RENDIR",v:pendientes,c:"#f87171"}].map(s=>(<div key={s.l} className="card" style={{textAlign:"center",borderColor:`${s.c}33`}}><div style={{fontSize:8,color:"#94a3b8",marginBottom:5,letterSpacing:".12em"}}>{s.l}</div><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:s.c}}>{s.v}</div></div>))}</div>})()}
-          {rangoC!=="hoy"&&regMulti.length>0&&(()=>{const porLavador={};regMulti.forEach(r=>{const n=r.staffNombre||"?";if(!porLavador[n])porLavador[n]={nombre:n,total:0,efectivo:0,mp:0,turnos:0,debe:0,favor:0};porLavador[n].total+=Number(r.precio||0);porLavador[n].efectivo+=r.metodo==="efectivo"?Number(r.precio||0):0;porLavador[n].mp+=r.metodo==="mp"?Number(r.precio||0):0;porLavador[n].turnos+=1;if(r.estadoPago==="⚠️ Debe"||r.estadoPago==="🔴 Cliente debe")porLavador[n].debe+=Math.abs(r.diferencia||r.precioEsperado||0);if(r.estadoPago==="📝 A favor")porLavador[n].favor+=Math.abs(r.diferencia||0);});const lavs=Object.values(porLavador).sort((a,b)=>b.total-a.total);return <div style={{marginBottom:14}}><div style={{fontSize:10,color:"#a78bfa",letterSpacing:".1em",marginBottom:8,fontWeight:700}}>💼 LIQUIDACIÓN POR LAVADOR — {rangoC==="semana"?"SEMANA":"MES"}</div><div className="card" style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"1px solid #1e2d40"}}>{["LAVADOR","TURNOS","TOTAL","EFECTIVO","DEBE","A FAVOR"].map(h=>(<th key={h} style={{padding:"7px 9px",textAlign:"left",color:"#94a3b8",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead><tbody>{lavs.map(l=>(<tr key={l.nombre} style={{borderBottom:"1px solid #0b1220"}}><td style={{padding:"9px",fontWeight:700}}>{l.nombre}</td><td style={{padding:"9px",textAlign:"center",color:"#94a3b8"}}>{l.turnos}</td><td style={{padding:"9px",color:"#22d3ee",fontWeight:700}}>{formatP(l.total)}</td><td style={{padding:"9px",color:"#34d399"}}>{formatP(l.efectivo)}</td><td style={{padding:"9px",color:"#fbbf24"}}>{l.debe>0?formatP(l.debe):"—"}</td><td style={{padding:"9px",color:"#a78bfa"}}>{l.favor>0?formatP(l.favor):"—"}</td></tr>))}</tbody></table></div></div>})()}
-          {pendientes>0&&(<div style={{marginBottom:14}}><div style={{fontSize:10,color:"#f87171",letterSpacing:".1em",marginBottom:8}}>💰 PENDIENTES DE RENDICIÓN</div><div style={{display:"flex",flexDirection:"column",gap:6}}>{turnos.filter(t=>!t.estadoPago||t.estadoPago==="💰 Pendiente"||t.estadoPago==="💵 Cobrado (sin rendir)"||t.estadoPago==="🔴 Cliente debe").map(t=>(<div key={t.id} style={{display:"flex",alignItems:"center",gap:8,background:"#0b1220",border:"1px solid #f8717133",borderRadius:8,padding:"9px 12px",flexWrap:"wrap"}}><span style={{color:"#22d3ee",fontSize:11,fontWeight:700}}>{t.hora}</span><span style={{color:"#94a3b8",fontSize:11,flex:1}}>{t.staffNombre} → {t.clienteNombre||t.cliente}</span><span style={{color:"#34d399",fontWeight:700,fontSize:11}}>{formatP(t.precio)}</span><span style={{fontSize:10,color:t.estadoPago==="💵 Cobrado (sin rendir)"?"#fde68a":t.estadoPago==="🔴 Cliente debe"?"#fca5a5":"#f87171"}}>{t.estadoPago||"💰 Pendiente"}</span>
-          <Btn sm color={t.estadoPago==="💵 Cobrado (sin rendir)"?"#16a34a":"#d97706"} onClick={()=>setModal({tipo:t.estadoPago==="💵 Cobrado (sin rendir)"?"rendir":"cobro",data:t})}>
-            {t.estadoPago==="💵 Cobrado (sin rendir)"?"💸 Rendir":"💰 Cobró"}
-          </Btn></div>))}</div></div>)}
-          {(()=>{const regs=rangoC==="hoy"?registros:regMulti;return regs.length===0?<div className="card" style={{textAlign:"center",color:"#94a3b8",padding:28}}>{loadMulti?"Cargando…":"Sin registros para este período."}</div>:<div className="card" style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"1px solid #1e2d40"}}>{["HORA","LAVADOR","CLIENTE","DIR.","AUTOS","PRECIO","PAGO","ESTADO","DIF.","MOTIVO"].map(h=>(<th key={h} style={{padding:"6px 8px",textAlign:"left",color:"#94a3b8",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead><tbody>{regs.map((r,i)=>(<tr key={r.id||i} style={{borderBottom:"1px solid #0b1220"}}><td style={{padding:"8px",color:"#22d3ee",whiteSpace:"nowrap"}}>{r.hora}</td><td style={{padding:"8px"}}>{r.staffNombre}</td><td style={{padding:"8px",color:"#94a3b8"}}>{r.clienteNombre||"—"}</td><td style={{padding:"8px",color:"#94a3b8",maxWidth:100,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.direccion}</td><td style={{padding:"8px",textAlign:"center"}}>{r.autos}</td><td style={{padding:"8px",color:"#34d399",fontWeight:700}}>{formatP(r.precio)}{r.precio!==r.precioEsperado&&<span style={{fontSize:9,color:"#fde68a"}}> ({formatP(r.precioEsperado)})</span>}</td><td style={{padding:"8px"}}><span style={{padding:"2px 6px",borderRadius:4,fontSize:9,background:r.metodo==="mp"?"#a78bfa18":"#34d39918",border:`1px solid ${r.metodo==="mp"?"#a78bfa44":"#34d39944"}`,color:r.metodo==="mp"?"#c4b5fd":"#6ee7b7"}}>{r.metodo==="mp"?"MP":"Ef."}</span></td><td style={{padding:"8px",fontSize:10}}>{r.estadoPago||"—"}</td><td style={{padding:"8px",color:r.diferencia<0?"#fbbf24":r.diferencia>0?"#a78bfa":"#94a3b8",fontSize:10}}>{r.diferencia!==0?formatP(r.diferencia):"—"}</td><td style={{padding:"8px",color:"#94a3b8",fontSize:9,maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.motivo||"—"}</td></tr>))}</tbody><tfoot><tr style={{borderTop:"2px solid #1e3a5f"}}><td colSpan={5} style={{padding:"9px 8px",color:"#94a3b8",fontSize:10}}>TOTALES</td><td style={{padding:"9px 8px",color:"#22d3ee",fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{formatP(totalDia)}</td><td colSpan={4} style={{padding:"9px 8px",color:"#94a3b8",fontSize:10}}>MP:{formatP(totalMP)} Ef:{formatP(totalEfect)}</td></tr></tfoot></table></div>})()}
-        </div>)}
+        )}
 
       </main>
     </div>
