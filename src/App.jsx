@@ -159,6 +159,16 @@ function mostrarTelefono(cliente) {
   return "📞 Sin registrar";
 }
 
+function capitalizar(nombre) {
+  if(!nombre) return "";
+  const minusculas = ["de","del","la","las","los","el","y","a","en","von","van","di","da","do","das","dos"];
+  return nombre.trim().split(/\s+/).map((p,i)=>{
+    const low = p.toLowerCase();
+    if(i>0 && minusculas.includes(low)) return low;
+    return low.charAt(0).toUpperCase()+low.slice(1);
+  }).join(" ");
+}
+
 function distKm(lat1,lng1,lat2,lng2) {
   const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
   const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
@@ -496,7 +506,7 @@ function ModalClienteRapido({nombreInicial,onGuardar,onClose}) {
         <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
         <Btn full color="#0e7490" disabled={!nombre.trim()||!dir.trim()||(!barrio&&!barrioManual)||!telValido} onClick={()=>{
           const barrioFinal = barrio==="otro"?barrioManual:barrio;
-          onGuardar({nombre,telefono:tel,direccion:dir,barrio:barrioFinal,autosHabituales:autos,nota:"",tipo:"💤 Ocasional",deuda:0});
+          onGuardar({nombre:capitalizar(nombre),telefono:tel,direccion:dir,barrio:barrioFinal,autosHabituales:autos,nota:"",tipo:"💤 Ocasional",deuda:0});
         }}>Guardar y continuar</Btn>
       </div>
     </div>
@@ -531,9 +541,9 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
     {barrio==="otro" && <Inp label="NOMBRE DEL BARRIO NUEVO" value={barrioManual} onChange={setBarrioManual} placeholder="Ej: Tigre"/>}
     <Inp label="AUTOS HABITUALES" value={autos} onChange={v=>setAutos(Number(v))} type="number"/>
     <Sel label="TIPO DE CLIENTE" value={tipo} onChange={setTipo}>
-      <option value="💤 Ocasional">💤 Ocasional (1 vez al mes)</option>
-      <option value="⭐ Frecuente">⭐ Frecuente (2-8 veces al mes)</option>
-      <option value="🔥 Top">🔥 Top (9+ veces al mes)</option>
+      <option value="💤 Ocasional">💤 Ocasional (una o dos veces al año)</option>
+      <option value="⭐ Frecuente">⭐ Frecuente (una vez por semana)</option>
+      <option value="🔥 Top">🔥 Top (varias veces por semana)</option>
     </Sel>
     <div style={{marginBottom:10}}>
       <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>NOTA</div>
@@ -547,7 +557,7 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
       <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
       <Btn full color="#0e7490" disabled={!nombre.trim()||(!barrio&&!barrioManual)||!telValido} onClick={()=>{
         const barrioFinal = barrio==="otro"?barrioManual:barrio;
-        onGuardar({nombre,telefono:tel,direccion:dir,barrio:barrioFinal,autosHabituales:autos,nota,tipo,deuda:cliente?.deuda||0});
+        onGuardar({nombre:capitalizar(nombre),telefono:tel,direccion:dir,barrio:barrioFinal,autosHabituales:autos,nota,tipo,deuda:cliente?.deuda||0});
       }} style={{flex:2}}>{esNuevo?"Agregar cliente":"Guardar"}</Btn>
     </div>
   </Modal>;
@@ -1329,7 +1339,7 @@ export default function App() {
               <button className={`chip ${filtroDeuda?"on":""}`} onClick={()=>setFiltroDeuda(!filtroDeuda)}>{filtroDeuda?"⭐ Todos":"🔄 Con deuda"}</button>
             </div>
             <div style={{fontSize:9,color:"#475569",marginBottom:10,display:"flex",gap:12,flexWrap:"wrap"}}>
-              <span>💤 Ocasional (1 vez al mes)</span><span>⭐ Frecuente (2 a 8 veces al mes)</span><span>🔥 Top (9 o más veces al mes)</span>
+              <span>💤 Ocasional (una o dos veces al año)</span><span>⭐ Frecuente (una vez por semana)</span><span>🔥 Top (varias veces por semana)</span>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
               {clientesFiltrados.map(c=>(
