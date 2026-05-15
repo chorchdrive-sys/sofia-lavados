@@ -144,6 +144,14 @@ const MOTIVOS_OPERACION = [
 //  HELPERS
 // ═══════════════════════════════════════════════════════════════
 const hoy         = () => new Date().toISOString().split("T")[0];
+const franjasValidas = () => {
+  const ahora = new Date();
+  const minutos = ahora.getHours()*60 + ahora.getMinutes() + 30;
+  return FRANJAS.filter(h => {
+    const [hr,mn] = h.split(":").map(Number);
+    return hr*60+mn > minutos;
+  });
+};
 const franjaFin   = h  => { const [hr,mn]=h.split(":").map(Number); const t=hr*60+mn+90; return `${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`; };
 const esTarde     = h  => FRANJAS.indexOf(h) >= FRANJA_TARDE;
 const formatP     = n  => "$" + Number(n||0).toLocaleString("es-AR");
@@ -534,8 +542,8 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
     <Inp label="TELÉFONO" value={tel} onChange={v=>setTel(v.replace(/[^0-9]/g,""))} placeholder="Ej: 1155551234"/>
     {!telValido && <div style={{color:"#f87171",fontSize:10,marginTop:-8,marginBottom:8}}>El teléfono debe tener entre 8 y 12 dígitos.</div>}
     <Inp label="DIRECCIÓN" value={dir} onChange={setDir} placeholder="Dirección habitual"/>
-    <Sel label="BARRIO *" value={barrio} onChange={v=>{setBarrio(v);if(v!=="otro")setBarrioManual("");}}>
-      <option value="">Seleccionar barrio...</option>
+    <Sel label="BARRIO" value={barrio} onChange={v=>{setBarrio(v);if(v!=="otro")setBarrioManual("");}}>
+      <option value="">Auto-detectar desde dirección</option>
       {LISTA_BARRIOS.map(b=><option key={b} value={b}>{b}</option>)}
       <option value="otro">➕ Otro (escribir)</option>
     </Sel>
@@ -915,11 +923,18 @@ export default function App() {
   }
 
   async function registrarRendicion(turno) {
+    // Actualiza el turno en Firestore
     await fsUpdate(`turnos_${diaHoy}`,turno.id,{estadoPago:"✅ Rendido",fechaRendicion:hoy()});
     setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,estadoPago:"✅ Rendido"}:t));
-    const reg={turnoId:turno.id,hora:turno.hora,staffNombre:turno.staffNombre,clienteNombre:turno.clienteNombre||turno.cliente,direccion:turno.direccion,autos:turno.cantAutos,tamano:turno.tamano,precio:turno.montoPagado||turno.precio,precioEsperado:turno.precio,metodo:turno.metodo,estadoPago:"✅ Rendido",diferencia:0,motivo:"Rendición confirmada",fecha:diaHoy,ts:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})};
-    await fsAdd(`cierre_${diaHoy}`,reg);
-    setRegistros(prev=>[...prev,{id:Date.now(),...reg}]);
+    // Busca el registro de cierre existente para este turno y lo actualiza (no crea nuevo)
+    const regExistente = registros.find(r=>r.turnoId===turno.id);
+    if(regExistente?.id) {
+      await fsUpdate(`cierre_${diaHoy}`,String(regExistente.id),{estadoPago:"✅ Rendido",fechaRendicion:hoy()});
+      setRegistros(prev=>prev.map(r=>r.turnoId===turno.id?{...r,estadoPago:"✅ Rendido"}:r));
+    } else {
+      // Solo si no existe registro previo (caso borde), actualiza el estado en memoria
+      setRegistros(prev=>prev.map(r=>r.turnoId===turno.id?{...r,estadoPago:"✅ Rendido"}:r));
+    }
     showToast(`✅ ${turno.staffNombre} rindió ${formatP(turno.montoPagado||turno.precio)}`);
     setModal(null);
   }
@@ -943,10 +958,10 @@ export default function App() {
     if(!direccion) { showToast("Falta la dirección","warn"); return; }
     if(staffActivo.length===0) { showToast("Sin lavadores activos","warn"); return; }
     const dest = coordsSimuladas(direccion);
-    let franjasDisponibles = FRANJAS;
-    if(franjaDeseada==="mañana") franjasDisponibles = FRANJAS.slice(0,3);
-    else if(franjaDeseada==="mediodia") franjasDisponibles = FRANJAS.slice(2,4);
-    else if(franjaDeseada==="tarde") franjasDisponibles = FRANJAS.slice(3);
+    let franjasDisponibles = franjasValidas();
+    if(franjaDeseada==="mañana") franjasDisponibles = franjasValidas().filter(h=>FRANJAS.indexOf(h)<3);
+    else if(franjaDeseada==="mediodia") franjasDisponibles = franjasValidas().filter(h=>FRANJAS.indexOf(h)>=2&&FRANJAS.indexOf(h)<4);
+    else if(franjaDeseada==="tarde") franjasDisponibles = franjasValidas().filter(h=>FRANJAS.indexOf(h)>=3);
 
     const rankings = staffActivo.map(s=>{
       const trans = asistencia[s.id]?.transporte||s.transporte;
@@ -1223,10 +1238,24 @@ export default function App() {
                 :<div className="grilla-wrap"><div className="grilla-inner" style={{display:"grid",gridTemplateColumns:`56px repeat(${staffFiltrado.length},minmax(90px,1fr))`,gap:3}}>
                   <div style={{fontSize:9,color:"#94a3b8",padding:"5px"}}>HORA</div>
                   {staffFiltrado.map(s=>(<div key={s.id} style={{fontSize:11,textAlign:"center",padding:"5px 3px",color:s.color,borderBottom:`2px solid ${s.color}44`,lineHeight:1.5}}><div style={{fontWeight:700}}>{s.nombre}</div><div style={{fontSize:24}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":(asistencia[s.id]?.transporte||s.transporte)==="pie"?"🚶":"🚲"}</div>{s.especial==="rapido"&&<div style={{fontSize:9}}>⚡</div>}</div>))}
-                  {FRANJAS.map(hora=>(<div key={`fila-${hora}`} style={{display:"contents"}}>
-                    <div style={{fontSize:11,padding:"8px 5px",display:"flex",flexDirection:"column",gap:1}}><span style={{color:esTarde(hora)?"#a78bfa":"#94a3b8",fontWeight:700}}>{hora}</span><span style={{fontSize:8,color:"#94a3b8"}}>→{franjaFin(hora)}</span></div>
-                    {staffFiltrado.map(s=>(<CeldaTurno key={`${s.id}_${hora}`} s={s} hora={hora} turnos={turnos} asistencia={asistencia} dir={direccion} listaVacia={listaVacia} sel={staffSelId===s.id&&horaSelec===hora} onSel={selTurno} onDetalle={t=>setModal({tipo:"detalle",data:t})} tamanos={tamanos}/>))}
-                  </div>))}
+                  {FRANJAS.map(hora=>{
+                    const ahora = new Date();
+                    const minActual = ahora.getHours()*60+ahora.getMinutes();
+                    const [hr,mn] = hora.split(":").map(Number);
+                    const esPasada = hr*60+mn+90 < minActual;
+                    return (
+                      <div key={`fila-${hora}`} style={{display:"contents"}}>
+                        <div style={{fontSize:11,padding:"8px 5px",display:"flex",flexDirection:"column",gap:1}}>
+                          <span style={{color:esPasada?"#334155":esTarde(hora)?"#a78bfa":"#94a3b8",fontWeight:700,textDecoration:esPasada?"line-through":"none"}}>{hora}</span>
+                          <span style={{fontSize:8,color:"#94a3b8"}}>→{franjaFin(hora)}</span>
+                        </div>
+                        {staffFiltrado.map(s=>esPasada
+                          ? <div key={`${s.id}_${hora}`} style={{padding:"9px 5px",borderRadius:7,background:"#0b122033",border:"1px solid #1e2d4022",minHeight:50,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:9,color:"#334155"}}>—</span></div>
+                          : <CeldaTurno key={`${s.id}_${hora}`} s={s} hora={hora} turnos={turnos} asistencia={asistencia} dir={direccion} listaVacia={listaVacia} sel={staffSelId===s.id&&horaSelec===hora} onSel={selTurno} onDetalle={t=>setModal({tipo:"detalle",data:t})} tamanos={tamanos}/>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div></div>}
               </div>
             </div>
