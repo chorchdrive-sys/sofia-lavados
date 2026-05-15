@@ -292,8 +292,9 @@ function ModalWA({turno,staff,onClose}) {
     : "";
   const fzLine = turno.esFZ ? "\n🌐 *Servicio fuera de zona — recargo de traslado incluido.*" : "";
   const telLine = turno.clienteTel ? `\n📞 *Tel. cliente:* ${turno.clienteTel}` : "";
+  const deudaLine = turno.clienteDeuda>0 ? `\n⚠️ *ATENCIÓN: Cliente tiene deuda pendiente de ${formatP(turno.clienteDeuda)}. Recordar cobrar.*` : "";
   const icono = (turno.staffTransporte||s.transporte)==="moto"?"🏍":"🚲";
-  const msg = `🚿 *SOFÍA LAVADOS — Turno confirmado*\n\n📍 *Dirección:* ${turno.direccion}\n🕐 *Llegada:* ${turno.hora} a ${fin} hs\n🚗 *Autos:* ${turno.cantAutos} auto${turno.cantAutos>1?"s":""} (${turno.tamano||""})\n💰 *Cobrar:* ${formatP(turno.precio)} (${turno.metodo==="mp"?"Mercado Pago":"Efectivo"})${fzLine}${telLine}${notasLines}\n\n${icono} Confirmá arribo cuando llegues. ¡Gracias!`;
+  const msg = `🚿 *SOFÍA LAVADOS — Turno confirmado*\n\n📍 *Dirección:* ${turno.direccion}\n🕐 *Llegada:* ${turno.hora} a ${fin} hs\n🚗 *Autos:* ${turno.cantAutos} auto${turno.cantAutos>1?"s":""} (${turno.tamano||""})\n💰 *Cobrar:* ${formatP(turno.precio)} (${turno.metodo==="mp"?"Mercado Pago":"Efectivo"})${fzLine}${telLine}${deudaLine}${notasLines}\n\n${icono} Confirmá arribo cuando llegues. ¡Gracias!`;
 
   async function copiar() {
     try { await navigator.clipboard.writeText(msg); } catch {}
@@ -557,7 +558,7 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
       <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
       <Btn full color="#0e7490" disabled={!nombre.trim()||(!barrio&&!barrioManual)||!telValido} onClick={()=>{
         const barrioFinal = barrio==="otro"?barrioManual:barrio;
-        onGuardar({nombre:capitalizar(nombre),telefono:tel,direccion:dir,barrio:barrioFinal,autosHabituales:autos,nota,tipo,deuda:cliente?.deuda||0});
+        onGuardar({nombre:capitalizar(nombre),telefono:tel,direccion:dir,barrio:barrioFinal||codigoBarrio(dir),autosHabituales:autos,nota,tipo,deuda:cliente?.deuda||0});
       }} style={{flex:2}}>{esNuevo?"Agregar cliente":"Guardar"}</Btn>
     </div>
   </Modal>;
@@ -857,7 +858,12 @@ export default function App() {
     setClienteInput(val);
     if(val.length>=2) {
       const v = sinAcentos(val);
-      setSugs(clientes.filter(c=>sinAcentos(c.nombre).startsWith(v)));
+      setSugs(clientes.filter(c=>
+        sinAcentos(c.nombre).includes(v)||
+        sinAcentos(c.direccion||"").includes(v)||
+        sinAcentos(c.barrio||"").includes(v)||
+        (c.telefono||"").includes(v)
+      ));
     } else setSugs([]);
   }
 
@@ -876,7 +882,7 @@ export default function App() {
     setGuardando(true);
     const slotsUsados = slotsOcupados(horaSelec, servicioEsp?.slotsPersonalizados||cantAutos);
     const destCoords  = await geocodificar(direccion);
-    const turnoData   = {staffId:staffSelId,staffNombre:staffSelObj?.nombre,staffTransporte:asistencia[staffSelId]?.transporte||staffSelObj?.transporte,hora:horaSelec,horasOcupadas:slotsUsados,clienteNombre:clienteSel?.nombre||clienteInput,clienteTel:clienteSel?.telefono||"",cliente:clienteInput,direccion,cantAutos:servicioEsp?.slotsPersonalizados||cantAutos,tamano:servicioEsp?servicioEsp.nombre:tamano,precio:precioConFZ,esFZ,metodo,notas,estado:"confirmado",estadoPago:"💰 Pendiente",coordsDestino:destCoords,servicioEsp:!!servicioEsp,fecha:diaHoy};
+    const turnoData   = {staffId:staffSelId,staffNombre:staffSelObj?.nombre,staffTransporte:asistencia[staffSelId]?.transporte||staffSelObj?.transporte,hora:horaSelec,horasOcupadas:slotsUsados,clienteNombre:clienteSel?.nombre||clienteInput,clienteTel:clienteSel?.telefono||"",clienteDeuda:clienteSel?.deuda||0,cliente:clienteInput,direccion,cantAutos:servicioEsp?.slotsPersonalizados||cantAutos,tamano:servicioEsp?servicioEsp.nombre:tamano,precio:precioConFZ,esFZ,metodo,notas,estado:"confirmado",estadoPago:"💰 Pendiente",coordsDestino:destCoords,servicioEsp:!!servicioEsp,fecha:diaHoy};
     const id = await fsAdd(`turnos_${diaHoy}`, turnoData);
     setTurnos(prev=>[...prev,{id:id||"local_"+Date.now(),...turnoData}]);
     showToast("Turno guardado ✓");
@@ -911,7 +917,10 @@ export default function App() {
   async function registrarRendicion(turno) {
     await fsUpdate(`turnos_${diaHoy}`,turno.id,{estadoPago:"✅ Rendido",fechaRendicion:hoy()});
     setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,estadoPago:"✅ Rendido"}:t));
-    showToast(`✅ Rendición confirmada - ${turno.staffNombre} rindió ${formatP(turno.montoPagado || turno.precio)}`);
+    const reg={turnoId:turno.id,hora:turno.hora,staffNombre:turno.staffNombre,clienteNombre:turno.clienteNombre||turno.cliente,direccion:turno.direccion,autos:turno.cantAutos,tamano:turno.tamano,precio:turno.montoPagado||turno.precio,precioEsperado:turno.precio,metodo:turno.metodo,estadoPago:"✅ Rendido",diferencia:0,motivo:"Rendición confirmada",fecha:diaHoy,ts:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})};
+    await fsAdd(`cierre_${diaHoy}`,reg);
+    setRegistros(prev=>[...prev,{id:Date.now(),...reg}]);
+    showToast(`✅ ${turno.staffNombre} rindió ${formatP(turno.montoPagado||turno.precio)}`);
     setModal(null);
   }
 
@@ -1056,7 +1065,7 @@ export default function App() {
             {id:"cierre",  l:`Cierre${registros.length?` (${registros.length})`:""}`},
             {id:"config",  l:"Precios"},
           ].map(v=>(
-            <button key={v.id} className={`nt ${vista===v.id?"on":""}`} onClick={()=>v.id==="config"?setModal({tipo:"config"}):setVista(v.id)}>{v.l}</button>
+            <button key={v.id} className={`nt ${vista===v.id?"on":""}`} onClick={()=>{if(v.id==="config"){setModal({tipo:"config"});}else{resetForm();setVista(v.id);}}}>{v.l}</button>
           ))}
         </div>
         <div className="topbar-right" style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
@@ -1190,6 +1199,15 @@ export default function App() {
             </div>
 
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div style={{background:"linear-gradient(135deg,#0d1b3e,#0b1220)",border:"1px solid #1e3a5f",borderRadius:12,padding:14}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:iaResp?10:0}}>
+                  <div style={{fontSize:10,color:"#4f46e5",letterSpacing:".1em",display:"flex",alignItems:"center",gap:7}}>✦ SUGERENCIAS</div>
+                  {iaResp && <button onClick={()=>setMostrarTodosSug(!mostrarTodosSug)} className="chip" style={{fontSize:9}}>{mostrarTodosSug?"Ocultar todos":"Mostrar todos"}</button>}
+                </div>
+                {iaResp&&<div style={{fontSize:11,color:"#a5b4fc",lineHeight:1.7,borderTop:"1px solid #1e3a5f",paddingTop:8,marginTop:8,whiteSpace:"pre-line"}}>{iaResp}</div>}
+                {!iaResp&&<div style={{fontSize:11,color:"#94a3b8",marginTop:8}}>Usá el botón ✨ Sugerir arriba para encontrar el mejor lavador. Elegí la franja horaria deseada.</div>}
+              </div>
+
               <div className="card" style={{borderColor:paso>=2?"#a78bfa33":"#1e2d40"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:8}}>
                   <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",display:"flex",alignItems:"center",gap:7}}><span style={{background:"#7c3aed",color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:10}}>02</span>Semáforo</div>
@@ -1210,15 +1228,6 @@ export default function App() {
                     {staffFiltrado.map(s=>(<CeldaTurno key={`${s.id}_${hora}`} s={s} hora={hora} turnos={turnos} asistencia={asistencia} dir={direccion} listaVacia={listaVacia} sel={staffSelId===s.id&&horaSelec===hora} onSel={selTurno} onDetalle={t=>setModal({tipo:"detalle",data:t})} tamanos={tamanos}/>))}
                   </div>))}
                 </div></div>}
-              </div>
-
-              <div style={{background:"linear-gradient(135deg,#0d1b3e,#0b1220)",border:"1px solid #1e3a5f",borderRadius:12,padding:14}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:iaResp?10:0}}>
-                  <div style={{fontSize:10,color:"#4f46e5",letterSpacing:".1em",display:"flex",alignItems:"center",gap:7}}>✦ SUGERENCIAS</div>
-                  {iaResp && <button onClick={()=>setMostrarTodosSug(!mostrarTodosSug)} className="chip" style={{fontSize:9}}>{mostrarTodosSug?"Ocultar todos":"Mostrar todos"}</button>}
-                </div>
-                {iaResp&&<div style={{fontSize:11,color:"#a5b4fc",lineHeight:1.7,borderTop:"1px solid #1e3a5f",paddingTop:8,marginTop:8,whiteSpace:"pre-line"}}>{iaResp}</div>}
-                {!iaResp&&<div style={{fontSize:11,color:"#94a3b8",marginTop:8}}>Usá el botón ✨ Sugerir arriba para encontrar el mejor lavador. Elegí la franja horaria deseada.</div>}
               </div>
             </div>
           </div>
