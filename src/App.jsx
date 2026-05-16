@@ -151,8 +151,7 @@ const franjasValidas = () => {
     const [hr,mn] = h.split(":").map(Number);
     return hr*60+mn > minutos;
   });
-};
-const franjaFin   = h  => { const [hr,mn]=h.split(":").map(Number); const t=hr*60+mn+90; return `${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`; };
+};const franjaFin   = h  => { const [hr,mn]=h.split(":").map(Number); const t=hr*60+mn+90; return `${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`; };
 const esTarde     = h  => FRANJAS.indexOf(h) >= FRANJA_TARDE;
 const formatP     = n  => "$" + Number(n||0).toLocaleString("es-AR");
 const colorNuevo  = (staff) => COLORES.find(c=>!staff.map(s=>s.color).includes(c)) || "#94a3b8";
@@ -776,6 +775,9 @@ async function inicializar(setStaff, setAsist, setClientes, setTamanos, setFzPct
 export default function App() {
   const [fbOk,  setFbOk]  = useState(false);
   const [fbLoad,setFbLoad]= useState(false);
+  const [modoPrueba,     setModoPrueba]     = useState(false);
+  const [clicksLogo,     setClicksLogo]     = useState(0);
+  const [turnosPrueba,   setTurnosPrueba]   = useState([]);
   const [staff,          setStaff]      = useState([]);
   const [asistencia,     setAsist]      = useState({});
   const [clientes,       setClientes]   = useState([]);
@@ -891,9 +893,16 @@ export default function App() {
     const slotsUsados = slotsOcupados(horaSelec, servicioEsp?.slotsPersonalizados||cantAutos);
     const destCoords  = await geocodificar(direccion);
     const turnoData   = {staffId:staffSelId,staffNombre:staffSelObj?.nombre,staffTransporte:asistencia[staffSelId]?.transporte||staffSelObj?.transporte,hora:horaSelec,horasOcupadas:slotsUsados,clienteNombre:clienteSel?.nombre||clienteInput,clienteTel:clienteSel?.telefono||"",clienteDeuda:clienteSel?.deuda||0,cliente:clienteInput,direccion,cantAutos:servicioEsp?.slotsPersonalizados||cantAutos,tamano:servicioEsp?servicioEsp.nombre:tamano,precio:precioConFZ,esFZ,metodo,notas,estado:"confirmado",estadoPago:"💰 Pendiente",coordsDestino:destCoords,servicioEsp:!!servicioEsp,fecha:diaHoy};
-    const id = await fsAdd(`turnos_${diaHoy}`, turnoData);
+    let id;
+    if(modoPrueba) {
+      id = "prueba_"+Date.now();
+      setTurnosPrueba(prev=>[...prev,{id,...turnoData}]);
+      showToast("🔧 Turno de prueba (no guardado)","warn");
+    } else {
+      id = await fsAdd(`turnos_${diaHoy}`, turnoData);
+      showToast("Turno guardado ✓");
+    }
     setTurnos(prev=>[...prev,{id:id||"local_"+Date.now(),...turnoData}]);
-    showToast("Turno guardado ✓");
     setGuardando(false);
     setModal({tipo:"wa", data:{id:id||"local",...turnoData}});
     resetForm();
@@ -958,10 +967,10 @@ export default function App() {
     if(!direccion) { showToast("Falta la dirección","warn"); return; }
     if(staffActivo.length===0) { showToast("Sin lavadores activos","warn"); return; }
     const dest = coordsSimuladas(direccion);
-    let franjasDisponibles = franjasValidas();
-    if(franjaDeseada==="mañana") franjasDisponibles = franjasValidas().filter(h=>FRANJAS.indexOf(h)<3);
-    else if(franjaDeseada==="mediodia") franjasDisponibles = franjasValidas().filter(h=>FRANJAS.indexOf(h)>=2&&FRANJAS.indexOf(h)<4);
-    else if(franjaDeseada==="tarde") franjasDisponibles = franjasValidas().filter(h=>FRANJAS.indexOf(h)>=3);
+    let franjasDisponibles = modoPrueba ? FRANJAS : franjasValidas();
+    if(franjaDeseada==="mañana") franjasDisponibles = franjasDisponibles.filter(h=>FRANJAS.indexOf(h)<3);
+    else if(franjaDeseada==="mediodia") franjasDisponibles = franjasDisponibles.filter(h=>FRANJAS.indexOf(h)>=2&&FRANJAS.indexOf(h)<4);
+    else if(franjaDeseada==="tarde") franjasDisponibles = franjasDisponibles.filter(h=>FRANJAS.indexOf(h)>=3);
 
     const rankings = staffActivo.map(s=>{
       const trans = asistencia[s.id]?.transporte||s.transporte;
@@ -1067,9 +1076,33 @@ export default function App() {
       {/* NAV */}
       <header style={{background:"#0b1220",borderBottom:"1px solid #1e2d40",padding:"0 16px",display:"flex",alignItems:"center",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",marginRight:20,flexShrink:0}}>
-          <div className="icono-header-xl" style={{background:"linear-gradient(135deg,#0e7490,#1d4ed8)"}}>🚿</div>
+          <div className="icono-header-xl" style={{background:"linear-gradient(135deg,#0e7490,#1d4ed8)",cursor:"pointer"}} onClick={()=>{
+            const nuevos = clicksLogo+1;
+            setClicksLogo(nuevos);
+            if(nuevos>=5){
+              const clave = prompt("🔧 Clave de modo prueba:");
+              if(clave==="sofia2024"){
+                setModoPrueba(true);
+                setClicksLogo(0);
+                showToast("🔧 Modo prueba activado","warn");
+              } else {
+                setClicksLogo(0);
+              }
+            }
+          }}>🚿</div>
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:".1em",color:"#f1f5f9",lineHeight:1}}>SOFÍA v5</div>
         </div>
+        {modoPrueba&&(
+          <div style={{background:"#fbbf2422",border:"1px solid #fbbf24",borderRadius:8,padding:"5px 12px",fontSize:11,color:"#fbbf24",fontWeight:700,display:"flex",alignItems:"center",gap:8}}>
+            🔧 MODO PRUEBA — Los turnos no se guardan
+            <button onClick={()=>{
+              setModoPrueba(false);
+              setTurnos(prev=>prev.filter(t=>!t.id?.startsWith("prueba_")));
+              setTurnosPrueba([]);
+              showToast("Modo prueba desactivado","ok");
+            }} style={{background:"#fbbf2433",border:"1px solid #fbbf2466",color:"#fbbf24",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:10}}>Salir</button>
+          </div>
+        )}
         <div style={{display:"flex",gap:2,overflowX:"auto"}}>
           {[
             {id:"turno",   l:"+ Turno"},
@@ -1242,7 +1275,7 @@ export default function App() {
                     const ahora = new Date();
                     const minActual = ahora.getHours()*60+ahora.getMinutes();
                     const [hr,mn] = hora.split(":").map(Number);
-                    const esPasada = hr*60+mn+90 < minActual;
+                    const esPasada = !modoPrueba && hr*60+mn+90 < minActual;
                     return (
                       <div key={`fila-${hora}`} style={{display:"contents"}}>
                         <div style={{fontSize:11,padding:"8px 5px",display:"flex",flexDirection:"column",gap:1}}>
