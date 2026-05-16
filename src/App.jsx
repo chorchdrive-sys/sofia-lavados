@@ -779,6 +779,11 @@ export default function App() {
   const [modoPrueba,     setModoPrueba]     = useState(false);
   const [clicksLogo,     setClicksLogo]     = useState(0);
   const [turnosPrueba,   setTurnosPrueba]   = useState([]);
+  const [agendaDesde,    setAgendaDesde]    = useState(diaHoy);
+  const [agendaHasta,    setAgendaHasta]    = useState(diaHoy);
+  const [asistDesde,     setAsistDesde]     = useState(diaHoy);
+  const [asistHasta,     setAsistHasta]     = useState(diaHoy);
+  const [asistLavador,   setAsistLavador]   = useState("todos");
   const [staff,          setStaff]      = useState([]);
   const [asistencia,     setAsist]      = useState({});
   const [clientes,       setClientes]   = useState([]);
@@ -1019,10 +1024,67 @@ export default function App() {
 
   function backupClientes(){const data={clientes,fecha:diaHoy,total:clientes.length};const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download=`clientes-sofia-${diaHoy}.json`;a.click();showToast("Backup clientes descargado ✓");}
 
+  async function backupAgendaRango(){
+    const fechas=[];const d=new Date(agendaDesde),h=new Date(agendaHasta);
+    while(d<=h){fechas.push(d.toISOString().split("T")[0]);d.setDate(d.getDate()+1);}
+    const todos=[];
+    for(const f of fechas){const t=await fsList(`turnos_${f}`);todos.push(...t.map(x=>({...x,fecha:f})));}
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify({turnos:todos,desde:agendaDesde,hasta:agendaHasta},null,2)],{type:"application/json"}));
+    a.download=`agenda-${agendaDesde}-al-${agendaHasta}.json`;a.click();showToast("Backup agenda descargado ✓");
+  }
+
+  async function imprimirAgendaRango(){
+    const fechas=[];const d=new Date(agendaDesde),h=new Date(agendaHasta);
+    while(d<=h){fechas.push(d.toISOString().split("T")[0]);d.setDate(d.getDate()+1);}
+    let html="";
+    for(const f of fechas){
+      const ts=await fsList(`turnos_${f}`);
+      const [y,m,dia]=f.split("-");
+      html+=`<h3>${dia}/${m}/${y}</h3><table border="1" cellpadding="6" style="width:100%;border-collapse:collapse;margin-bottom:16px"><thead><tr><th>Hora</th><th>Lavador</th><th>Cliente</th><th>Dirección</th><th>Autos</th><th>Precio</th><th>Estado</th></tr></thead><tbody>${ts.map(t=>`<tr><td>${t.hora}</td><td>${t.staffNombre||"—"}</td><td>${t.clienteNombre||t.cliente||"—"}</td><td>${t.direccion||"—"}</td><td>${t.cantAutos} (${t.tamano})</td><td>$${Number(t.precio||0).toLocaleString("es-AR")}</td><td>${t.estadoPago||"Pendiente"}</td></tr>`).join("")}</tbody></table>`;
+    }
+    const win=window.open("","_blank");
+    win.document.write(`<html><head><title>Agenda ${fechaAR(agendaDesde)} al ${fechaAR(agendaHasta)}</title><style>body{font-family:Arial,sans-serif;font-size:12px}h3{margin:16px 0 6px}</style></head><body><h2>Agenda Sofía Lavados — ${fechaAR(agendaDesde)} al ${fechaAR(agendaHasta)}</h2>${html}</body></html>`);
+    win.document.close();win.print();
+  }
+
+  async function backupAsistRango(){
+    const fechas=[];const d=new Date(asistDesde),h=new Date(asistHasta);
+    while(d<=h){fechas.push(d.toISOString().split("T")[0]);d.setDate(d.getDate()+1);}
+    const datos={};
+    for(const f of fechas){const a=await fsGet("asistencia",f);if(a)datos[f]=a;}
+    const staffFiltro=asistLavador==="todos"?staff:staff.filter(s=>s.id===asistLavador);
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify({asistencia:datos,staff:staffFiltro,desde:asistDesde,hasta:asistHasta},null,2)],{type:"application/json"}));
+    a.download=`asistencia-${asistDesde}-al-${asistHasta}.json`;a.click();showToast("Backup asistencia descargado ✓");
+  }
+
+  async function imprimirAsistRango(){
+    const fechas=[];const d=new Date(asistDesde),h=new Date(asistHasta);
+    while(d<=h){fechas.push(d.toISOString().split("T")[0]);d.setDate(d.getDate()+1);}
+    const staffFiltro=asistLavador==="todos"?staff.filter(s=>s.rol!=="encargado"):staff.filter(s=>s.id===asistLavador);
+    let filas="";
+    for(const f of fechas){
+      const asDoc=await fsGet("asistencia",f);
+      const [y,m,dia]=f.split("-");
+      filas+=staffFiltro.map(s=>{const a=asDoc?.[s.id]||{};return `<tr><td>${dia}/${m}/${y}</td><td>${s.nombre}</td><td>${a.presente?"✓ Presente":"— Ausente"}</td><td>${a.transporte||s.transporte}</td></tr>`;}).join("");
+    }
+    const win=window.open("","_blank");
+    win.document.write(`<html><head><title>Asistencia</title><style>body{font-family:Arial,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px}th{background:#f0f0f0}</style></head><body><h2>Asistencia — ${fechaAR(asistDesde)} al ${fechaAR(asistHasta)}</h2><table><thead><tr><th>Fecha</th><th>Lavador</th><th>Estado</th><th>Transporte</th></tr></thead><tbody>${filas}</tbody></table></body></html>`);
+    win.document.close();win.print();
+  }
+
+  function imprimirCierre(){
+    const regs=rangoC==="hoy"?registros:regMulti;
+    const tTotal=regs.reduce((s,r)=>s+Number(r.precio||0),0);
+    const filas=regs.map(r=>`<tr><td>${r.hora||"—"}</td><td>${r.staffNombre||"—"}</td><td>${r.clienteNombre||"—"}</td><td>${r.autos||"—"}</td><td>$${Number(r.precio||0).toLocaleString("es-AR")}</td><td>${r.metodo==="mp"?"MP":"Ef."}</td><td>${r.estadoPago||"—"}</td></tr>`).join("");
+    const win=window.open("","_blank");
+    win.document.write(`<html><head><title>Cierre</title><style>body{font-family:Arial,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px}th{background:#f0f0f0}tfoot td{font-weight:bold;background:#eee}</style></head><body><h2>Cierre Sofía Lavados — ${rangoC==="hoy"?fechaAR(diaHoy):rangoC}</h2><table><thead><tr><th>Hora</th><th>Lavador</th><th>Cliente</th><th>Autos</th><th>Precio</th><th>Pago</th><th>Estado</th></tr></thead><tbody>${filas}</tbody><tfoot><tr><td colspan="4">TOTAL</td><td>$${tTotal.toLocaleString("es-AR")}</td><td colspan="2"></td></tr></tfoot></table></body></html>`);
+    win.document.close();win.print();
+  }
+
   function backupAgenda(){const data={turnos,fecha:diaHoy,total:turnos.length};const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download=`agenda-sofia-${diaHoy}.json`;a.click();showToast("Backup agenda descargado ✓");}
 
   function imprimirAgenda(){
-    const filas = turnos.map(t=>`<tr><td>${t.hora}</td><td>${t.staffNombre||"—"}</td><td>${t.clienteNombre||t.cliente||"—"}</td><td>${t.direccion||"—"}</td><td>${t.cantAutos} (${t.tamano})</td><td>${formatP(t.precio)}</td><td>${t.estadoPago||"💰 Pendiente"}</td></tr>`).join("");
+    const filas = turnos.map(t=>`<tr><td>${t.hora}</td><td>${t.staffNombre||"—"}</td><td>${t.clienteNombre||t.cliente||"—"}</td><td>${t.direccion||"—"}</td><td>${t.cantAutos} (${t.tamano})</td><td>$${Number(t.precio||0).toLocaleString("es-AR")}</td><td>${t.estadoPago||"💰 Pendiente"}</td></tr>`).join("");
     const win=window.open("","_blank");
     const [y,m,d]=diaHoy.split("-");
     win.document.write(`<html><head><title>Agenda ${d}/${m}/${y}</title><style>body{font-family:Arial,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f0f0f0}h2{margin-bottom:10px}</style></head><body><h2>Agenda Sofía Lavados — ${d}/${m}/${y}</h2><table><thead><tr><th>Hora</th><th>Lavador</th><th>Cliente</th><th>Dirección</th><th>Autos</th><th>Precio</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></body></html>`);
@@ -1127,10 +1189,12 @@ export default function App() {
         {modoPrueba&&(
           <div style={{background:"#fbbf2422",border:"1px solid #fbbf24",borderRadius:8,padding:"5px 12px",fontSize:11,color:"#fbbf24",fontWeight:700,display:"flex",alignItems:"center",gap:8}}>
             🔧 MODO PRUEBA — Los turnos no se guardan
-            <button onClick={()=>{
+            <button onClick={async ()=>{
               setModoPrueba(false);
-              setTurnos(prev=>prev.filter(t=>!t.id?.startsWith("prueba_")));
               setTurnosPrueba([]);
+              // Recarga turnos reales desde Firestore, descartando los de prueba
+              const reales = await fsList(`turnos_${diaHoy}`);
+              setTurnos(reales);
               showToast("Modo prueba desactivado","ok");
             }} style={{background:"#fbbf2433",border:"1px solid #fbbf2466",color:"#fbbf24",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:10}}>Salir</button>
           </div>
@@ -1330,12 +1394,15 @@ export default function App() {
         {/* ══ AGENDA ══ */}
         {vista==="agenda"&&(
           <div className="fade">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
               <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>AGENDA — {fechaAR(diaHoy)}</div>
-              <div style={{display:"flex",gap:6}}>
-                <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={imprimirAgenda}>🖨️</button>
-                <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={backupAgenda}>⬇</button>
-                <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={recargar}>⟳</button>
+              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                <input type="date" value={agendaDesde} onChange={e=>setAgendaDesde(e.target.value)} style={{padding:"4px 8px",fontSize:10,width:130}}/>
+                <span style={{fontSize:10,color:"#94a3b8"}}>al</span>
+                <input type="date" value={agendaHasta} onChange={e=>setAgendaHasta(e.target.value)} style={{padding:"4px 8px",fontSize:10,width:130}}/>
+                <button title="Imprimir rango" style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={imprimirAgendaRango}>🖨️</button>
+                <button title="Backup rango" style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={backupAgendaRango}>⬇</button>
+                <button title="Actualizar" style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={recargar}>⟳</button>
               </div>
             </div>
             <div className="card grilla-wrap">
@@ -1378,10 +1445,21 @@ export default function App() {
         {/* ══ ASISTENCIA ══ */}
         {vista==="asist"&&(
           <div className="fade">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
               <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>ASISTENCIA — {fechaAR(diaHoy)}</div>
-              <span style={{fontSize:11,color:"#94a3b8"}}>{staffActivo.length} presentes</span>
+              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                <input type="date" value={asistDesde} onChange={e=>setAsistDesde(e.target.value)} style={{padding:"4px 8px",fontSize:10,width:130}}/>
+                <span style={{fontSize:10,color:"#94a3b8"}}>al</span>
+                <input type="date" value={asistHasta} onChange={e=>setAsistHasta(e.target.value)} style={{padding:"4px 8px",fontSize:10,width:130}}/>
+                <select value={asistLavador} onChange={e=>setAsistLavador(e.target.value)} style={{padding:"4px 8px",fontSize:10,width:130}}>
+                  <option value="todos">Todos</option>
+                  {staff.filter(s=>s.rol!=="encargado").map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+                <button title="Imprimir" style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={imprimirAsistRango}>🖨️</button>
+                <button title="Backup" style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={backupAsistRango}>⬇</button>
+              </div>
             </div>
+            <span style={{fontSize:11,color:"#94a3b8"}}>{staffActivo.length} presentes</span>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
               {staff.filter(s=>s.rol!=="encargado").map(s=>{
                 const a=asistencia[s.id]||{};
@@ -1532,13 +1610,14 @@ export default function App() {
             </div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
               <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CIERRE — {fechaAR(diaHoy)}</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                 {["hoy","semana","mes"].map(r=>(
                   <button key={r} className={`chip ${rangoC===r?"on":""}`} onClick={()=>{setRangoC(r);cargarMultiFecha(r);}}>
                     {r==="hoy"?"📅 Hoy":r==="semana"?"📆 Semana":"🗓 Mes"}
                   </button>
                 ))}
                 <Btn sm ghost onClick={()=>cargarMultiFecha(rangoC)}>⟳</Btn>
+                <Btn sm ghost onClick={()=>imprimirCierre()}>🖨️</Btn>
                 <Btn sm ghost onClick={backup}>⬇</Btn>
               </div>
             </div>
