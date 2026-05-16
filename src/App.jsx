@@ -144,6 +144,7 @@ const MOTIVOS_OPERACION = [
 //  HELPERS
 // ═══════════════════════════════════════════════════════════════
 const hoy         = () => new Date().toISOString().split("T")[0];
+const fechaAR     = (iso) => { if(!iso) return ""; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
 const franjasValidas = () => {
   const ahora = new Date();
   const minutos = ahora.getHours()*60 + ahora.getMinutes() + 30;
@@ -855,7 +856,14 @@ export default function App() {
 
   useEffect(()=>{
     if(!db) return;
-    const u = onSnapshot(collection(db,`turnos_${diaHoy}`), snap=>{setTurnos(snap.docs.map(d=>({id:d.id,...d.data()})));});
+    const u = onSnapshot(collection(db,`turnos_${diaHoy}`), snap=>{
+      const reales = snap.docs.map(d=>({id:d.id,...d.data()}));
+      // En modo prueba, preservar los turnos locales de prueba
+      setTurnos(prev=>{
+        const prueba = prev.filter(t=>t.id?.startsWith("prueba_"));
+        return [...reales, ...prueba];
+      });
+    });
     return()=>u();
   },[diaHoy]);
 
@@ -908,7 +916,18 @@ export default function App() {
     resetForm();
   }
 
-  async function cancelarTurno(turno){await fsDel(`turnos_${diaHoy}`,turno.id);setTurnos(prev=>prev.filter(t=>t.id!==turno.id));showToast("Turno cancelado","warn");setModal(null);}
+  async function cancelarTurno(turno){
+    if(modoPrueba||turno.id?.startsWith("prueba_")){
+      setTurnos(prev=>prev.filter(t=>t.id!==turno.id));
+      showToast("Turno de prueba eliminado","warn");
+      setModal(null);
+      return;
+    }
+    await fsDel(`turnos_${diaHoy}`,turno.id);
+    setTurnos(prev=>prev.filter(t=>t.id!==turno.id));
+    showToast("Turno cancelado","warn");
+    setModal(null);
+  }
 
   async function reasignarTurno(turno,nStaff,nHora){const ns=staff.find(s=>s.id===nStaff);const horasOcupadas=slotsOcupados(nHora,turno.cantAutos);const upd={staffId:nStaff,staffNombre:ns?.nombre,hora:nHora,horasOcupadas};await fsUpdate(`turnos_${diaHoy}`,turno.id,upd);setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,...upd}:t));showToast(`Reasignado a ${ns?.nombre} ✓`);setModal(null);}
 
@@ -997,6 +1016,19 @@ export default function App() {
   }
 
   function backup(){const data={staff,clientes,turnos,registros,tamanos,fecha:diaHoy};const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download=`backup-sofia-${diaHoy}.json`;a.click();showToast("Backup descargado ✓");}
+
+  function backupClientes(){const data={clientes,fecha:diaHoy,total:clientes.length};const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download=`clientes-sofia-${diaHoy}.json`;a.click();showToast("Backup clientes descargado ✓");}
+
+  function backupAgenda(){const data={turnos,fecha:diaHoy,total:turnos.length};const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download=`agenda-sofia-${diaHoy}.json`;a.click();showToast("Backup agenda descargado ✓");}
+
+  function imprimirAgenda(){
+    const filas = turnos.map(t=>`<tr><td>${t.hora}</td><td>${t.staffNombre||"—"}</td><td>${t.clienteNombre||t.cliente||"—"}</td><td>${t.direccion||"—"}</td><td>${t.cantAutos} (${t.tamano})</td><td>${formatP(t.precio)}</td><td>${t.estadoPago||"💰 Pendiente"}</td></tr>`).join("");
+    const win=window.open("","_blank");
+    const [y,m,d]=diaHoy.split("-");
+    win.document.write(`<html><head><title>Agenda ${d}/${m}/${y}</title><style>body{font-family:Arial,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f0f0f0}h2{margin-bottom:10px}</style></head><body><h2>Agenda Sofía Lavados — ${d}/${m}/${y}</h2><table><thead><tr><th>Hora</th><th>Lavador</th><th>Cliente</th><th>Dirección</th><th>Autos</th><th>Precio</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></body></html>`);
+    win.document.close();
+    win.print();
+  }
 
   async function guardarConfig(newTam,newFz,newKey){setTamanos(newTam);setFzPct(newFz);setGKey(newKey);await fsSave("config","precios",{tamanos:newTam,fzPct:newFz,geminiKey:newKey});showToast("Precios guardados ✓");}
 
@@ -1299,8 +1331,12 @@ export default function App() {
         {vista==="agenda"&&(
           <div className="fade">
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>AGENDA — {diaHoy}</div>
-              <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={recargar}>⟳</button>
+              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>AGENDA — {fechaAR(diaHoy)}</div>
+              <div style={{display:"flex",gap:6}}>
+                <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={imprimirAgenda}>🖨️</button>
+                <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={backupAgenda}>⬇</button>
+                <button style={{background:"transparent",border:"1px solid #1e3a5f",color:"#94a3b8",borderRadius:7,cursor:"pointer",fontSize:10,padding:"5px 11px",fontFamily:"inherit"}} onClick={recargar}>⟳</button>
+              </div>
             </div>
             <div className="card grilla-wrap">
               {staffActivo.filter(s=>s.rol!=="encargado").length===0
@@ -1343,7 +1379,7 @@ export default function App() {
         {vista==="asist"&&(
           <div className="fade">
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>ASISTENCIA — {diaHoy}</div>
+              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>ASISTENCIA — {fechaAR(diaHoy)}</div>
               <span style={{fontSize:11,color:"#94a3b8"}}>{staffActivo.length} presentes</span>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
@@ -1403,7 +1439,10 @@ export default function App() {
           <div className="fade">
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
               <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CLIENTES — {clientes.length}</div>
-              <Btn sm color="#0e7490" onClick={()=>setModal({tipo:"ncliente"})}>+ Nuevo cliente</Btn>
+              <div style={{display:"flex",gap:8}}>
+                <Btn sm ghost onClick={backupClientes}>⬇ Backup</Btn>
+                <Btn sm color="#0e7490" onClick={()=>setModal({tipo:"ncliente"})}>+ Nuevo cliente</Btn>
+              </div>
             </div>
             <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
               <input placeholder="🔍 Buscar por código, nombre, calle, barrio o teléfono…" value={buscaCli} onChange={e=>setBuscaCli(e.target.value)} style={{flex:1}}/>
@@ -1492,7 +1531,7 @@ export default function App() {
               💡 Los turnos con ✅ ya fueron rendidos. Los pendientes esperan rendición en base. 🔴 = Cliente no pagó.
             </div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CIERRE — {diaHoy}</div>
+              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>CIERRE — {fechaAR(diaHoy)}</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {["hoy","semana","mes"].map(r=>(
                   <button key={r} className={`chip ${rangoC===r?"on":""}`} onClick={()=>{setRangoC(r);cargarMultiFecha(r);}}>
