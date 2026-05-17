@@ -779,10 +779,10 @@ export default function App() {
   const [modoPrueba,     setModoPrueba]     = useState(false);
   const [clicksLogo,     setClicksLogo]     = useState(0);
   const [turnosPrueba,   setTurnosPrueba]   = useState([]);
-  const [agendaDesde,    setAgendaDesde]    = useState(diaHoy);
-  const [agendaHasta,    setAgendaHasta]    = useState(diaHoy);
-  const [asistDesde,     setAsistDesde]     = useState(diaHoy);
-  const [asistHasta,     setAsistHasta]     = useState(diaHoy);
+  const [agendaDesde,    setAgendaDesde]    = useState(hoy());
+  const [agendaHasta,    setAgendaHasta]    = useState(hoy());
+  const [asistDesde,     setAsistDesde]     = useState(hoy());
+  const [asistHasta,     setAsistHasta]     = useState(hoy());
   const [asistLavador,   setAsistLavador]   = useState("todos");
   const [staff,          setStaff]      = useState([]);
   const [asistencia,     setAsist]      = useState({});
