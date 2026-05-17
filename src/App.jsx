@@ -144,11 +144,22 @@ const MOTIVOS_OPERACION = [
 //  HELPERS
 // ═══════════════════════════════════════════════════════════════
 const hoy = () => {
+  // Buenos Aires es UTC-3 fijo (no cambia por DST)
   const now = new Date();
-  const ar = new Date(now.toLocaleString("en-US", {timeZone:"America/Argentina/Buenos_Aires"}));
-  return ar.toISOString().split("T")[0];
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const ar = new Date(utc - 3 * 60 * 60000);
+  const y = ar.getFullYear();
+  const m = String(ar.getMonth()+1).padStart(2,"0");
+  const d = String(ar.getDate()).padStart(2,"0");
+  return `${y}-${m}-${d}`;
 };
 const fechaAR     = (iso) => { if(!iso) return ""; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+const horaAR      = () => {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset()*60000;
+  const ar = new Date(utc - 3*60*60000);
+  return `${String(ar.getHours()).padStart(2,"0")}:${String(ar.getMinutes()).padStart(2,"0")}`;
+};
 const franjasValidas = () => {
   const ahora = new Date();
   const minutos = ahora.getHours()*60 + ahora.getMinutes() + 30;
@@ -563,7 +574,25 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
       <textarea value={nota} onChange={e=>setNota(e.target.value)} placeholder="Detallista, complicado, etc."
         style={{background:"#0b1220",border:"1px solid #1e3a5f",borderRadius:8,color:"#e2e8f0",fontFamily:"inherit",fontSize:12,padding:"9px 13px",width:"100%",outline:"none",resize:"none",height:60}}/>
     </div>
-    {cliente?.deuda>0 && <div style={{padding:"8px 12px",background:"#f8717122",border:"1px solid #f8717144",borderRadius:8,color:"#fca5a5",fontSize:11,marginBottom:8}}>🔴 Deuda acumulada: {formatP(cliente.deuda)}</div>}
+    {cliente?.deuda>0 && <div style={{padding:"8px 12px",background:"#f8717122",border:"1px solid #f8717144",borderRadius:8,color:"#fca5a5",fontSize:11,marginBottom:8}}>
+      🔴 Deuda acumulada: {formatP(cliente.deuda)}
+      <div style={{display:"flex",gap:6,marginTop:8}}>
+        <button onClick={async()=>{
+          if(!window.confirm(`¿Condonar deuda de ${formatP(cliente.deuda)} para ${cliente.nombre}?`)) return;
+          await fsUpdate("clientes",cliente.id,{deuda:0});
+          showToast(`Deuda de ${cliente.nombre} condonada ✓`);
+          onClose();
+        }} style={{background:"#16a34a22",border:"1px solid #16a34a44",color:"#6ee7b7",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10}}>✓ Condonar deuda</button>
+        <button onClick={async()=>{
+          const monto = Number(prompt("¿Cuánto de punitorio/recargo sumás?"));
+          if(!monto||monto<=0) return;
+          const nueva = (cliente.deuda||0)+monto;
+          await fsUpdate("clientes",cliente.id,{deuda:nueva});
+          showToast(`Punitorio de ${formatP(monto)} aplicado a ${cliente.nombre}`,"warn");
+          onClose();
+        }} style={{background:"#f8717122",border:"1px solid #f8717144",color:"#fca5a5",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10}}>+ Punitorio</button>
+      </div>
+    </div>}
     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
       {!esNuevo&&!confirm&&<Btn danger sm onClick={()=>setConfirm(true)}>Eliminar</Btn>}
       {!esNuevo&&confirm&&<Btn danger sm onClick={()=>onBorrar(cliente.id)}>¿Confirmar?</Btn>}
@@ -831,6 +860,16 @@ export default function App() {
   const showToast = (msg,tipo="ok") => setToast({msg,tipo});
   const diaHoy = hoy();
 
+  // Recalcular diaHoy cada minuto para detectar cambio de día a medianoche Argentina
+  useEffect(()=>{
+    const interval = setInterval(()=>{
+      const nuevo = hoy();
+      // Si cambió el día, forzar re-render recargando datos
+      if(nuevo !== diaHoy) window.location.reload();
+    }, 60000);
+    return ()=>clearInterval(interval);
+  },[diaHoy]);
+
   const staffActivo    = staff.filter(s=>asistencia[s.id]?.presente&&s.rol!=="encargado");
   const staffFiltrado  = staffActivo.filter(s=>
     (filtroT==="todos"||(asistencia[s.id]?.transporte||s.transporte)===filtroT)&&
@@ -865,16 +904,16 @@ export default function App() {
 
   useEffect(()=>{
     if(!db) return;
+    if(modoPrueba) return; // No escuchar Firestore durante modo prueba
     const u = onSnapshot(collection(db,`turnos_${diaHoy}`), snap=>{
       const reales = snap.docs.map(d=>({id:d.id,...d.data()}));
-      // En modo prueba, preservar los turnos locales de prueba
       setTurnos(prev=>{
         const prueba = prev.filter(t=>t.id?.startsWith("prueba_"));
         return [...reales, ...prueba];
       });
     });
     return()=>u();
-  },[diaHoy]);
+  },[diaHoy, modoPrueba]);
 
   async function recargar() {
     const t = await fsList(`turnos_${diaHoy}`); setTurnos(t);
@@ -950,7 +989,7 @@ export default function App() {
       else if(dif>0 && turno.clienteDeuda>0) motivoFinal = `Abona deuda anterior (${formatP(Math.min(dif,turno.clienteDeuda))})`;
       else if(dif>0) motivoFinal = "Pago con excedente";
     }
-    const reg={turnoId:turno.id,hora:turno.hora,staffNombre:turno.staffNombre,clienteNombre:turno.clienteNombre||turno.cliente,direccion:turno.direccion,autos:turno.cantAutos,tamano:turno.tamano,precio:importeReal,precioEsperado:turno.precio,metodo:turno.metodo,esFZ:turno.esFZ,notas:turno.notas,fecha:diaHoy,estadoPago:estadoFinal,diferencia:dif,motivo:motivoFinal,ts:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})};
+    const reg={turnoId:turno.id,hora:turno.hora,staffNombre:turno.staffNombre,clienteNombre:turno.clienteNombre||turno.cliente,direccion:turno.direccion,autos:turno.cantAutos,tamano:turno.tamano,precio:importeReal,precioEsperado:turno.precio,metodo:turno.metodo,esFZ:turno.esFZ,notas:turno.notas,fecha:diaHoy,estadoPago:estadoFinal,diferencia:dif,motivo:motivoFinal,ts:horaAR()};
     await fsAdd(`cierre_${diaHoy}`,reg);
     await fsUpdate(`turnos_${diaHoy}`,turno.id,{estadoPago:estadoFinal,diferencia:dif,motivo:motivoFinal,montoPagado:importeReal});
     if(importeReal===0 && turno.clienteNombre) {
@@ -1211,16 +1250,20 @@ export default function App() {
         {modoPrueba&&(
           <div style={{background:"#fbbf2422",border:"1px solid #fbbf24",borderRadius:8,padding:"5px 12px",fontSize:11,color:"#fbbf24",fontWeight:700,display:"flex",alignItems:"center",gap:8}}>
             🔧 MODO PRUEBA — Los turnos no se guardan
-            <button onClick={async ()=>{
+            <button onClick={()=>{
               setModoPrueba(false);
               setTurnosPrueba([]);
-              // Recarga turnos reales desde Firestore, descartando los de prueba
-              const reales = await fsList(`turnos_${diaHoy}`);
-              setTurnos(reales);
-              // Recarga cierre real, descartando registros de prueba
-              const cierreReal = await fsList(`cierre_${diaHoy}`);
-              setRegistros(cierreReal);
-              showToast("Modo prueba desactivado","ok");
+              setTurnos([]); // Limpiar inmediatamente
+              setRegistros([]); // Limpiar cierre inmediatamente
+              // Esperar un tick antes de reactivar el snapshot
+              setTimeout(async ()=>{
+                const reales = await fsList(`turnos_${diaHoy}`);
+                const cierreReal = await fsList(`cierre_${diaHoy}`);
+                setTurnos(reales);
+                setRegistros(cierreReal);
+                setModoPrueba(false);
+                showToast("Modo prueba desactivado","ok");
+              }, 100);
             }} style={{background:"#fbbf2433",border:"1px solid #fbbf2466",color:"#fbbf24",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:10}}>Salir</button>
           </div>
         )}
