@@ -540,7 +540,7 @@ function ModalClienteRapido({nombreInicial,onGuardar,onClose}) {
 // ═══════════════════════════════════════════════════════════════
 //  MODAL CLIENTE (edición)
 // ═══════════════════════════════════════════════════════════════
-function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
+function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose,showToast}) {
   const [nombre,   setNombre]   = useState(cliente?.nombre||"");
   const [tel,      setTel]      = useState(cliente?.telefono||"");
   const [dir,      setDir]      = useState(cliente?.direccion||"");
@@ -580,16 +580,16 @@ function ModalCliente({cliente,esNuevo,onGuardar,onBorrar,onClose}) {
         <button onClick={async()=>{
           if(!window.confirm(`¿Condonar deuda de ${formatP(cliente.deuda)} para ${cliente.nombre}?`)) return;
           await fsUpdate("clientes",cliente.id,{deuda:0});
-          showToast(`Deuda de ${cliente.nombre} condonada ✓`);
-          onClose();
+          onGuardar({...cliente,nombre:capitalizar(nombre),telefono:tel,direccion:dir,barrio:barrio==="otro"?barrioManual:barrio,autosHabituales:autos,nota,tipo,deuda:0});
+          if(showToast) showToast(`Deuda de ${cliente.nombre} condonada ✓`);
         }} style={{background:"#16a34a22",border:"1px solid #16a34a44",color:"#6ee7b7",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10}}>✓ Condonar deuda</button>
         <button onClick={async()=>{
           const monto = Number(prompt("¿Cuánto de punitorio/recargo sumás?"));
           if(!monto||monto<=0) return;
           const nueva = (cliente.deuda||0)+monto;
           await fsUpdate("clientes",cliente.id,{deuda:nueva});
-          showToast(`Punitorio de ${formatP(monto)} aplicado a ${cliente.nombre}`,"warn");
-          onClose();
+          onGuardar({...cliente,nombre:capitalizar(nombre),telefono:tel,direccion:dir,barrio:barrio==="otro"?barrioManual:barrio,autosHabituales:autos,nota,tipo,deuda:nueva});
+          if(showToast) showToast(`Punitorio de ${formatP(monto)} aplicado a ${cliente.nombre}`,"warn");
         }} style={{background:"#f8717122",border:"1px solid #f8717144",color:"#fca5a5",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10}}>+ Punitorio</button>
       </div>
     </div>}
@@ -744,7 +744,14 @@ async function inicializar(setStaff, setAsist, setClientes, setTamanos, setFzPct
     setStaff(s);
     const diaHoy = hoy();
     const asDoc = await fsGet("asistencia", diaHoy);
-    if(asDoc){const{id:_,_ts:__,...slots}=asDoc;setAsist(slots);}
+    // Solo cargar si el documento es del día de hoy
+    if(asDoc && asDoc.fecha === diaHoy){
+      const{id:_,_ts:__,fecha:___,...slots}=asDoc;
+      setAsist(slots);
+    } else {
+      // Día nuevo — asistencia limpia
+      setAsist({});
+    }
     let cl = await fsList("clientes");
 
     // Actualizar códigos GEN y limpiar teléfonos ficticios
@@ -812,6 +819,7 @@ export default function App() {
   const [modoPrueba,     setModoPrueba]     = useState(false);
   const [clicksLogo,     setClicksLogo]     = useState(0);
   const [turnosPrueba,   setTurnosPrueba]   = useState([]);
+  const [estadoDia,      setEstadoDia]      = useState("cerrado"); // "cerrado" | "abierto" | "finalizado"
   const [agendaDesde,    setAgendaDesde]    = useState(hoy());
   const [agendaHasta,    setAgendaHasta]    = useState(hoy());
   const [asistDesde,     setAsistDesde]     = useState(hoy());
@@ -1223,8 +1231,8 @@ export default function App() {
       {modal?.tipo==="nclienteR" && <ModalClienteRapido nombreInicial={modal.data} onGuardar={async m=>{const nro=clientes.length+1;const cod=codigoBarrio(m.barrio);const id=await fsAdd("clientes",{...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`,deuda:0});setClientes(p=>[...p,{id,...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`,deuda:0}]);setClienteInput(m.nombre);setClienteSel({...m,id,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`,deuda:0});setDireccion(m.direccion||"");setCantAutos(m.autosHabituales||1);setBuscaCli("");showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="nstaff"    && <ModalStaff     esNuevo staff={staff} onGuardar={async m=>{const id=await fsAdd("staff",m);setStaff(p=>[...p,{id,...m}]);showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="estaff"    && <ModalStaff     miembro={modal.data} staff={staff} onGuardar={async(m)=>{await fsUpdate("staff",modal.data.id,m);setStaff(p=>p.map(s=>s.id===modal.data.id?{...s,...m}:s));showToast("Guardado ✓");setModal(null);}} onBorrar={async id=>{await fsDel("staff",id);setStaff(p=>p.filter(s=>s.id!==id));showToast("Eliminado","warn");setModal(null);}} onClose={()=>setModal(null)}/>}
-      {modal?.tipo==="ncliente"  && <ModalCliente   esNuevo onGuardar={async m=>{const nro=clientes.length+1;const cod=codigoBarrio(m.barrio);const id=await fsAdd("clientes",{...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`,deuda:m.deuda||0});setClientes(p=>[...p,{id,...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`,deuda:m.deuda||0}]);setBuscaCli("");showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
-      {modal?.tipo==="ecliente"  && <ModalCliente   cliente={modal.data} onGuardar={async m=>{const cod=codigoBarrio(m.barrio);const nuevoNro=modal.data.nroCliente&&!modal.data.nroCliente.startsWith("GEN")?modal.data.nroCliente:`${cod}-${String(clientes.length+1).padStart(3,"0")}`;await fsUpdate("clientes",modal.data.id,{...m,nroCliente:nuevoNro,deuda:m.deuda||0});setClientes(p=>p.map(c=>c.id===modal.data.id?{...c,...m,nroCliente:nuevoNro,deuda:m.deuda||0}:c));showToast("Guardado ✓");setModal(null);}} onBorrar={async id=>{await fsDel("clientes",id);setClientes(p=>p.filter(c=>c.id!==id));showToast("Eliminado","warn");setModal(null);}} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="ncliente"  && <ModalCliente   esNuevo showToast={showToast} onGuardar={async m=>{const nro=clientes.length+1;const cod=codigoBarrio(m.barrio);const id=await fsAdd("clientes",{...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`,deuda:m.deuda||0});setClientes(p=>[...p,{id,...m,nroCliente:`${cod}-${String(nro).padStart(3,"0")}`,deuda:m.deuda||0}]);setBuscaCli("");showToast(`${m.nombre} agregado ✓`);setModal(null);}} onClose={()=>setModal(null)}/>}
+      {modal?.tipo==="ecliente"  && <ModalCliente   cliente={modal.data} showToast={showToast} onGuardar={async m=>{const cod=codigoBarrio(m.barrio);const nuevoNro=modal.data.nroCliente&&!modal.data.nroCliente.startsWith("GEN")?modal.data.nroCliente:`${cod}-${String(clientes.length+1).padStart(3,"0")}`;await fsUpdate("clientes",modal.data.id,{...m,nroCliente:nuevoNro,deuda:m.deuda||0});setClientes(p=>p.map(c=>c.id===modal.data.id?{...c,...m,nroCliente:nuevoNro,deuda:m.deuda||0}:c));showToast("Guardado ✓");setModal(null);}} onBorrar={async id=>{await fsDel("clientes",id);setClientes(p=>p.filter(c=>c.id!==id));showToast("Eliminado","warn");setModal(null);}} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="servEsp"   && <ModalServicioEsp onAplicar={s=>{setServicioEsp(s);setPrecio(String(s.precio));setModal(null);showToast(`Servicio especial: ${s.nombre}`);}} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="config"    && <ModalConfig    tamanos={tamanos} fzPct={fzPct} geminiKey={geminiKey} onGuardar={guardarConfig} onClose={()=>setModal(null)}/>}
 
@@ -1238,6 +1246,7 @@ export default function App() {
               const clave = prompt("🔧 Clave de modo prueba:");
               if(clave==="sofia2024"){
                 setModoPrueba(true);
+                setTurnosPrueba([]); // Limpia simulaciones anteriores
                 setClicksLogo(0);
                 showToast("🔧 Modo prueba activado","warn");
               } else {
@@ -1285,6 +1294,11 @@ export default function App() {
             {pendientes>0&&<span style={{background:"#ef444420",border:"1px solid #ef444444",color:"#fca5a5",padding:"3px 8px",borderRadius:5,fontSize:10}}>💰{pendientes}</span>}
             {listaVacia&&<span style={{background:"#312e8118",border:"1px solid #312e8144",color:"#a5b4fc",padding:"3px 8px",borderRadius:5,fontSize:10}}>📋TARDE</span>}
           </div>
+          {/* CICLO DEL DÍA */}
+          {estadoDia==="cerrado"&&<button onClick={async()=>{setEstadoDia("abierto");setAsist({});await fsSave("asistencia",diaHoy,{fecha:diaHoy});showToast("🟢 Día abierto — Asistencia lista","ok");}} style={{background:"#16a34a22",border:"1px solid #16a34a44",color:"#6ee7b7",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>🟢 Abrir Día</button>}
+          {estadoDia==="abierto"&&<button onClick={()=>setEstadoDia("finalizado")} style={{background:"#f8717122",border:"1px solid #f8717144",color:"#fca5a5",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>🔴 Finalizar</button>}
+          {estadoDia==="finalizado"&&<span style={{background:"#1e2d40",border:"1px solid #334155",color:"#475569",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700}}>🔴 Día cerrado</span>}
+          {estadoDia==="finalizado"&&<button onClick={()=>setEstadoDia("abierto")} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9}}>⚡ Emergencia</button>}
           <div onClick={()=>inicializar(setStaff,setAsist,setClientes,setTamanos,setFzPct,setGKey,setPrestamos,showToast,setFbOk,setFbLoad)} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,padding:"3px 8px",borderRadius:5,cursor:"pointer",background:fbOk?"#34d39910":"#f8717110",border:`1px solid ${fbOk?"#34d39933":"#f8717133"}`,color:fbOk?"#6ee7b7":"#fca5a5"}}>
             <span style={{animation:fbLoad?"spin .7s linear infinite":"none",display:"inline-block"}}>{fbLoad?"⟳":fbOk?"●":"○"}</span>
             <span>{fbLoad?"…":fbOk?"FB✓":"off"}</span>
@@ -1546,14 +1560,14 @@ export default function App() {
                       {saldoLav<0&&<div style={{fontSize:10,color:"#a78bfa",marginBottom:4}}>📝 A favor {formatP(Math.abs(saldoLav))}</div>}
                       <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                         {["moto","bici","pie"].map(t=>(
-                          <button key={t} onClick={async()=>{const upd={...(asistencia[s.id]||{}),transporte:t};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd});}} className={`chip ${trans===t?"on":""}`} style={{padding:"4px 10px",fontSize:10}}>
+                          <button key={t} onClick={async()=>{const upd={...(asistencia[s.id]||{}),transporte:t};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd,fecha:diaHoy});}} className={`chip ${trans===t?"on":""}`} style={{padding:"4px 10px",fontSize:10}}>
                             {t==="moto"?"🏍 Moto":t==="bici"?"🚲 Bici":"🚶 Pie"}
                           </button>
                         ))}
                       </div>
                     </div>
                     <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                      <button className={`tog ${pres?"on_":"off"}`} onClick={async()=>{const upd={...(asistencia[s.id]||{transporte:s.transporte}),presente:!pres};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd});}}/>
+                      <button className={`tog ${pres?"on_":"off"}`} onClick={async()=>{const upd={...(asistencia[s.id]||{transporte:s.transporte}),presente:!pres};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd,fecha:diaHoy});}}/>
                       <button onClick={(e)=>{e.stopPropagation();setModal({tipo:"operacion",data:s});}} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"3px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>💰 Operación</button>
                     </div>
                   </div>
@@ -1770,13 +1784,14 @@ export default function App() {
                 : <div className="card" style={{overflowX:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                       <thead><tr style={{borderBottom:"1px solid #1e2d40"}}>
-                        {["HORA","LAVADOR","CLIENTE","DIR.","AUTOS","PRECIO","PAGO","ESTADO","DIF.","MOTIVO"].map(h=>(
+                        {["TS","HORA","LAVADOR","CLIENTE","DIR.","AUTOS","PRECIO","PAGO","ESTADO","DIF.","MOTIVO"].map(h=>(
                           <th key={h} style={{padding:"6px 8px",textAlign:"left",color:"#94a3b8",fontSize:9,letterSpacing:".08em",whiteSpace:"nowrap"}}>{h}</th>
                         ))}
                       </tr></thead>
                       <tbody>
                         {regs.map((r,i)=>(
                           <tr key={r.id||i} style={{borderBottom:"1px solid #0b1220"}}>
+                            <td style={{padding:"8px",color:"#475569",fontSize:9,whiteSpace:"nowrap"}}>{r.ts||"—"}</td>
                             <td style={{padding:"8px",color:"#22d3ee",whiteSpace:"nowrap"}}>{r.hora}</td>
                             <td style={{padding:"8px"}}>{r.staffNombre}</td>
                             <td style={{padding:"8px",color:"#94a3b8"}}>{r.clienteNombre||"—"}</td>
