@@ -143,7 +143,11 @@ const MOTIVOS_OPERACION = [
 // ═══════════════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════════════
-const hoy         = () => new Date().toISOString().split("T")[0];
+const hoy = () => {
+  const now = new Date();
+  const ar = new Date(now.toLocaleString("en-US", {timeZone:"America/Argentina/Buenos_Aires"}));
+  return ar.toISOString().split("T")[0];
+};
 const fechaAR     = (iso) => { if(!iso) return ""; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
 const franjasValidas = () => {
   const ahora = new Date();
@@ -938,9 +942,17 @@ export default function App() {
 
   async function registrarCobro(turno,importeReal,dif,motivo) {
     const estadoFinal = importeReal===0 ? "🔴 Cliente debe" : "💵 Cobrado (sin rendir)";
-    const reg={turnoId:turno.id,hora:turno.hora,staffNombre:turno.staffNombre,clienteNombre:turno.clienteNombre||turno.cliente,direccion:turno.direccion,autos:turno.cantAutos,tamano:turno.tamano,precio:importeReal,precioEsperado:turno.precio,metodo:turno.metodo,esFZ:turno.esFZ,notas:turno.notas,fecha:diaHoy,estadoPago:estadoFinal,diferencia:dif,motivo:motivo||"",ts:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})};
+    // Auto-detectar motivo si está vacío
+    let motivoFinal = motivo||"";
+    if(!motivoFinal) {
+      if(importeReal===0) motivoFinal = "Cliente no pagó (deuda)";
+      else if(dif<0) motivoFinal = "Cobro parcial";
+      else if(dif>0 && turno.clienteDeuda>0) motivoFinal = `Abona deuda anterior (${formatP(Math.min(dif,turno.clienteDeuda))})`;
+      else if(dif>0) motivoFinal = "Pago con excedente";
+    }
+    const reg={turnoId:turno.id,hora:turno.hora,staffNombre:turno.staffNombre,clienteNombre:turno.clienteNombre||turno.cliente,direccion:turno.direccion,autos:turno.cantAutos,tamano:turno.tamano,precio:importeReal,precioEsperado:turno.precio,metodo:turno.metodo,esFZ:turno.esFZ,notas:turno.notas,fecha:diaHoy,estadoPago:estadoFinal,diferencia:dif,motivo:motivoFinal,ts:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})};
     await fsAdd(`cierre_${diaHoy}`,reg);
-    await fsUpdate(`turnos_${diaHoy}`,turno.id,{estadoPago:estadoFinal,diferencia:dif,motivo:motivo||"",montoPagado:importeReal});
+    await fsUpdate(`turnos_${diaHoy}`,turno.id,{estadoPago:estadoFinal,diferencia:dif,motivo:motivoFinal,montoPagado:importeReal});
     if(importeReal===0 && turno.clienteNombre) {
       const clienteObj = clientes.find(c=>c.nombre===turno.clienteNombre);
       if(clienteObj) {
@@ -949,7 +961,16 @@ export default function App() {
         setClientes(prev=>prev.map(c=>c.id===clienteObj.id?{...c,deuda:nuevaDeuda}:c));
       }
     }
-    setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,estadoPago:estadoFinal,diferencia:dif,motivo:motivo||"",montoPagado:importeReal}:t));
+    // Si pagó de más y tiene deuda, reducir la deuda
+    if(dif>0 && turno.clienteDeuda>0) {
+      const clienteObj = clientes.find(c=>c.nombre===(turno.clienteNombre||turno.cliente));
+      if(clienteObj) {
+        const deudaReducida = Math.max(0,(clienteObj.deuda||0)-dif);
+        await fsUpdate("clientes",clienteObj.id,{deuda:deudaReducida});
+        setClientes(prev=>prev.map(c=>c.id===clienteObj.id?{...c,deuda:deudaReducida}:c));
+      }
+    }
+    setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,estadoPago:estadoFinal,diferencia:dif,motivo:motivoFinal,montoPagado:importeReal}:t));
     setRegistros(prev=>[...prev,{id:Date.now(),...reg}]);
     showToast(`Cobro registrado ✓`);
     setModal(null);
@@ -959,15 +980,16 @@ export default function App() {
     // Actualiza el turno en Firestore
     await fsUpdate(`turnos_${diaHoy}`,turno.id,{estadoPago:"✅ Rendido",fechaRendicion:hoy()});
     setTurnos(prev=>prev.map(t=>t.id===turno.id?{...t,estadoPago:"✅ Rendido"}:t));
-    // Busca el registro de cierre existente para este turno y lo actualiza (no crea nuevo)
-    const regExistente = registros.find(r=>r.turnoId===turno.id);
-    if(regExistente?.id) {
-      await fsUpdate(`cierre_${diaHoy}`,String(regExistente.id),{estadoPago:"✅ Rendido",fechaRendicion:hoy()});
-      setRegistros(prev=>prev.map(r=>r.turnoId===turno.id?{...r,estadoPago:"✅ Rendido"}:r));
-    } else {
-      // Solo si no existe registro previo (caso borde), actualiza el estado en memoria
-      setRegistros(prev=>prev.map(r=>r.turnoId===turno.id?{...r,estadoPago:"✅ Rendido"}:r));
-    }
+    // Busca el registro real en Firestore por turnoId
+    try {
+      const todos = await fsList(`cierre_${diaHoy}`);
+      const regFirestore = todos.find(r=>r.turnoId===turno.id);
+      if(regFirestore?.id) {
+        await fsUpdate(`cierre_${diaHoy}`,regFirestore.id,{estadoPago:"✅ Rendido",fechaRendicion:hoy()});
+      }
+    } catch {}
+    // Actualiza estado en memoria
+    setRegistros(prev=>prev.map(r=>r.turnoId===turno.id?{...r,estadoPago:"✅ Rendido"}:r));
     showToast(`✅ ${turno.staffNombre} rindió ${formatP(turno.montoPagado||turno.precio)}`);
     setModal(null);
   }
@@ -1195,6 +1217,9 @@ export default function App() {
               // Recarga turnos reales desde Firestore, descartando los de prueba
               const reales = await fsList(`turnos_${diaHoy}`);
               setTurnos(reales);
+              // Recarga cierre real, descartando registros de prueba
+              const cierreReal = await fsList(`cierre_${diaHoy}`);
+              setRegistros(cierreReal);
               showToast("Modo prueba desactivado","ok");
             }} style={{background:"#fbbf2433",border:"1px solid #fbbf2466",color:"#fbbf24",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:10}}>Salir</button>
           </div>
