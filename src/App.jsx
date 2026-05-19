@@ -866,7 +866,8 @@ export default function App() {
   const [modoPrueba,     setModoPrueba]     = useState(false);
   const [clicksLogo,     setClicksLogo]     = useState(0);
   const [turnosPrueba,   setTurnosPrueba]   = useState([]);
-  const [estadoDia,      setEstadoDia]      = useState("cerrado"); // "cerrado" | "abierto" | "finalizado"
+  const [estadoDia,      setEstadoDia]      = useState("cerrado");
+  const bloqueandoSnapshot = React.useRef(false); // "cerrado" | "abierto" | "finalizado"
   const [agendaDesde,    setAgendaDesde]    = useState(hoy());
   const [agendaHasta,    setAgendaHasta]    = useState(hoy());
   const [asistDesde,     setAsistDesde]     = useState(hoy());
@@ -961,11 +962,9 @@ export default function App() {
     if(!db) return;
     if(modoPrueba) return; // No escuchar Firestore durante modo prueba
     const u = onSnapshot(collection(db,`turnos_${diaHoy}`), snap=>{
+      if(bloqueandoSnapshot.current) return; // bloqueado durante limpieza de modo prueba
       const reales = snap.docs.map(d=>({id:d.id,...d.data()}));
-      setTurnos(prev=>{
-        const prueba = prev.filter(t=>t.id?.startsWith("prueba_"));
-        return [...reales, ...prueba];
-      });
+      setTurnos(reales);
     });
     return()=>u();
   },[diaHoy, modoPrueba]);
@@ -1301,13 +1300,25 @@ export default function App() {
             const nuevos = clicksLogo+1;
             setClicksLogo(nuevos);
             if(nuevos>=5){
-              const clave = prompt("🔧 Clave de modo prueba:");
-              if(clave==="sofia2024"){
+              const clave = prompt("🔧 Clave de modo prueba:\n(Escribí 'CAMBIAR' para cambiar la clave)");
+              const claveGuardada = localStorage.getItem("sofia_clave")||"sofia2024";
+              if(clave==="CAMBIAR"){
+                const actual = prompt("Ingresá la clave actual:");
+                if(actual!==claveGuardada){ alert("❌ Clave actual incorrecta."); setClicksLogo(0); return; }
+                const nueva = prompt("Ingresá la nueva clave (mínimo 6 caracteres):");
+                if(!nueva||nueva.length<6){ alert("❌ La clave debe tener al menos 6 caracteres."); setClicksLogo(0); return; }
+                const confirmar = prompt("Confirmá la nueva clave:");
+                if(nueva!==confirmar){ alert("❌ Las claves no coinciden."); setClicksLogo(0); return; }
+                localStorage.setItem("sofia_clave", nueva);
+                alert("✅ Clave cambiada correctamente.");
+                setClicksLogo(0);
+              } else if(clave===claveGuardada){
                 setModoPrueba(true);
-                setTurnosPrueba([]); // Limpia simulaciones anteriores
+                setTurnosPrueba([]);
                 setClicksLogo(0);
                 showToast("🔧 Modo prueba activado","warn");
               } else {
+                alert("❌ Clave incorrecta. Intentá de nuevo.");
                 setClicksLogo(0);
               }
             }
@@ -1318,17 +1329,17 @@ export default function App() {
           <div style={{background:"#fbbf2422",border:"1px solid #fbbf24",borderRadius:8,padding:"5px 12px",fontSize:11,color:"#fbbf24",fontWeight:700,display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
             🔧 MODO PRUEBA
             <button onClick={async()=>{
+              bloqueandoSnapshot.current = true;
               setTurnosPrueba([]);
               setTurnos([]);
               setRegistros([]);
-              setTimeout(async()=>{
-                const reales=await fsList(`turnos_${diaHoy}`);
-                const cierreReal=await fsList(`cierre_${diaHoy}`);
-                setTurnos(reales);
-                setRegistros(cierreReal);
-                setModoPrueba(false);
-                showToast("Modo prueba desactivado","ok");
-              },100);
+              const reales = await fsList(`turnos_${diaHoy}`);
+              const cierreReal = await fsList(`cierre_${diaHoy}`);
+              setTurnos(reales);
+              setRegistros(cierreReal);
+              setModoPrueba(false);
+              bloqueandoSnapshot.current = false;
+              showToast("Modo prueba desactivado","ok");
             }} style={{background:"#fbbf2433",border:"1px solid #fbbf2466",color:"#fbbf24",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>✕ Salir</button>
           </div>
         )}
