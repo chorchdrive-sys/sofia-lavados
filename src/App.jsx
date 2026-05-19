@@ -1763,6 +1763,7 @@ export default function App() {
                 <Btn sm ghost onClick={backup}>⬇</Btn>
               </div>
             </div>
+            {/* ── TOTALES ── */}
             {(()=>{
               const regs=rangoC==="hoy"?registros:regMulti;
               const tTotal=regs.reduce((s,r)=>s+Number(r.precio||0),0);
@@ -1779,6 +1780,41 @@ export default function App() {
                 </div>
               );
             })()}
+            {/* ── GESTIÓN DE DEUDAS EN CIERRE ── */}
+            {clientes.filter(c=>c.deuda>0).length>0&&(
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:10,color:"#f87171",letterSpacing:".1em",marginBottom:8,fontWeight:700}}>🔴 CLIENTES CON DEUDA</div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {clientes.filter(c=>c.deuda>0).map(c=>(
+                    <div key={c.id} style={{display:"flex",alignItems:"center",gap:8,background:"#0b1220",border:"1px solid #f8717133",borderRadius:8,padding:"9px 12px",flexWrap:"wrap"}}>
+                      <span style={{color:"#22d3ee",fontSize:11,fontWeight:700}}>{c.nroCliente}</span>
+                      <span style={{color:"#e2e8f0",fontSize:11,flex:1}}>{c.nombre}</span>
+                      <span style={{color:"#f87171",fontWeight:700,fontSize:11}}>{formatP(c.deuda)}</span>
+                      <Btn sm color="#16a34a" onClick={async()=>{
+                        if(!window.confirm(`¿Condonar deuda de ${formatP(c.deuda)} a ${c.nombre}?`))return;
+                        await fsUpdate("clientes",c.id,{deuda:0});
+                        setClientes(prev=>prev.map(x=>x.id===c.id?{...x,deuda:0}:x));
+                        const reg={turnoId:"condonacion",hora:"—",staffNombre:"Sofía",clienteNombre:c.nombre,direccion:"Gestión interna",autos:0,tamano:"—",precio:0,precioEsperado:c.deuda,metodo:"efectivo",estadoPago:"🎁 Condonado",diferencia:-c.deuda,motivo:`Deuda condonada: ${formatP(c.deuda)}`,fecha:diaHoy,ts:horaAR()};
+                        await fsAdd(`cierre_${diaHoy}`,reg);
+                        setRegistros(prev=>[...prev,{id:Date.now(),...reg}]);
+                        showToast(`Deuda de ${c.nombre} condonada ✓`);
+                      }}>✓ Condonar</Btn>
+                      <Btn sm color="#f87171" onClick={async()=>{
+                        const monto=Number(prompt(`¿Cuánto de punitorio sumás a ${c.nombre}? (deuda actual: ${formatP(c.deuda)})`));
+                        if(!monto||monto<=0)return;
+                        const nueva=(c.deuda||0)+monto;
+                        await fsUpdate("clientes",c.id,{deuda:nueva});
+                        setClientes(prev=>prev.map(x=>x.id===c.id?{...x,deuda:nueva}:x));
+                        const reg={turnoId:"punitorio",hora:"—",staffNombre:"Sofía",clienteNombre:c.nombre,direccion:"Gestión interna",autos:0,tamano:"—",precio:monto,precioEsperado:0,metodo:"efectivo",estadoPago:"⚡ Punitorio",diferencia:monto,motivo:`Punitorio aplicado: ${formatP(monto)}`,fecha:diaHoy,ts:horaAR()};
+                        await fsAdd(`cierre_${diaHoy}`,reg);
+                        setRegistros(prev=>[...prev,{id:Date.now(),...reg}]);
+                        showToast(`Punitorio de ${formatP(monto)} aplicado a ${c.nombre}`,"warn");
+                      }}>+ Punitorio</Btn>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {rangoC!=="hoy"&&regMulti.length>0&&(()=>{
               const porLavador={};
               regMulti.forEach(r=>{
@@ -1884,4 +1920,3 @@ export default function App() {
     </div>
   );
 }
-
