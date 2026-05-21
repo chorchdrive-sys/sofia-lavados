@@ -1431,7 +1431,8 @@ export default function App() {
         setShowModalClave(false);
         showToast("🔧 Modo prueba activado","warn");
       }} onClose={()=>{setShowModalClave(false);setClicksLogo(0);}}/>}
-      {showModalLluvia && <ModalLluvia turnos={turnos} staff={staff} asistencia={asistencia} onReanudar={reanudarTrasLluvia} onClose={()=>setShowModalLluvia(false)}/>}        turno={modal.data} staff={staff} onClose={()=>{setModal(null);resetForm();}}/>}
+      {showModalLluvia && <ModalLluvia turnos={turnos} staff={staff} asistencia={asistencia} onReanudar={reanudarTrasLluvia} onClose={()=>setShowModalLluvia(false)}/>}
+      {modal?.tipo==="wa" && <ModalWA turno={modal.data} staff={staff} onClose={()=>{setModal(null);resetForm();}}/>}
       {modal?.tipo==="detalle"   && <ModalDetalle   turno={modal.data} staff={staff} asistencia={asistencia} onCancelar={cancelarTurno} onReasignar={reasignarTurno} onPagar={(t)=>setModal({tipo:"cobro",data:t})} onRendir={(t)=>setModal({tipo:"rendir",data:t})} onWA={t=>setModal({tipo:"wa",data:t})} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="cobro"     && <ModalCobro     turno={modal.data} onRegistrar={registrarCobro} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="rendir"    && <ModalRendicion turno={modal.data} onRegistrar={registrarRendicion} onClose={()=>setModal(null)}/>}
