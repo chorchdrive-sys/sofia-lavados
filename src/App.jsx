@@ -1,5 +1,4 @@
-import React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import {
   getFirestore, doc, setDoc, getDoc, collection,
@@ -835,6 +834,107 @@ async function inicializar(setStaff, setAsist, setClientes, setTamanos, setFzPct
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  MODAL LLUVIA — REORGANIZACIÓN AL REANUDAR
+// ═══════════════════════════════════════════════════════════════
+function ModalLluvia({turnos,staff,asistencia,onReanudar,onClose}) {
+  const [lavPresentes, setLavPresentes] = useState(
+    staff.filter(s=>asistencia[s.id]?.presente&&s.rol!=="encargado").map(s=>s.id)
+  );
+  const [clientesEspera, setClientesEspera] = useState(
+    turnos.filter(t=>!t.estadoPago||t.estadoPago==="💰 Pendiente").map(t=>t.id)
+  );
+  const turnosPendientes = turnos.filter(t=>!t.estadoPago||t.estadoPago==="💰 Pendiente");
+
+  return <Modal titulo="🌧 Reorganizar tras la lluvia" onClose={onClose} wide>
+    <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>
+      Marcá quién se quedó y qué clientes esperan. El sistema reasignará automáticamente.
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div>
+        <div style={{fontSize:10,color:"#fbbf24",letterSpacing:".1em",marginBottom:8,fontWeight:700}}>LAVADORES QUE SIGUEN</div>
+        {staff.filter(s=>s.rol!=="encargado"&&asistencia[s.id]?.presente).map(s=>(
+          <div key={s.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <input type="checkbox" checked={lavPresentes.includes(s.id)} onChange={e=>{
+              setLavPresentes(prev=>e.target.checked?[...prev,s.id]:prev.filter(x=>x!==s.id));
+            }}/>
+            <span style={{color:s.color,fontSize:12}}>{s.nombre}</span>
+            <span style={{fontSize:10,color:"#94a3b8"}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":"🚲"}</span>
+          </div>
+        ))}
+      </div>
+      <div>
+        <div style={{fontSize:10,color:"#22d3ee",letterSpacing:".1em",marginBottom:8,fontWeight:700}}>CLIENTES QUE ESPERAN</div>
+        {turnosPendientes.length===0&&<div style={{fontSize:11,color:"#94a3b8"}}>Sin turnos pendientes</div>}
+        {turnosPendientes.map(t=>(
+          <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <input type="checkbox" checked={clientesEspera.includes(t.id)} onChange={e=>{
+              setClientesEspera(prev=>e.target.checked?[...prev,t.id]:prev.filter(x=>x!==t.id));
+            }}/>
+            <span style={{fontSize:11,color:"#e2e8f0"}}>{t.clienteNombre||t.cliente}</span>
+            <span style={{fontSize:10,color:"#94a3b8"}}>{t.hora}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div style={{marginTop:14,padding:"8px 12px",background:"#fbbf2410",border:"1px solid #fbbf2433",borderRadius:8,fontSize:10,color:"#fde68a"}}>
+      ⚡ Los turnos de clientes que NO están en espera se cancelarán. Los turnos restantes se reasignarán entre los lavadores que siguen.
+    </div>
+    <div style={{display:"flex",gap:8,marginTop:12}}>
+      <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
+      <Btn full color="#22d3ee" onClick={()=>onReanudar(lavPresentes,clientesEspera)}>☀️ Reanudar y reorganizar</Btn>
+    </div>
+  </Modal>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL CLAVE MODO PRUEBA
+// ═══════════════════════════════════════════════════════════════
+function ModalClave({onAcceder,onClose}) {
+  const [clave,setClave]     = useState("");
+  const [error,setError]     = useState("");
+  const [modo,setModo]       = useState("acceso"); // "acceso" | "cambiar"
+  const [nueva,setNueva]     = useState("");
+  const [confirmar,setConfirmar] = useState("");
+
+  const claveGuardada = localStorage.getItem("sofia_clave")||"sofia2024";
+
+  function handleAcceder(){
+    if(clave===claveGuardada){ onAcceder(); }
+    else { setError("❌ Clave incorrecta"); setClave(""); }
+  }
+
+  function handleCambiar(){
+    if(nueva.length<6){ setError("❌ Mínimo 6 caracteres"); return; }
+    if(nueva!==confirmar){ setError("❌ Las claves no coinciden"); return; }
+    localStorage.setItem("sofia_clave",nueva);
+    setError("");setNueva("");setConfirmar("");setModo("acceso");
+    alert("✅ Clave cambiada correctamente.");
+  }
+
+  return <Modal titulo="🔧 Modo Prueba" onClose={onClose}>
+    {modo==="acceso"&&<>
+      <div style={{fontSize:11,color:"#94a3b8",marginBottom:12}}>Ingresá la clave para activar el modo prueba.</div>
+      <Inp label="CLAVE" value={clave} onChange={v=>{setClave(v);setError("");}} type="password" placeholder="••••••••"/>
+      {error&&<div style={{color:"#f87171",fontSize:11,marginBottom:8}}>{error}</div>}
+      <div style={{display:"flex",gap:8,marginTop:4}}>
+        <Btn ghost onClick={()=>setModo("cambiar")} sm>Cambiar clave</Btn>
+        <Btn full color="#fbbf24" onClick={handleAcceder}>Acceder</Btn>
+      </div>
+    </>}
+    {modo==="cambiar"&&<>
+      <div style={{fontSize:11,color:"#94a3b8",marginBottom:12}}>Ingresá y confirmá la nueva clave.</div>
+      <Inp label="NUEVA CLAVE" value={nueva} onChange={v=>{setNueva(v);setError("");}} type="password" placeholder="Mínimo 6 caracteres"/>
+      <Inp label="CONFIRMAR CLAVE" value={confirmar} onChange={v=>{setConfirmar(v);setError("");}} type="password" placeholder="Repetir clave"/>
+      {error&&<div style={{color:"#f87171",fontSize:11,marginBottom:8}}>{error}</div>}
+      <div style={{display:"flex",gap:8,marginTop:4}}>
+        <Btn ghost onClick={()=>{setModo("acceso");setError("");}} sm>← Volver</Btn>
+        <Btn full color="#0e7490" onClick={handleCambiar}>Guardar clave</Btn>
+      </div>
+    </>}
+  </Modal>;
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  RELOJ ARGENTINA
 // ═══════════════════════════════════════════════════════════════
 function RelojAR() {
@@ -868,7 +968,9 @@ export default function App() {
   const [clicksLogo,     setClicksLogo]     = useState(0);
   const [turnosPrueba,   setTurnosPrueba]   = useState([]);
   const [estadoDia,      setEstadoDia]      = useState("cerrado");
-  const bloqueandoSnapshot = React.useRef(false); // "cerrado" | "abierto" | "finalizado"
+  const [showModalClave, setShowModalClave] = useState(false);
+  const [showModalLluvia,setShowModalLluvia]= useState(false);
+  const bloqueandoSnapshot = useRef(false);
   const [agendaDesde,    setAgendaDesde]    = useState(hoy());
   const [agendaHasta,    setAgendaHasta]    = useState(hoy());
   const [asistDesde,     setAsistDesde]     = useState(hoy());
@@ -909,6 +1011,7 @@ export default function App() {
   const [rangoC,         setRangoC]         = useState("hoy");
   const [regMulti,       setRegMulti]       = useState([]);
   const [loadMulti,      setLoadMulti]      = useState(false);
+  const [filtroLavCierre,setFiltroLavCierre]= useState("todos");
   const [sugerenciaIdx,  setSugerenciaIdx]  = useState(0);
   const [franjaDeseada,  setFranjaDeseada]  = useState("todas");
   const [mostrarTodosSug,setMostrarTodosSug]= useState(false);
@@ -1017,6 +1120,47 @@ export default function App() {
     setGuardando(false);
     setModal({tipo:"wa", data:{id:id||"local",...turnoData}});
     resetForm();
+  }
+
+  async function reanudarTrasLluvia(lavPresentes, clientesEspera) {
+    // Cancelar turnos de clientes que no esperan
+    const turnosPendientes = turnos.filter(t=>!t.estadoPago||t.estadoPago==="💰 Pendiente");
+    const turnosCancelar = turnosPendientes.filter(t=>!clientesEspera.includes(t.id));
+    for(const t of turnosCancelar) {
+      await fsDel(`turnos_${diaHoy}`,t.id);
+    }
+    // Marcar ausentes a lavadores que se fueron
+    const nuevoAsist = {...asistencia};
+    for(const s of staff.filter(x=>x.rol!=="encargado")) {
+      if(asistencia[s.id]?.presente && !lavPresentes.includes(s.id)) {
+        nuevoAsist[s.id] = {...(asistencia[s.id]||{}),presente:false};
+        await fsSave("asistencia",diaHoy,{[s.id]:nuevoAsist[s.id],fecha:diaHoy});
+      }
+    }
+    setAsist(nuevoAsist);
+    // Reasignar turnos que quedan entre lavadores presentes
+    const turnosReasignar = turnosPendientes.filter(t=>clientesEspera.includes(t.id));
+    const lavActivos = staff.filter(s=>lavPresentes.includes(s.id));
+    for(let i=0;i<turnosReasignar.length;i++) {
+      const t = turnosReasignar[i];
+      const lav = lavActivos[i % lavActivos.length];
+      if(lav && t.staffId!==lav.id) {
+        const upd = {staffId:lav.id,staffNombre:lav.nombre,staffTransporte:asistencia[lav.id]?.transporte||lav.transporte};
+        await fsUpdate(`turnos_${diaHoy}`,t.id,upd);
+      }
+    }
+    setTurnos(prev=>prev
+      .filter(t=>!turnosCancelar.find(x=>x.id===t.id))
+      .map((t,i)=>{
+        const reasig = turnosReasignar.find(x=>x.id===t.id);
+        if(!reasig) return t;
+        const lav = lavActivos[turnosReasignar.indexOf(reasig) % lavActivos.length];
+        return lav?{...t,staffId:lav.id,staffNombre:lav.nombre}:t;
+      })
+    );
+    setEstadoDia("abierto");
+    setShowModalLluvia(false);
+    showToast(`☀️ Reanudado — ${turnosCancelar.length} turnos cancelados, ${turnosReasignar.length} reasignados`,"ok");
   }
 
   async function cancelarTurno(turno){
@@ -1281,7 +1425,13 @@ export default function App() {
       <style>{css}</style>
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={()=>setToast(null)}/>}
 
-      {modal?.tipo==="wa"        && <ModalWA        turno={modal.data} staff={staff} onClose={()=>{setModal(null);resetForm();}}/>}
+      {showModalClave && <ModalClave onAcceder={()=>{
+        setModoPrueba(true);
+        setTurnosPrueba([]);
+        setShowModalClave(false);
+        showToast("🔧 Modo prueba activado","warn");
+      }} onClose={()=>{setShowModalClave(false);setClicksLogo(0);}}/>}
+      {showModalLluvia && <ModalLluvia turnos={turnos} staff={staff} asistencia={asistencia} onReanudar={reanudarTrasLluvia} onClose={()=>setShowModalLluvia(false)}/>}        turno={modal.data} staff={staff} onClose={()=>{setModal(null);resetForm();}}/>}
       {modal?.tipo==="detalle"   && <ModalDetalle   turno={modal.data} staff={staff} asistencia={asistencia} onCancelar={cancelarTurno} onReasignar={reasignarTurno} onPagar={(t)=>setModal({tipo:"cobro",data:t})} onRendir={(t)=>setModal({tipo:"rendir",data:t})} onWA={t=>setModal({tipo:"wa",data:t})} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="cobro"     && <ModalCobro     turno={modal.data} onRegistrar={registrarCobro} onClose={()=>setModal(null)}/>}
       {modal?.tipo==="rendir"    && <ModalRendicion turno={modal.data} onRegistrar={registrarRendicion} onClose={()=>setModal(null)}/>}
@@ -1300,29 +1450,7 @@ export default function App() {
           <div className="icono-header-xl" style={{background:"linear-gradient(135deg,#0e7490,#1d4ed8)",cursor:"pointer"}} onClick={()=>{
             const nuevos = clicksLogo+1;
             setClicksLogo(nuevos);
-            if(nuevos>=5){
-              const clave = prompt("🔧 Clave de modo prueba:\n(Escribí 'CAMBIAR' para cambiar la clave)");
-              const claveGuardada = localStorage.getItem("sofia_clave")||"sofia2024";
-              if(clave==="CAMBIAR"){
-                const actual = prompt("Ingresá la clave actual:");
-                if(actual!==claveGuardada){ alert("❌ Clave actual incorrecta."); setClicksLogo(0); return; }
-                const nueva = prompt("Ingresá la nueva clave (mínimo 6 caracteres):");
-                if(!nueva||nueva.length<6){ alert("❌ La clave debe tener al menos 6 caracteres."); setClicksLogo(0); return; }
-                const confirmar = prompt("Confirmá la nueva clave:");
-                if(nueva!==confirmar){ alert("❌ Las claves no coinciden."); setClicksLogo(0); return; }
-                localStorage.setItem("sofia_clave", nueva);
-                alert("✅ Clave cambiada correctamente.");
-                setClicksLogo(0);
-              } else if(clave===claveGuardada){
-                setModoPrueba(true);
-                setTurnosPrueba([]);
-                setClicksLogo(0);
-                showToast("🔧 Modo prueba activado","warn");
-              } else {
-                alert("❌ Clave incorrecta. Intentá de nuevo.");
-                setClicksLogo(0);
-              }
-            }
+            if(nuevos>=5){ setShowModalClave(true); setClicksLogo(0); }
           }}>🚿</div>
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:".1em",color:"#f1f5f9",lineHeight:1}}>SOFÍA v5</div>
         </div>
@@ -1369,7 +1497,7 @@ export default function App() {
           {estadoDia==="abierto"&&<button onClick={()=>setEstadoDia("lluvia")} style={{background:"#0ea5e922",border:"1px solid #0ea5e944",color:"#7dd3fc",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>🌧 Lluvia</button>}
           {estadoDia==="abierto"&&<button onClick={()=>{if(window.confirm("¿Cerrar el día? Esto finaliza la jornada."))setEstadoDia("cerrado");}} style={{background:"#f8717122",border:"1px solid #f8717144",color:"#fca5a5",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>🔴 Cerrar</button>}
           {estadoDia==="lluvia"&&<span style={{background:"#0ea5e922",border:"1px solid #0ea5e944",color:"#7dd3fc",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700}}>🌧 Pausa lluvia</span>}
-          {estadoDia==="lluvia"&&<button onClick={()=>setEstadoDia("abierto")} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:700}}>☀️ Reanudar</button>}
+          {estadoDia==="lluvia"&&<button onClick={()=>setShowModalLluvia(true)} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:700}}>☀️ Reanudar</button>}
           {estadoDia==="cerrado"&&estadoDia!=="abierto"&&<button onClick={()=>setEstadoDia("abierto")} style={{background:"#7c3aed22",border:"1px solid #7c3aed44",color:"#c4b5fd",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9}}>⚡ Emergencia</button>}
           <div onClick={()=>inicializar(setStaff,setAsist,setClientes,setTamanos,setFzPct,setGKey,setPrestamos,showToast,setFbOk,setFbLoad)} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,padding:"3px 8px",borderRadius:5,cursor:"pointer",background:fbOk?"#34d39910":"#f8717110",border:`1px solid ${fbOk?"#34d39933":"#f8717133"}`,color:fbOk?"#6ee7b7":"#fca5a5"}}>
             <span style={{animation:fbLoad?"spin .7s linear infinite":"none",display:"inline-block"}}>{fbLoad?"⟳":fbOk?"●":"○"}</span>
@@ -1632,14 +1760,14 @@ export default function App() {
                       {saldoLav<0&&<div style={{fontSize:10,color:"#a78bfa",marginBottom:4}}>📝 A favor {formatP(Math.abs(saldoLav))}</div>}
                       <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                         {["moto","bici","pie"].map(t=>(
-                          <button key={t} onClick={async()=>{const upd={...(asistencia[s.id]||{}),transporte:t};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd,fecha:diaHoy});}} className={`chip ${trans===t?"on":""}`} style={{padding:"4px 10px",fontSize:10}}>
+                          <button key={t} onClick={async()=>{const upd={...(asistencia[s.id]||{}),transporte:t};setAsist(p=>({...p,[s.id]:upd}));if(!modoPrueba)await fsSave("asistencia",diaHoy,{[s.id]:upd,fecha:diaHoy});}} className={`chip ${trans===t?"on":""}`} style={{padding:"4px 10px",fontSize:10}}>
                             {t==="moto"?"🏍 Moto":t==="bici"?"🚲 Bici":"🚶 Pie"}
                           </button>
                         ))}
                       </div>
                     </div>
                     <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                      <button className={`tog ${pres?"on_":"off"}`} onClick={async()=>{const upd={...(asistencia[s.id]||{transporte:s.transporte}),presente:!pres};setAsist(p=>({...p,[s.id]:upd}));await fsSave("asistencia",diaHoy,{[s.id]:upd,fecha:diaHoy});}}/>
+                      <button className={`tog ${pres?"on_":"off"}`} onClick={async()=>{const upd={...(asistencia[s.id]||{transporte:s.transporte}),presente:!pres};setAsist(p=>({...p,[s.id]:upd}));if(!modoPrueba)await fsSave("asistencia",diaHoy,{[s.id]:upd,fecha:diaHoy});}}/>
                       <button onClick={(e)=>{e.stopPropagation();setModal({tipo:"operacion",data:s});}} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"3px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>💰 Operación</button>
                     </div>
                   </div>
@@ -1869,19 +1997,37 @@ export default function App() {
             })()}
             {pendientes>0&&(
               <div style={{marginBottom:14}}>
-                <div style={{fontSize:10,color:"#f87171",letterSpacing:".1em",marginBottom:8}}>💰 PENDIENTES DE RENDICIÓN</div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:8}}>
+                  <div style={{fontSize:10,color:"#f87171",letterSpacing:".1em",fontWeight:700}}>💰 PENDIENTES DE RENDICIÓN</div>
+                  <select value={filtroLavCierre} onChange={e=>setFiltroLavCierre(e.target.value)} style={{padding:"4px 8px",fontSize:10,width:140}}>
+                    <option value="todos">Todos los lavadores</option>
+                    {[...new Set(turnos.filter(t=>t.estadoPago==="💵 Cobrado (sin rendir)").map(t=>t.staffNombre))].map(n=><option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  {turnos.filter(t=>!t.estadoPago||t.estadoPago==="💰 Pendiente"||t.estadoPago==="💵 Cobrado (sin rendir)"||t.estadoPago==="🔴 Cliente debe").map(t=>(
+                  {turnos.filter(t=>(!t.estadoPago||t.estadoPago==="💰 Pendiente"||t.estadoPago==="💵 Cobrado (sin rendir)"||t.estadoPago==="🔴 Cliente debe")&&(filtroLavCierre==="todos"||t.staffNombre===filtroLavCierre)).map(t=>(
                     <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,background:"#0b1220",border:"1px solid #f8717133",borderRadius:8,padding:"9px 12px",flexWrap:"wrap"}}>
                       <span style={{color:"#22d3ee",fontSize:11,fontWeight:700}}>{t.hora}</span>
                       <span style={{color:"#94a3b8",fontSize:11,flex:1}}>{t.staffNombre} → {t.clienteNombre||t.cliente}</span>
                       <span style={{color:"#34d399",fontWeight:700,fontSize:11}}>{formatP(t.precio)}</span>
                       <span style={{fontSize:10,color:t.estadoPago==="💵 Cobrado (sin rendir)"?"#fde68a":t.estadoPago==="🔴 Cliente debe"?"#fca5a5":"#f87171"}}>{t.estadoPago||"💰 Pendiente"}</span>
+                      {t.estadoPago==="💵 Cobrado (sin rendir)"&&<button onClick={()=>{
+                        const nuevo=Number(prompt(`Monto cobrado actual: ${formatP(t.montoPagado||t.precio)}\nIngresá el monto correcto:`));
+                        if(!nuevo||nuevo<=0)return;
+                        fsUpdate(`turnos_${diaHoy}`,t.id,{montoPagado:nuevo,precio:nuevo});
+                        setTurnos(prev=>prev.map(x=>x.id===t.id?{...x,montoPagado:nuevo,precio:nuevo}:x));
+                        showToast(`Monto actualizado a ${formatP(nuevo)}`,"ok");
+                      }} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"3px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✏️ Editar</button>}
                       <Btn sm color={t.estadoPago==="💵 Cobrado (sin rendir)"?"#16a34a":"#d97706"} onClick={()=>setModal({tipo:t.estadoPago==="💵 Cobrado (sin rendir)"?"rendir":"cobro",data:t})}>
                         {t.estadoPago==="💵 Cobrado (sin rendir)"?"💸 Rendir":"💰 Cobró"}
                       </Btn>
                     </div>
                   ))}
+                  {filtroLavCierre!=="todos"&&<Btn sm color="#16a34a" onClick={async()=>{
+                    const pendLav=turnos.filter(t=>t.estadoPago==="💵 Cobrado (sin rendir)"&&t.staffNombre===filtroLavCierre);
+                    for(const t of pendLav){ await registrarRendicion(t); }
+                    showToast(`Todos los turnos de ${filtroLavCierre} rendidos ✓`);
+                  }}>✅ Rendir todo de {filtroLavCierre}</Btn>}
                 </div>
               </div>
             )}
