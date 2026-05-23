@@ -822,6 +822,7 @@ async function inicializar(setStaff, setAsist, setClientes, setTamanos, setFzPct
     if(cfg?.tamanos) setTamanos(cfg.tamanos);
     if(cfg?.fzPct)   setFzPct(cfg.fzPct);
     if(cfg?.geminiKey) setGKey(cfg.geminiKey);
+    if(cfg?.estadoDia) setEstadoDia(cfg.estadoDia);
     const pDoc = await fsGet("prestamos", diaHoy);
     if(pDoc) { const{id:_,_ts:__,...p}=pDoc; setPrestamos(p); }
     setFbOk(true);
@@ -834,54 +835,87 @@ async function inicializar(setStaff, setAsist, setClientes, setTamanos, setFzPct
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL LLUVIA — REORGANIZACIÓN AL REANUDAR
+//  MODAL LLUVIA — 3 FLUJOS
 // ═══════════════════════════════════════════════════════════════
 function ModalLluvia({turnos,staff,asistencia,onReanudar,onClose}) {
-  const [lavPresentes, setLavPresentes] = useState(
-    staff.filter(s=>asistencia[s.id]?.presente&&s.rol!=="encargado").map(s=>s.id)
-  );
-  const [clientesEspera, setClientesEspera] = useState(
-    turnos.filter(t=>!t.estadoPago||t.estadoPago==="💰 Pendiente").map(t=>t.id)
-  );
   const turnosPendientes = turnos.filter(t=>!t.estadoPago||t.estadoPago==="💰 Pendiente");
+  const lavConTurnos = staff.filter(s=>s.rol!=="encargado"&&asistencia[s.id]?.presente);
+
+  // Estado por lavador: "queda" | "liberar_reasignar" | "ausente"
+  const [estadoLav, setEstadoLav] = useState(
+    Object.fromEntries(lavConTurnos.map(s=>[s.id,"queda"]))
+  );
+  // Para flujo 2: por cada lavador liberado, qué turnos se cancelan vs reasignan
+  const [turnosCancelar, setTurnosCancelar] = useState({});
+
+  function toggleTurnoCancelar(lavId, turnoId) {
+    setTurnosCancelar(prev=>({
+      ...prev,
+      [lavId]: prev[lavId]?.includes(turnoId)
+        ? prev[lavId].filter(x=>x!==turnoId)
+        : [...(prev[lavId]||[]), turnoId]
+    }));
+  }
+
+  const lavQuedan = lavConTurnos.filter(s=>estadoLav[s.id]==="queda");
 
   return <Modal titulo="🌧 Reorganizar tras la lluvia" onClose={onClose} wide>
     <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>
-      Marcá quién se quedó y qué clientes esperan. El sistema reasignará automáticamente.
+      Elegí qué hace cada lavador. Los turnos se reorganizan según tu selección.
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-      <div>
-        <div style={{fontSize:10,color:"#fbbf24",letterSpacing:".1em",marginBottom:8,fontWeight:700}}>LAVADORES QUE SIGUEN</div>
-        {staff.filter(s=>s.rol!=="encargado"&&asistencia[s.id]?.presente).map(s=>(
-          <div key={s.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-            <input type="checkbox" checked={lavPresentes.includes(s.id)} onChange={e=>{
-              setLavPresentes(prev=>e.target.checked?[...prev,s.id]:prev.filter(x=>x!==s.id));
-            }}/>
-            <span style={{color:s.color,fontSize:12}}>{s.nombre}</span>
-            <span style={{fontSize:10,color:"#94a3b8"}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":"🚲"}</span>
+
+    {lavConTurnos.map(s=>{
+      const turnosDelLav = turnosPendientes.filter(t=>t.staffId===s.id);
+      return (
+        <div key={s.id} style={{marginBottom:12,padding:"10px 12px",background:"#0b1220",border:`1px solid ${s.color}44`,borderRadius:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+            <span style={{color:s.color,fontWeight:700,fontSize:12}}>{s.nombre}</span>
+            <span style={{fontSize:10,color:"#94a3b8"}}>{turnosDelLav.length} turno{turnosDelLav.length!==1?"s":""} pendiente{turnosDelLav.length!==1?"s":""}</span>
           </div>
-        ))}
-      </div>
-      <div>
-        <div style={{fontSize:10,color:"#22d3ee",letterSpacing:".1em",marginBottom:8,fontWeight:700}}>CLIENTES QUE ESPERAN</div>
-        {turnosPendientes.length===0&&<div style={{fontSize:11,color:"#94a3b8"}}>Sin turnos pendientes</div>}
-        {turnosPendientes.map(t=>(
-          <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-            <input type="checkbox" checked={clientesEspera.includes(t.id)} onChange={e=>{
-              setClientesEspera(prev=>e.target.checked?[...prev,t.id]:prev.filter(x=>x!==t.id));
-            }}/>
-            <span style={{fontSize:11,color:"#e2e8f0"}}>{t.clienteNombre||t.cliente}</span>
-            <span style={{fontSize:10,color:"#94a3b8"}}>{t.hora}</span>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+            {[
+              ["queda","✅ Se queda"],
+              ["liberar_reasignar","🔄 Se va — reasignar sus turnos"],
+              ["ausente","🚪 Se va — cancelar sus turnos"],
+            ].map(([v,l])=>(
+              <button key={v} onClick={()=>setEstadoLav(prev=>({...prev,[s.id]:v}))}
+                style={{padding:"5px 10px",borderRadius:6,fontSize:10,cursor:"pointer",fontFamily:"inherit",
+                  background:estadoLav[s.id]===v?"#22d3ee22":"transparent",
+                  border:`1px solid ${estadoLav[s.id]===v?"#22d3ee":"#1e3a5f"}`,
+                  color:estadoLav[s.id]===v?"#22d3ee":"#94a3b8"}}>
+                {l}
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
+          {estadoLav[s.id]==="liberar_reasignar"&&turnosDelLav.length>0&&(
+            <div style={{paddingLeft:8}}>
+              <div style={{fontSize:9,color:"#94a3b8",marginBottom:4}}>¿Cuáles cancelar? (los no tildados se reasignan)</div>
+              {turnosDelLav.map(t=>(
+                <div key={t.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                  <input type="checkbox"
+                    checked={turnosCancelar[s.id]?.includes(t.id)||false}
+                    onChange={()=>toggleTurnoCancelar(s.id,t.id)}/>
+                  <span style={{fontSize:11,color:"#e2e8f0"}}>{t.clienteNombre||t.cliente}</span>
+                  <span style={{fontSize:10,color:"#94a3b8"}}>{t.hora}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    })}
+
+    {lavQuedan.length===0&&<div style={{padding:"8px 12px",background:"#f8717122",border:"1px solid #f8717144",borderRadius:8,color:"#fca5a5",fontSize:11,marginBottom:12}}>
+      ⚠️ No quedan lavadores. Todos los turnos serán cancelados.
+    </div>}
+
+    <div style={{padding:"8px 12px",background:"#22d3ee10",border:"1px solid #22d3ee33",borderRadius:8,fontSize:10,color:"#67e8f9",marginBottom:12}}>
+      💡 Los turnos reasignados se distribuyen entre los lavadores que siguen.
     </div>
-    <div style={{marginTop:14,padding:"8px 12px",background:"#fbbf2410",border:"1px solid #fbbf2433",borderRadius:8,fontSize:10,color:"#fde68a"}}>
-      ⚡ Los turnos de clientes que NO están en espera se cancelarán. Los turnos restantes se reasignarán entre los lavadores que siguen.
-    </div>
-    <div style={{display:"flex",gap:8,marginTop:12}}>
+
+    <div style={{display:"flex",gap:8}}>
       <Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn>
-      <Btn full color="#22d3ee" onClick={()=>onReanudar(lavPresentes,clientesEspera)}>☀️ Reanudar y reorganizar</Btn>
+      <Btn full color="#22d3ee" onClick={()=>onReanudar(estadoLav,turnosCancelar,lavQuedan)}>☀️ Reanudar y reorganizar</Btn>
     </div>
   </Modal>;
 }
@@ -890,11 +924,12 @@ function ModalLluvia({turnos,staff,asistencia,onReanudar,onClose}) {
 //  MODAL CLAVE MODO PRUEBA
 // ═══════════════════════════════════════════════════════════════
 function ModalClave({onAcceder,onClose}) {
-  const [clave,setClave]     = useState("");
-  const [error,setError]     = useState("");
-  const [modo,setModo]       = useState("acceso"); // "acceso" | "cambiar"
-  const [nueva,setNueva]     = useState("");
+  const [clave,setClave]         = useState("");
+  const [error,setError]         = useState("");
+  const [modo,setModo]           = useState("acceso");
+  const [nueva,setNueva]         = useState("");
   const [confirmar,setConfirmar] = useState("");
+  const [exito,setExito]         = useState("");
 
   const claveGuardada = localStorage.getItem("sofia_clave")||"sofia2024";
 
@@ -907,8 +942,9 @@ function ModalClave({onAcceder,onClose}) {
     if(nueva.length<6){ setError("❌ Mínimo 6 caracteres"); return; }
     if(nueva!==confirmar){ setError("❌ Las claves no coinciden"); return; }
     localStorage.setItem("sofia_clave",nueva);
-    setError("");setNueva("");setConfirmar("");setModo("acceso");
-    alert("✅ Clave cambiada correctamente.");
+    setError(""); setNueva(""); setConfirmar("");
+    setExito("✅ Clave cambiada correctamente");
+    setTimeout(()=>{ setModo("acceso"); setExito(""); },2000);
   }
 
   return <Modal titulo="🔧 Modo Prueba" onClose={onClose}>
@@ -916,8 +952,9 @@ function ModalClave({onAcceder,onClose}) {
       <div style={{fontSize:11,color:"#94a3b8",marginBottom:12}}>Ingresá la clave para activar el modo prueba.</div>
       <Inp label="CLAVE" value={clave} onChange={v=>{setClave(v);setError("");}} type="password" placeholder="••••••••"/>
       {error&&<div style={{color:"#f87171",fontSize:11,marginBottom:8}}>{error}</div>}
+      {exito&&<div style={{color:"#34d399",fontSize:11,marginBottom:8}}>{exito}</div>}
       <div style={{display:"flex",gap:8,marginTop:4}}>
-        <Btn ghost onClick={()=>setModo("cambiar")} sm>Cambiar clave</Btn>
+        <Btn ghost onClick={()=>{setModo("cambiar");setError("");}} sm>Cambiar clave</Btn>
         <Btn full color="#fbbf24" onClick={handleAcceder}>Acceder</Btn>
       </div>
     </>}
@@ -926,6 +963,7 @@ function ModalClave({onAcceder,onClose}) {
       <Inp label="NUEVA CLAVE" value={nueva} onChange={v=>{setNueva(v);setError("");}} type="password" placeholder="Mínimo 6 caracteres"/>
       <Inp label="CONFIRMAR CLAVE" value={confirmar} onChange={v=>{setConfirmar(v);setError("");}} type="password" placeholder="Repetir clave"/>
       {error&&<div style={{color:"#f87171",fontSize:11,marginBottom:8}}>{error}</div>}
+      {exito&&<div style={{color:"#34d399",fontSize:11,marginBottom:8}}>{exito}</div>}
       <div style={{display:"flex",gap:8,marginTop:4}}>
         <Btn ghost onClick={()=>{setModo("acceso");setError("");}} sm>← Volver</Btn>
         <Btn full color="#0e7490" onClick={handleCambiar}>Guardar clave</Btn>
@@ -955,7 +993,7 @@ function RelojAR() {
     const t = setInterval(tick,10000);
     return ()=>clearInterval(t);
   },[]);
-  return <span style={{fontSize:10,color:"#475569",fontFamily:"'JetBrains Mono',monospace",whiteSpace:"nowrap"}}>{hora}</span>;
+  return <span style={{fontSize:10,color:"#475569",fontFamily:"'JetBrains Mono',monospace",whiteSpace:"nowrap",display:"var(--reloj-display, inline)"}} className="reloj-ar">{hora}</span>;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1063,8 +1101,8 @@ export default function App() {
   }, []);
 
   useEffect(()=>{
-    if(!db) return;
-    if(modoPrueba) return; // No escuchar Firestore durante modo prueba
+    if(fbOk) fsSave("config","precios",{estadoDia});
+  },[estadoDia]); // No escuchar Firestore durante modo prueba
     const u = onSnapshot(collection(db,`turnos_${diaHoy}`), snap=>{
       if(bloqueandoSnapshot.current) return; // bloqueado durante limpieza de modo prueba
       const reales = snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -1122,45 +1160,59 @@ export default function App() {
     resetForm();
   }
 
-  async function reanudarTrasLluvia(lavPresentes, clientesEspera) {
-    // Cancelar turnos de clientes que no esperan
+  async function reanudarTrasLluvia(estadoLav, turnosCancelar, lavQuedan) {
     const turnosPendientes = turnos.filter(t=>!t.estadoPago||t.estadoPago==="💰 Pendiente");
-    const turnosCancelar = turnosPendientes.filter(t=>!clientesEspera.includes(t.id));
-    for(const t of turnosCancelar) {
-      await fsDel(`turnos_${diaHoy}`,t.id);
-    }
-    // Marcar ausentes a lavadores que se fueron
-    const nuevoAsist = {...asistencia};
-    for(const s of staff.filter(x=>x.rol!=="encargado")) {
-      if(asistencia[s.id]?.presente && !lavPresentes.includes(s.id)) {
-        nuevoAsist[s.id] = {...(asistencia[s.id]||{}),presente:false};
-        await fsSave("asistencia",diaHoy,{[s.id]:nuevoAsist[s.id],fecha:diaHoy});
+    let cancelados=0, reasignados=0;
+
+    for(const s of Object.keys(estadoLav)) {
+      const estado = estadoLav[s];
+      if(estado==="queda") continue;
+
+      const turnosDelLav = turnosPendientes.filter(t=>t.staffId===s);
+
+      if(estado==="ausente") {
+        // Flujo 3: cancelar todos sus turnos y marcarlo ausente
+        for(const t of turnosDelLav) {
+          await fsDel(`turnos_${diaHoy}`,t.id);
+          cancelados++;
+        }
+        const upd={...(asistencia[s]||{}),presente:false};
+        setAsist(p=>({...p,[s]:upd}));
+        await fsSave("asistencia",diaHoy,{[s]:upd,fecha:diaHoy});
+      }
+
+      if(estado==="liberar_reasignar") {
+        // Flujo 1 y 2: algunos se cancelan, el resto se reasigna
+        const cancelarIds = turnosCancelar[s]||[];
+        for(const t of turnosDelLav) {
+          if(cancelarIds.includes(t.id)) {
+            await fsDel(`turnos_${diaHoy}`,t.id);
+            cancelados++;
+          } else if(lavQuedan.length>0) {
+            // Reasignar round-robin entre los que quedan
+            const idx = reasignados % lavQuedan.length;
+            const nuevoLav = lavQuedan[idx];
+            const upd={staffId:nuevoLav.id,staffNombre:nuevoLav.nombre,staffTransporte:asistencia[nuevoLav.id]?.transporte||nuevoLav.transporte};
+            await fsUpdate(`turnos_${diaHoy}`,t.id,upd);
+            reasignados++;
+          } else {
+            // No hay lavadores disponibles, cancelar
+            await fsDel(`turnos_${diaHoy}`,t.id);
+            cancelados++;
+          }
+        }
+        const upd={...(asistencia[s]||{}),presente:false};
+        setAsist(p=>({...p,[s]:upd}));
+        await fsSave("asistencia",diaHoy,{[s]:upd,fecha:diaHoy});
       }
     }
-    setAsist(nuevoAsist);
-    // Reasignar turnos que quedan entre lavadores presentes
-    const turnosReasignar = turnosPendientes.filter(t=>clientesEspera.includes(t.id));
-    const lavActivos = staff.filter(s=>lavPresentes.includes(s.id));
-    for(let i=0;i<turnosReasignar.length;i++) {
-      const t = turnosReasignar[i];
-      const lav = lavActivos[i % lavActivos.length];
-      if(lav && t.staffId!==lav.id) {
-        const upd = {staffId:lav.id,staffNombre:lav.nombre,staffTransporte:asistencia[lav.id]?.transporte||lav.transporte};
-        await fsUpdate(`turnos_${diaHoy}`,t.id,upd);
-      }
-    }
-    setTurnos(prev=>prev
-      .filter(t=>!turnosCancelar.find(x=>x.id===t.id))
-      .map((t,i)=>{
-        const reasig = turnosReasignar.find(x=>x.id===t.id);
-        if(!reasig) return t;
-        const lav = lavActivos[turnosReasignar.indexOf(reasig) % lavActivos.length];
-        return lav?{...t,staffId:lav.id,staffNombre:lav.nombre}:t;
-      })
-    );
+
+    // Recargar turnos actualizados
+    const turnosActualizados = await fsList(`turnos_${diaHoy}`);
+    setTurnos(turnosActualizados);
     setEstadoDia("abierto");
     setShowModalLluvia(false);
-    showToast(`☀️ Reanudado — ${turnosCancelar.length} turnos cancelados, ${turnosReasignar.length} reasignados`,"ok");
+    showToast(`☀️ Reanudado — ${cancelados} cancelados, ${reasignados} reasignados`,"ok");
   }
 
   async function cancelarTurno(turno){
@@ -1409,7 +1461,7 @@ export default function App() {
     .grilla-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
     .grilla-inner{min-width:600px}
     @keyframes pulse_y{0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,.4)}50%{box-shadow:0 0 0 8px rgba(251,191,36,0)}}
-    @media(max-width:768px){.layout-turno{grid-template-columns:1fr!important}.nav-labels{display:none}.nav-icons{display:flex!important}.topbar-right{gap:4px!important}.topbar-badges{display:none!important}}
+    @media(max-width:768px){.layout-turno{grid-template-columns:1fr!important}.nav-labels{display:none}.nav-icons{display:flex!important}.topbar-right{gap:4px!important}.topbar-badges{display:none!important}.reloj-ar{display:none!important}}
     .icono-staff-xl{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0}
     .icono-asist-xl{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0}
     .icono-header-xl{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
@@ -2006,18 +2058,29 @@ export default function App() {
                   </select>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  {turnos.filter(t=>(!t.estadoPago||t.estadoPago==="💰 Pendiente"||t.estadoPago==="💵 Cobrado (sin rendir)"||t.estadoPago==="🔴 Cliente debe")&&(filtroLavCierre==="todos"||t.staffNombre===filtroLavCierre)).map(t=>(
+                  {turnos.filter(t=>(
+                    !t.estadoPago||
+                    t.estadoPago==="💰 Pendiente"||
+                    t.estadoPago==="💵 Cobrado (sin rendir)"||
+                    t.estadoPago==="🔴 Cliente debe"||
+                    t.estadoPago==="✅ Rendido"
+                  )&&(filtroLavCierre==="todos"||t.staffNombre===filtroLavCierre)).map(t=>(
                     <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,background:"#0b1220",border:"1px solid #f8717133",borderRadius:8,padding:"9px 12px",flexWrap:"wrap"}}>
                       <span style={{color:"#22d3ee",fontSize:11,fontWeight:700}}>{t.hora}</span>
                       <span style={{color:"#94a3b8",fontSize:11,flex:1}}>{t.staffNombre} → {t.clienteNombre||t.cliente}</span>
                       <span style={{color:"#34d399",fontWeight:700,fontSize:11}}>{formatP(t.precio)}</span>
                       <span style={{fontSize:10,color:t.estadoPago==="💵 Cobrado (sin rendir)"?"#fde68a":t.estadoPago==="🔴 Cliente debe"?"#fca5a5":"#f87171"}}>{t.estadoPago||"💰 Pendiente"}</span>
-                      {t.estadoPago==="💵 Cobrado (sin rendir)"&&<button onClick={()=>{
-                        const nuevo=Number(prompt(`Monto cobrado actual: ${formatP(t.montoPagado||t.precio)}\nIngresá el monto correcto:`));
+                      {(t.estadoPago==="💵 Cobrado (sin rendir)"||t.estadoPago==="✅ Rendido")&&<button onClick={async()=>{
+                        const nuevo=Number(prompt(`Turno: ${t.clienteNombre||t.cliente}\nMonto actual: ${formatP(t.montoPagado||t.precio)}\nIngresá el monto correcto:`));
                         if(!nuevo||nuevo<=0)return;
-                        fsUpdate(`turnos_${diaHoy}`,t.id,{montoPagado:nuevo,precio:nuevo});
+                        await fsUpdate(`turnos_${diaHoy}`,t.id,{montoPagado:nuevo,precio:nuevo});
+                        // También actualizar el registro en cierre
+                        const todos=await fsList(`cierre_${diaHoy}`);
+                        const reg=todos.find(r=>r.turnoId===t.id);
+                        if(reg?.id) await fsUpdate(`cierre_${diaHoy}`,reg.id,{precio:nuevo,precioEsperado:t.precio});
                         setTurnos(prev=>prev.map(x=>x.id===t.id?{...x,montoPagado:nuevo,precio:nuevo}:x));
-                        showToast(`Monto actualizado a ${formatP(nuevo)}`,"ok");
+                        setRegistros(prev=>prev.map(r=>r.turnoId===t.id?{...r,precio:nuevo}:r));
+                        showToast(`Monto corregido a ${formatP(nuevo)}`,"ok");
                       }} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"3px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✏️ Editar</button>}
                       <Btn sm color={t.estadoPago==="💵 Cobrado (sin rendir)"?"#16a34a":"#d97706"} onClick={()=>setModal({tipo:t.estadoPago==="💵 Cobrado (sin rendir)"?"rendir":"cobro",data:t})}>
                         {t.estadoPago==="💵 Cobrado (sin rendir)"?"💸 Rendir":"💰 Cobró"}
