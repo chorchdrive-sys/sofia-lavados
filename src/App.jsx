@@ -741,38 +741,66 @@ function CeldaTurno({s,hora,turnos,asistencia,dir,listaVacia,sel,onSel,onDetalle
 function ModalConfig({tamanos,fzPct,geminiKey,onGuardar,onClose}) {
   const [tams, setTams] = useState(tamanos.map(t=>({...t})));
   const [fz,   setFz]   = useState(fzPct);
-  const [gKey, setGKey] = useState(geminiKey||"");
+  const [gKey, setGKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [claveApi, setClaveApi] = useState("");
+  const [claveOk, setClaveOk] = useState(false);
+  const claveGuardada = localStorage.getItem("sofia_clave")||"sofia2024";
+
   function updTam(id,field,val) { setTams(prev=>prev.map(t=>t.id===id?{...t,[field]:field==="precio"?Number(val):val}:t)); }
+
+  function verificarClave(){
+    if(claveApi===claveGuardada){ setClaveOk(true); setGKey(geminiKey||""); }
+    else { alert("❌ Clave incorrecta"); setClaveApi(""); }
+  }
   return <Modal titulo="⚙ Precios y Configuración" onClose={onClose} wide>
-    <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>Editá precios base, recargo FZ y la API Key de Gemini.</div>
+    <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>Editá precios base y recargo FZ.</div>
     <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:8,fontWeight:700}}>PRECIOS POR TAMAÑO DE AUTO</div>
     {tams.map(t=>(<div key={t.id} style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:8,marginBottom:8,alignItems:"center"}}><input value={t.label} onChange={e=>updTam(t.id,"label",e.target.value)} placeholder="Nombre"/><input type="number" value={t.precio} onChange={e=>updTam(t.id,"precio",e.target.value)} placeholder="Precio base"/></div>))}
-    <div style={{marginBottom:14,marginTop:4}}><div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>RECARGO FZ (%)</div><input type="number" value={fz} onChange={e=>setFz(Number(e.target.value))} style={{maxWidth:100}}/></div>
+    <div style={{marginBottom:14,marginTop:4}}>
+      <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>RECARGO FZ (%)</div>
+      <input type="number" value={fz} onChange={e=>setFz(Number(e.target.value))} style={{maxWidth:100}}/>
+    </div>
     <div style={{height:1,background:"linear-gradient(90deg,transparent,#1e3a5f,transparent)",margin:"12px 0"}}/>
-    <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:5,fontWeight:700}}>GEMINI API KEY (IA gratis)</div>
-    <input value={gKey} onChange={e=>setGKey(e.target.value)} placeholder="AIzaSy..." type="password" style={{marginBottom:6}}/>
-    <div style={{fontSize:10,color:"#94a3b8",marginBottom:14}}>Obtené la key gratis en <span style={{color:"#22d3ee"}}>aistudio.google.com</span> → Get API Key.</div>
-    <div style={{display:"flex",gap:8}}><Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn><Btn full color="#0e7490" onClick={()=>onGuardar(tams,fz,gKey)} style={{flex:2}}>Guardar configuración</Btn></div>
+    <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".13em",marginBottom:8,fontWeight:700}}>🔐 GEMINI API KEY (protegida)</div>
+    {!claveOk ? (
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14}}>
+        <input type="password" value={claveApi} onChange={e=>setClaveApi(e.target.value)} placeholder="Ingresá la clave del programa para ver/editar" style={{flex:1}}/>
+        <Btn sm color="#0e7490" onClick={verificarClave}>Verificar</Btn>
+      </div>
+    ) : (
+      <div style={{marginBottom:14}}>
+        <input value={gKey} onChange={e=>setGKey(e.target.value)} placeholder="AIzaSy..." type={showKey?"text":"password"} style={{marginBottom:6}}/>
+        <button onClick={()=>setShowKey(!showKey)} style={{background:"transparent",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>{showKey?"🙈 Ocultar":"👁 Mostrar"} clave</button>
+        <div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>Obtené la key gratis en <span style={{color:"#22d3ee"}}>aistudio.google.com</span> → Get API Key.</div>
+      </div>
+    )}
+    <div style={{display:"flex",gap:8}}><Btn ghost onClick={onClose} style={{flex:1}}>Cancelar</Btn><Btn full color="#0e7490" onClick={()=>onGuardar(tams,fz,claveOk?gKey:geminiKey)} style={{flex:2}}>Guardar configuración</Btn></div>
   </Modal>;
 }
 
 // ═══════════════════════════════════════════════════════════════
 //  INICIALIZAR
 // ═══════════════════════════════════════════════════════════════
-async function inicializar(setStaff, setAsist, setClientes, setTamanos, setFzPct, setGKey, setPrestamos, showToast, setFbOk, setFbLoad) {
+async function inicializar(setStaff, setAsist, setClientes, setTamanos, setFzPct, setGKey, setPrestamos, showToast, setFbOk, setFbLoad, setEstadoDia) {
   setFbLoad(true);
   try {
     let s = await fsList("staff");
     if(!s.length) { for(const m of STAFF_SEED){const id=await fsAdd("staff",m);s.push({id,...m});} }
     setStaff(s);
     const diaHoy = hoy();
+    // Cargar asistencia del día — el documento se llama asistencia/YYYY-MM-DD
+    // Solo es válido si tiene fecha=hoy (evita datos cruzados de días anteriores)
     const asDoc = await fsGet("asistencia", diaHoy);
-    // Solo cargar si el documento es del día de hoy
-    if(asDoc && asDoc.fecha === diaHoy){
+    if(asDoc){
       const{id:_,_ts:__,fecha:___,...slots}=asDoc;
-      setAsist(slots);
+      // Filtrar solo lavadores reales — descartar campos que no sean IDs de staff
+      const staffIds = new Set(s.map(x=>x.id));
+      const asistLimpia = Object.fromEntries(
+        Object.entries(slots).filter(([k])=>staffIds.has(k))
+      );
+      setAsist(asistLimpia);
     } else {
-      // Día nuevo — asistencia limpia
       setAsist({});
     }
     let cl = await fsList("clientes");
@@ -822,7 +850,7 @@ async function inicializar(setStaff, setAsist, setClientes, setTamanos, setFzPct
     if(cfg?.tamanos) setTamanos(cfg.tamanos);
     if(cfg?.fzPct)   setFzPct(cfg.fzPct);
     if(cfg?.geminiKey) setGKey(cfg.geminiKey);
-    if(cfg?.estadoDia) setEstadoDia(cfg.estadoDia);
+    if(cfg?.estadoDia && setEstadoDia) setEstadoDia(cfg.estadoDia);
     const pDoc = await fsGet("prestamos", diaHoy);
     if(pDoc) { const{id:_,_ts:__,...p}=pDoc; setPrestamos(p); }
     setFbOk(true);
@@ -1097,14 +1125,23 @@ export default function App() {
   });
 
   useEffect(()=>{
-    inicializar(setStaff, setAsist, setClientes, setTamanos, setFzPct, setGKey, setPrestamos, showToast, setFbOk, setFbLoad);
+    inicializar(setStaff, setAsist, setClientes, setTamanos, setFzPct, setGKey, setPrestamos, showToast, setFbOk, setFbLoad, setEstadoDia);
   }, []);
 
   useEffect(()=>{
     if(fbOk) fsSave("config","precios",{estadoDia});
-  },[estadoDia]); // No escuchar Firestore durante modo prueba
+  },[estadoDia,fbOk]);
+
+  useEffect(()=>{
+    if(!db) return;
+    if(modoPrueba) return;
     const u = onSnapshot(collection(db,`turnos_${diaHoy}`), snap=>{
-      if(bloqueandoSnapshot.current) return; // bloqueado durante limpieza de modo prueba
+      if(bloqueandoSnapshot.current) return;
+      const reales = snap.docs.map(d=>({id:d.id,...d.data()}));
+      setTurnos(reales);
+    });
+    return()=>u();
+  },[diaHoy, modoPrueba]);
       const reales = snap.docs.map(d=>({id:d.id,...d.data()}));
       setTurnos(reales);
     });
@@ -1391,7 +1428,7 @@ export default function App() {
       filas+=staffFiltro.map(s=>{const a=asDoc?.[s.id]||{};return `<tr><td>${dia}/${m}/${y}</td><td>${s.nombre}</td><td>${a.presente?"✓ Presente":"— Ausente"}</td><td>${a.transporte||s.transporte}</td></tr>`;}).join("");
     }
     const win=window.open("","_blank");
-    win.document.write(`<html><head><title>Asistencia</title><style>body{font-family:Arial,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px}th{background:#f0f0f0}</style></head><body><h2>Asistencia — ${fechaAR(asistDesde)} al ${fechaAR(asistHasta)}</h2><table><thead><tr><th>Fecha</th><th>Lavador</th><th>Estado</th><th>Transporte</th></tr></thead><tbody>${filas}</tbody></table></body></html>`);
+    win.document.write(`<html><head><title>Presentismo</title><style>body{font-family:Arial,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px}th{background:#f0f0f0}</style></head><body><h2>Presentismo — ${fechaAR(asistDesde)} al ${fechaAR(asistHasta)}</h2><table><thead><tr><th>Fecha</th><th>Lavador</th><th>Estado</th><th>Transporte</th></tr></thead><tbody>${filas}</tbody></table></body></html>`);
     win.document.close();win.print();
   }
 
@@ -1461,7 +1498,18 @@ export default function App() {
     .grilla-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
     .grilla-inner{min-width:600px}
     @keyframes pulse_y{0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,.4)}50%{box-shadow:0 0 0 8px rgba(251,191,36,0)}}
-    @media(max-width:768px){.layout-turno{grid-template-columns:1fr!important}.nav-labels{display:none}.nav-icons{display:flex!important}.topbar-right{gap:4px!important}.topbar-badges{display:none!important}.reloj-ar{display:none!important}}
+    @media(max-width:768px){
+      .layout-turno{grid-template-columns:1fr!important}
+      .nav-labels{display:none}
+      .nav-icons{display:flex!important}
+      .topbar-right{gap:4px!important}
+      .topbar-badges{display:none!important}
+      .reloj-ar{display:none!important}
+      .nav-tabs-desktop{display:none!important}
+      .nav-tabs-mobile{display:flex!important}
+      .topbar-ciclo span, .topbar-ciclo button{font-size:9px!important;padding:3px 6px!important}
+    }
+    .nav-tabs-mobile{display:none;overflow-x:auto;-webkit-overflow-scrolling:touch;background:#0b1220;border-bottom:1px solid #1e2d40;padding:0 8px;gap:2px;}
     .icono-staff-xl{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0}
     .icono-asist-xl{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0}
     .icono-header-xl{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
@@ -1525,11 +1573,11 @@ export default function App() {
             }} style={{background:"#fbbf2433",border:"1px solid #fbbf2466",color:"#fbbf24",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>✕ Salir</button>
           </div>
         )}
-        <div style={{display:"flex",gap:2,overflowX:"auto"}}>
+        <div className="nav-tabs-desktop" style={{display:"flex",gap:2,overflowX:"auto"}}>
           {[
             {id:"turno",   l:"+ Turno"},
             {id:"agenda",  l:`Agenda${turnos.length?` (${turnos.length})`:""}`},
-            {id:"asist",   l:"Asistencia"},
+            {id:"asist",   l:"Presentismo"},
             {id:"clientes",l:"Clientes"},
             {id:"staff",   l:"Staff"},
             {id:"cierre",  l:`Cierre${registros.length?` (${registros.length})`:""}`},
@@ -1547,17 +1595,36 @@ export default function App() {
           </div>
           {/* CICLO DEL DÍA */}
           {estadoDia==="cerrado"&&<button onClick={async()=>{setEstadoDia("abierto");setAsist({});await fsSave("asistencia",diaHoy,{fecha:diaHoy});showToast("🟢 Día abierto","ok");}} style={{background:"#16a34a22",border:"1px solid #16a34a44",color:"#6ee7b7",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>🟢 Abrir</button>}
-          {estadoDia==="abierto"&&<button onClick={()=>setEstadoDia("lluvia")} style={{background:"#0ea5e922",border:"1px solid #0ea5e944",color:"#7dd3fc",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>🌧 Lluvia</button>}
+          {estadoDia==="abierto"&&<button onClick={()=>{setEstadoDia("lluvia");setShowModalLluvia(true);}} style={{background:"#0ea5e922",border:"1px solid #0ea5e944",color:"#7dd3fc",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>🌧 Lluvia</button>}
           {estadoDia==="abierto"&&<button onClick={()=>{if(window.confirm("¿Cerrar el día? Esto finaliza la jornada."))setEstadoDia("cerrado");}} style={{background:"#f8717122",border:"1px solid #f8717144",color:"#fca5a5",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700}}>🔴 Cerrar</button>}
           {estadoDia==="lluvia"&&<span style={{background:"#0ea5e922",border:"1px solid #0ea5e944",color:"#7dd3fc",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700}}>🌧 Pausa lluvia</span>}
-          {estadoDia==="lluvia"&&<button onClick={()=>setShowModalLluvia(true)} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:700}}>☀️ Reanudar</button>}
-          {estadoDia==="cerrado"&&estadoDia!=="abierto"&&<button onClick={()=>setEstadoDia("abierto")} style={{background:"#7c3aed22",border:"1px solid #7c3aed44",color:"#c4b5fd",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9}}>⚡ Emergencia</button>}
+          {estadoDia==="lluvia"&&<button onClick={()=>setShowModalLluvia(true)} style={{background:"#22d3ee22",border:"1px solid #22d3ee44",color:"#22d3ee",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:700}}>☀️ Reorganizar</button>}
+          {estadoDia==="lluvia"&&<button onClick={()=>{setEstadoDia("abierto");setShowModalLluvia(false);showToast("☀️ Jornada reanudada sin cambios","ok");}} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9}}>↩ Sin cambios</button>}
+          {estadoDia==="cerrado"&&<button onClick={()=>setEstadoDia("abierto")} style={{background:"#7c3aed22",border:"1px solid #7c3aed44",color:"#c4b5fd",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:9}}>⚡ Emergencia</button>}
           <div onClick={()=>inicializar(setStaff,setAsist,setClientes,setTamanos,setFzPct,setGKey,setPrestamos,showToast,setFbOk,setFbLoad)} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,padding:"3px 8px",borderRadius:5,cursor:"pointer",background:fbOk?"#34d39910":"#f8717110",border:`1px solid ${fbOk?"#34d39933":"#f8717133"}`,color:fbOk?"#6ee7b7":"#fca5a5"}}>
             <span style={{animation:fbLoad?"spin .7s linear infinite":"none",display:"inline-block"}}>{fbLoad?"⟳":fbOk?"●":"○"}</span>
             <span>{fbLoad?"…":fbOk?"FB✓":"off"}</span>
           </div>
         </div>
       </header>
+      {/* NAV MÓVIL — barra secundaria */}
+      <div className="nav-tabs-mobile">
+        {[
+          {id:"turno",   l:"+ Turno"},
+          {id:"agenda",  l:`Agenda${turnos.length?` (${turnos.length})`:""}`},
+          {id:"asist",   l:"Pres."},
+          {id:"clientes",l:"Clientes"},
+          {id:"staff",   l:"Staff"},
+          {id:"cierre",  l:`Cierre${registros.length?` (${registros.length})`:""}`},
+          {id:"config",  l:"Precios"},
+        ].map(v=>(
+          <button key={v.id} className={`nt ${vista===v.id?"on":""}`}
+            style={{whiteSpace:"nowrap",fontSize:11,padding:"8px 10px"}}
+            onClick={()=>{if(v.id==="config"){setModal({tipo:"config"});}else{resetForm();setVista(v.id);}}}>
+            {v.l}
+          </button>
+        ))}
+      </div>
 
       <main style={{maxWidth:1280,margin:"0 auto",padding:"16px 14px"}}>
 
@@ -1698,7 +1765,7 @@ export default function App() {
                   <span style={{marginLeft:"auto",fontSize:10,color:"#94a3b8"}}>{staffFiltrado.length} activos</span>
                 </div>
                 {paso<2?<div style={{textAlign:"center",padding:20,color:"#94a3b8",fontSize:12}}>Completá la dirección y tocá "Ver disponibilidad"</div>
-                :staffFiltrado.length===0?<div style={{textAlign:"center",padding:20,color:"#94a3b8",fontSize:12}}>Sin lavadores activos. Marcá la asistencia primero.</div>
+                :staffFiltrado.length===0?<div style={{textAlign:"center",padding:20,color:"#94a3b8",fontSize:12}}>Sin lavadores activos. Marcá el presentismo primero.</div>
                 :<div className="grilla-wrap"><div className="grilla-inner" style={{display:"grid",gridTemplateColumns:`56px repeat(${staffFiltrado.length},minmax(90px,1fr))`,gap:3}}>
                   <div style={{fontSize:9,color:"#94a3b8",padding:"5px"}}>HORA</div>
                   {staffFiltrado.map(s=>(<div key={s.id} style={{fontSize:11,textAlign:"center",padding:"5px 3px",color:s.color,borderBottom:`2px solid ${s.color}44`,lineHeight:1.5}}><div style={{fontWeight:700}}>{s.nombre}</div><div style={{fontSize:24}}>{(asistencia[s.id]?.transporte||s.transporte)==="moto"?"🏍":(asistencia[s.id]?.transporte||s.transporte)==="pie"?"🚶":"🚲"}</div>{s.especial==="rapido"&&<div style={{fontSize:9}}>⚡</div>}</div>))}
@@ -1742,7 +1809,7 @@ export default function App() {
             </div>
             <div className="card grilla-wrap">
               {staffActivo.filter(s=>s.rol!=="encargado").length===0
-                ? <div style={{textAlign:"center",padding:28,color:"#94a3b8"}}>Sin lavadores activos. Marcá la asistencia.</div>
+                ? <div style={{textAlign:"center",padding:28,color:"#94a3b8"}}>Sin lavadores activos. Marcá el presentismo.</div>
                 : <div className="grilla-inner" style={{display:"grid",gridTemplateColumns:`56px repeat(${staffActivo.filter(s=>s.rol!=="encargado").length},minmax(100px,1fr))`,gap:3}}>
                     <div style={{fontSize:9,color:"#94a3b8",padding:"5px"}}>HORA</div>
                     {staffActivo.filter(s=>s.rol!=="encargado").map(s=>(
@@ -1781,7 +1848,7 @@ export default function App() {
         {vista==="asist"&&(
           <div className="fade">
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>ASISTENCIA — {fechaAR(diaHoy)}</div>
+              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:".15em"}}>PRESENTISMO — {fechaAR(diaHoy)}</div>
               <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
                 <input type="date" value={asistDesde} onChange={e=>setAsistDesde(e.target.value)} style={{padding:"4px 8px",fontSize:10,width:130}}/>
                 <span style={{fontSize:10,color:"#94a3b8"}}>al</span>
@@ -1983,7 +2050,17 @@ export default function App() {
                       <span style={{color:"#22d3ee",fontSize:11,fontWeight:700}}>{c.nroCliente}</span>
                       <span style={{color:"#e2e8f0",fontSize:11,flex:1}}>{c.nombre}</span>
                       <span style={{color:"#f87171",fontWeight:700,fontSize:11}}>{formatP(c.deuda)}</span>
-                      <Btn sm color="#16a34a" onClick={async()=>{
+                      <Btn sm color="#0e7490" onClick={async()=>{
+                        const monto=Number(prompt(`¿Cuánto pagó ${c.nombre}? (deuda actual: ${formatP(c.deuda)})`));
+                        if(!monto||monto<=0)return;
+                        const nueva=Math.max(0,(c.deuda||0)-monto);
+                        await fsUpdate("clientes",c.id,{deuda:nueva});
+                        setClientes(prev=>prev.map(x=>x.id===c.id?{...x,deuda:nueva}:x));
+                        const reg={turnoId:"pago_deuda",hora:"—",staffNombre:"Sofía",clienteNombre:c.nombre,direccion:"Pago de deuda",autos:0,tamano:"—",precio:monto,precioEsperado:c.deuda,metodo:"efectivo",estadoPago:"✅ Pagó deuda",diferencia:nueva===0?0:-(c.deuda-monto),motivo:`Pago de deuda: ${formatP(monto)}${nueva>0?` — resta ${formatP(nueva)}`:" — saldo 0"}`,fecha:diaHoy,ts:horaAR()};
+                        await fsAdd(`cierre_${diaHoy}`,reg);
+                        setRegistros(prev=>[...prev,{id:Date.now(),...reg}]);
+                        showToast(`✓ Pago de ${formatP(monto)} registrado para ${c.nombre}`);
+                      }}>💵 Registrar pago</Btn>
                         if(!window.confirm(`¿Condonar deuda de ${formatP(c.deuda)} a ${c.nombre}?`))return;
                         await fsUpdate("clientes",c.id,{deuda:0});
                         setClientes(prev=>prev.map(x=>x.id===c.id?{...x,deuda:0}:x));
@@ -2071,16 +2148,18 @@ export default function App() {
                       <span style={{color:"#34d399",fontWeight:700,fontSize:11}}>{formatP(t.precio)}</span>
                       <span style={{fontSize:10,color:t.estadoPago==="💵 Cobrado (sin rendir)"?"#fde68a":t.estadoPago==="🔴 Cliente debe"?"#fca5a5":"#f87171"}}>{t.estadoPago||"💰 Pendiente"}</span>
                       {(t.estadoPago==="💵 Cobrado (sin rendir)"||t.estadoPago==="✅ Rendido")&&<button onClick={async()=>{
-                        const nuevo=Number(prompt(`Turno: ${t.clienteNombre||t.cliente}\nMonto actual: ${formatP(t.montoPagado||t.precio)}\nIngresá el monto correcto:`));
+                        const montoActual = t.montoPagado||t.precio;
+                        const nuevo=Number(prompt(`Turno: ${t.clienteNombre||t.cliente}\nMonto actual: ${formatP(montoActual)}\nIngresá el monto correcto:`));
                         if(!nuevo||nuevo<=0)return;
-                        await fsUpdate(`turnos_${diaHoy}`,t.id,{montoPagado:nuevo,precio:nuevo});
-                        // También actualizar el registro en cierre
+                        const dif = nuevo - montoActual;
+                        const motivoEdit = dif>0 ? `Corrección: +${formatP(dif)} (cobro de más)` : `Corrección: ${formatP(dif)} (cobro de menos)`;
+                        await fsUpdate(`turnos_${diaHoy}`,t.id,{montoPagado:nuevo,precio:nuevo,diferencia:dif,motivo:motivoEdit});
                         const todos=await fsList(`cierre_${diaHoy}`);
                         const reg=todos.find(r=>r.turnoId===t.id);
-                        if(reg?.id) await fsUpdate(`cierre_${diaHoy}`,reg.id,{precio:nuevo,precioEsperado:t.precio});
-                        setTurnos(prev=>prev.map(x=>x.id===t.id?{...x,montoPagado:nuevo,precio:nuevo}:x));
-                        setRegistros(prev=>prev.map(r=>r.turnoId===t.id?{...r,precio:nuevo}:r));
-                        showToast(`Monto corregido a ${formatP(nuevo)}`,"ok");
+                        if(reg?.id) await fsUpdate(`cierre_${diaHoy}`,reg.id,{precio:nuevo,diferencia:dif,motivo:motivoEdit});
+                        setTurnos(prev=>prev.map(x=>x.id===t.id?{...x,montoPagado:nuevo,precio:nuevo,diferencia:dif,motivo:motivoEdit}:x));
+                        setRegistros(prev=>prev.map(r=>r.turnoId===t.id?{...r,precio:nuevo,diferencia:dif,motivo:motivoEdit}:r));
+                        showToast(`Monto corregido a ${formatP(nuevo)} (${dif>0?"+":""}${formatP(dif)})`,"ok");
                       }} style={{background:"#fbbf2422",border:"1px solid #fbbf2444",color:"#fde68a",borderRadius:6,padding:"3px 8px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✏️ Editar</button>}
                       <Btn sm color={t.estadoPago==="💵 Cobrado (sin rendir)"?"#16a34a":"#d97706"} onClick={()=>setModal({tipo:t.estadoPago==="💵 Cobrado (sin rendir)"?"rendir":"cobro",data:t})}>
                         {t.estadoPago==="💵 Cobrado (sin rendir)"?"💸 Rendir":"💰 Cobró"}
@@ -2142,3 +2221,4 @@ export default function App() {
     </div>
   );
 }
+
