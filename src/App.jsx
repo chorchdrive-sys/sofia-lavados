@@ -289,11 +289,6 @@ function Btn({children,onClick,color="#0e7490",ghost,danger,disabled,full,sm,sty
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  LÓGICA FINANCIERA & LLUVIA
-// ═══════════════════════════════════════════════════════════════
-// (Se definen dentro de App para acceder a estados globales)
-
-// ═══════════════════════════════════════════════════════════════
 //  COMPONENTES MODULARES
 // ═══════════════════════════════════════════════════════════════
 
@@ -612,7 +607,53 @@ export default function App() {
 
       {/* MAIN CONTENT */}
       <main style={{ padding:16, maxWidth:800, margin:"0 auto" }}>
-        {tab === "agenda" && <div style={{textAlign:"center", color:"#64748b", marginTop:20}}>Agenda conectada ({turnos.length} turnos hoy)</div>}
+        {tab === "agenda" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, alignItems: "center", marginTop: 20 }}>
+            {/* BOTÓN PRINCIPAL DE APERTURA */}
+            <button 
+              onClick={async () => {
+                const nuevoEstado = diaActual?.estado === "abierto" ? "cerrado" : "abierto";
+                await fsUpdate(COL_DIAS, diaActual.id, { 
+                  estado: nuevoEstado,
+                  apertura: nuevoEstado === "abierto" ? serverTimestamp() : null,
+                  cierre: nuevoEstado === "cerrado" ? serverTimestamp() : null
+                });
+                mostrarToast(nuevoEstado === "abierto" ? "☀️ Día ABIERTO correctamente" : "🌙 Día CERRADO", "ok");
+              }}
+              style={{
+                background: diaActual?.estado === "abierto" 
+                  ? "linear-gradient(135deg, #dc2626, #991b1b)" 
+                  : "linear-gradient(135deg, #059669, #047857)",
+                color: "#fff",
+                border: "none",
+                borderRadius: 16,
+                padding: "24px 48px",
+                fontSize: 20,
+                fontWeight: 800,
+                cursor: "pointer",
+                boxShadow: diaActual?.estado === "abierto" 
+                  ? "0 8px 30px rgba(220,38,38,0.4)" 
+                  : "0 8px 30px rgba(5,150,105,0.4)",
+                transition: "all 0.3s ease",
+                width: "100%",
+                maxWidth: 400
+              }}
+            >
+              {diaActual?.estado === "abierto" ? "🔴 CERRAR DÍA" : "🟢 ABRIR DÍA"}
+            </button>
+
+            <div style={{ textAlign: "center", color: "#64748b", fontSize: 14 }}>
+              Estado actual: <strong style={{ color: diaActual?.estado === "abierto" ? "#34d399" : "#f87171" }}>
+                {diaActual?.estado?.toUpperCase()}
+              </strong>
+            </div>
+
+            <div style={{ textAlign: "center", color: "#475569", fontSize: 13, marginTop: 10 }}>
+              {turnos.length} turnos registrados hoy
+            </div>
+          </div>
+        )}
+        
         {tab === "presentismo" && <TabPresentismo staff={staff} turnos={turnos} hoyStr={hoy()} COL_TURNOS={COL_TURNOS} db={db} collection={collection} onSnapshot={onSnapshot} useEffect={useEffect} useState={useState} setPreviewData={setPreviewData} mostrarToast={mostrarToast} />}
         {tab === "caja" && <div>Caja del día: {formatP(turnos.reduce((a,t) => a + (t.pagado||0), 0))}</div>}
         {tab === "clientes" && <div>Clientes con deuda: {clientes.filter(c=>c.deuda>0).length}</div>}
