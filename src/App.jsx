@@ -3,7 +3,7 @@ import { initializeApp } from "firebase/app";
 import {
   getFirestore, doc, setDoc, getDoc, collection,
   addDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp,
-  updateDoc
+  updateDoc, writeBatch
 } from "firebase/firestore";
 
 // ═══════════════════════════════════════════════════════════════
@@ -69,9 +69,6 @@ const STAFF_SEED = [
   {nombre:"Gastón",    transporte:"bici",color:"#fb923c",whatsapp:false,rol:"lavador",especial:"llamar_telefono", saldoPendiente:0},
 ];
 
-// ═══════════════════════════════════════════════════════════════
-//  TABLA DE BARRIOS
-// ═══════════════════════════════════════════════════════════════
 const BARRIOS_INICIALES = {
   "olivos":"OLI","martinez":"MAR","florida":"FLO","san isidro":"SIS",
   "acassuso":"ACA","la lucila":"LAL","boulogne":"BOU","vicente lopez":"VLO",
@@ -91,9 +88,6 @@ function codigoBarrio(barrioNombre) {
   return cod;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  CLIENTES SEED
-// ═══════════════════════════════════════════════════════════════
 const CLIENTES_SEED = [
   {nombre:"Victoria",  telefono:"", direccion:"Dardo Rocha 3278",              barrio:"Olivos",     autosHabituales:3, nota:"",                                tipo:"⭐ Frecuente", deuda:0, codigo:"OLI-001"},
   {nombre:"Martin",    telefono:"", direccion:"Colectora Panamericana 2065",   barrio:"San Isidro", autosHabituales:3, nota:"",                                tipo:"⭐ Frecuente", deuda:0, codigo:"SIS-001"},
@@ -123,21 +117,13 @@ const NOTAS_PREDEFINIDAS = [
 ];
 
 const MOTIVOS_DESCUENTO = [
-  "Error de cambio",
-  "Descuento por queja",
-  "Lavado gratis (compensación total)",
-  "Lavado con descuento (compensación parcial)",
-  "Cliente no pagó (deuda)",
-  "Otro",
+  "Error de cambio","Descuento por queja","Lavado gratis (compensación total)",
+  "Lavado con descuento (compensación parcial)","Cliente no pagó (deuda)","Otro",
 ];
 
 const MOTIVOS_OPERACION = [
-  "Préstamo (lavador recibe)",
-  "Adelanto de sueldo (lavador recibe)",
-  "Regalo / Premio (lavador recibe)",
-  "Devolución de préstamo (lavador paga)",
-  "Aporte voluntario (lavador paga)",
-  "Otro",
+  "Préstamo (lavador recibe)","Adelanto de sueldo (lavador recibe)","Regalo / Premio (lavador recibe)",
+  "Devolución de préstamo (lavador paga)","Aporte voluntario (lavador paga)","Otro",
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -176,9 +162,7 @@ const sinAcentos  = s  => (s||"").toLowerCase().replace(/[áéíóúü]/g, m=>({
 function mostrarTelefono(cliente) {
   const telefono = cliente?.telefono;
   const esFicticio = telefono && String(telefono).startsWith("1100000");
-  if (telefono && !esFicticio && telefono !== "") {
-    return `📞 ${telefono}`;
-  }
+  if (telefono && !esFicticio && telefono !== "") return `📞 ${telefono}`;
   return "📞 Sin registrar";
 }
 
@@ -289,8 +273,97 @@ function Btn({children,onClick,color="#0e7490",ghost,danger,disabled,full,sm,sty
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  COMPONENTES MODULARES
+//  MODAL NUEVO TURNO
 // ═══════════════════════════════════════════════════════════════
+function ModalNuevoTurno({ onClose, clientes, staff, COL_TURNOS, mostrarToast }) {
+  const [clienteId, setClienteId] = useState("");
+  const [hora, setHora] = useState(franjasValidas()[0] || FRANJAS[0]);
+  const [tamaño, setTamaño] = useState(TAMANOS_DEFAULT[1]);
+  const [lavadorId, setLavadorId] = useState("");
+  const [nota, setNota] = useState("");
+
+  const clienteSel = clientes.find(c => c.id === clienteId);
+
+  const guardar = async () => {
+    if (!clienteId) return mostrarToast("Seleccioná un cliente", "warn");
+    try {
+      await fsAdd(COL_TURNOS, {
+        fecha: hoy(),
+        hora,
+        clienteId,
+        clienteNombre: clienteSel?.nombre || "Desconocido",
+        auto: tamaño.label,
+        precio: tamaño.precio,
+        lavadorId,
+        estado: "pendiente",
+        nota,
+        creadoEn: serverTimestamp()
+      });
+      mostrarToast("Turno creado correctamente", "ok");
+      onClose();
+    } catch (err) {
+      mostrarToast("Error al crear turno", "error");
+    }
+  };
+
+  return (
+    <Modal titulo="➕ Nuevo Turno" onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Cliente */}
+        <label style={{ fontSize: 12, color: "#94a3b8" }}>Cliente</label>
+        <select value={clienteId} onChange={e => setClienteId(e.target.value)}
+          style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }}>
+          <option value="">-- Seleccionar --</option>
+          {clientes.sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")).map(c => (
+            <option key={c.id} value={c.id}>{c.nombre} ({c.barrio})</option>
+          ))}
+        </select>
+
+        {/* Hora */}
+        <label style={{ fontSize: 12, color: "#94a3b8" }}>Horario</label>
+        <select value={hora} onChange={e => setHora(e.target.value)}
+          style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }}>
+          {FRANJAS.map(h => <option key={h} value={h}>{h} hs</option>)}
+        </select>
+
+        {/* Tamaño */}
+        <label style={{ fontSize: 12, color: "#94a3b8" }}>Vehículo</label>
+        <div style={{ display: "flex", gap: 6 }}>
+          {TAMANOS_DEFAULT.map(t => (
+            <button key={t.id} onClick={() => setTamaño(t)} style={{
+              flex: 1, padding: "10px 8px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              background: tamaño.id === t.id ? "#22d3ee22" : "#0f172a",
+              border: tamaño.id === t.id ? "1px solid #22d3ee" : "1px solid #334155",
+              color: tamaño.id === t.id ? "#22d3ee" : "#94a3b8"
+            }}>
+              {t.label}<br/><span style={{fontSize:11}}>{formatP(t.precio)}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Lavador */}
+        <label style={{ fontSize: 12, color: "#94a3b8" }}>Lavador Asignado</label>
+        <select value={lavadorId} onChange={e => setLavadorId(e.target.value)}
+          style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }}>
+          <option value="">-- Sin asignar --</option>
+          {staff.sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")).map(s => (
+            <option key={s.id} value={s.id}>{s.nombre}</option>
+          ))}
+        </select>
+
+        {/* Nota */}
+        <label style={{ fontSize: 12, color: "#94a3b8" }}>Nota</label>
+        <input value={nota} onChange={e => setNota(e.target.value)} placeholder="Observaciones..."
+          style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }} />
+
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <Btn ghost onClick={onClose} full>Cancelar</Btn>
+          <Btn full onClick={guardar}>✓ Crear Turno</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 // Modal Cierre Turno
 function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
@@ -311,20 +384,12 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
         </div>
 
         <label style={{ fontSize: 12, color: "#94a3b8" }}>Monto Físico Recibido ($)</label>
-        <input 
-          type="number" 
-          value={monto} 
-          onChange={e => setMonto(e.target.value)}
-          style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 16, outline: "none" }}
-          autoFocus
-        />
+        <input type="number" value={monto} onChange={e => setMonto(e.target.value)}
+          style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 16, outline: "none" }} autoFocus />
 
         <label style={{ fontSize: 12, color: "#94a3b8" }}>Método de Pago</label>
-        <select 
-          value={metodo} 
-          onChange={e => setMetodo(e.target.value)}
-          style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }}
-        >
+        <select value={metodo} onChange={e => setMetodo(e.target.value)}
+          style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }}>
           <option value="efectivo">Efectivo</option>
           <option value="transferencia">Transferencia</option>
           <option value="debito">Débito</option>
@@ -340,11 +405,8 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
 
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <Btn ghost onClick={onClose} full>Cancelar</Btn>
-          <Btn 
-            color={deuda > 0 ? "#d97706" : "#0e7490"} 
-            full 
-            onClick={() => { cerrarTurnoFn(turno, monto, metodo); onClose(); }}
-          >
+          <Btn color={deuda > 0 ? "#d97706" : "#0e7490"} full 
+            onClick={() => { cerrarTurnoFn(turno, monto, metodo); onClose(); }}>
             {deuda > 0 ? `Registrar Deuda y Cerrar` : `✓ Confirmar Pago Completo`}
           </Btn>
         </div>
@@ -360,24 +422,16 @@ function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
     <Modal titulo={`🖨️ Vista Previa: ${titulo}`} onClose={onCerrar} wide>
       <div style={{ overflowX: "auto", marginBottom: 16 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid #334155" }}>
-              {columnas.map(col => (
-                <th key={col.key} style={{ padding: "8px 10px", textAlign: "left", color: "#94a3b8", fontWeight: 600 }}>{col.label}</th>
-              ))}
+          <thead><tr style={{ borderBottom: "1px solid #334155" }}>
+            {columnas.map(col => (<th key={col.key} style={{ padding: "8px 10px", textAlign: "left", color: "#94a3b8", fontWeight: 600 }}>{col.label}</th>))}
+          </tr></thead>
+          <tbody>{datos.map((fila, i) => (
+            <tr key={i} style={{ borderBottom: "1px solid #1e293b" }}>
+              {columnas.map(col => (<td key={col.key} style={{ padding: "8px 10px", color: "#e2e8f0" }}>
+                {col.format ? col.format(fila[col.key], fila) : fila[col.key]}
+              </td>))}
             </tr>
-          </thead>
-          <tbody>
-            {datos.map((fila, i) => (
-              <tr key={i} style={{ borderBottom: "1px solid #1e293b" }}>
-                {columnas.map(col => (
-                  <td key={col.key} style={{ padding: "8px 10px", color: "#e2e8f0" }}>
-                    {col.format ? col.format(fila[col.key], fila) : fila[col.key]}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
+          ))}</tbody>
         </table>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
@@ -391,14 +445,10 @@ function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
 // Módulo Presentismo
 function TabPresentismo({ staff, turnos, hoyStr, COL_TURNOS, db, collection, onSnapshot, useEffect, useState, setPreviewData, mostrarToast }) {
   const [asistencias, setAsistencias] = useState({});
-  
   useEffect(() => {
     const unsub = onSnapshot(collection(db, COL_TURNOS), (snap) => {
       const datos = {};
-      snap.docs.forEach(d => {
-        const t = d.data();
-        if (t.fecha === hoyStr && t.lavadorId) datos[t.lavadorId] = true;
-      });
+      snap.docs.forEach(d => { const t = d.data(); if (t.fecha === hoyStr && t.lavadorId) datos[t.lavadorId] = true; });
       setAsistencias(datos);
     });
     return () => unsub();
@@ -411,17 +461,11 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_TURNOS, db, collection, onS
   };
 
   const columnasPreview = [
-    { key: "nombre", label: "Lavador" },
-    { key: "transporte", label: "Movilidad" },
+    { key: "nombre", label: "Lavador" }, { key: "transporte", label: "Movilidad" },
     { key: "estado", label: "Estado", format: (v) => v ? "✅ Presente" : "❌ Ausente" },
     { key: "turnos", label: "Turnos Hoy", format: (_, row) => turnos.filter(t => t.lavadorId === row.id).length }
   ];
-
-  const datosPreview = staff.map(s => ({
-    ...s,
-    estado: asistencias[s.id] || false,
-    turnos: turnos.filter(t => t.lavadorId === s.id).length
-  }));
+  const datosPreview = staff.map(s => ({ ...s, estado: asistencias[s.id] || false, turnos: turnos.filter(t => t.lavadorId === s.id).length }));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -454,9 +498,7 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_TURNOS, db, collection, onS
 //  COMPONENTE PRINCIPAL APP
 // ═══════════════════════════════════════════════════════════════
 export default function App() {
-  // ─── ESTADOS GLOBALES ───
   const [modoPrueba, setModoPrueba] = useState(false);
-  const [claveAcceso, setClaveAcceso] = useState("");
   const CLAVE_MAESTRA = "sofia2024"; 
   
   const COL_DIAS = modoPrueba ? "dias_prueba" : "dias";
@@ -466,23 +508,53 @@ export default function App() {
 
   const [diaActual, setDiaActual] = useState(null);
   const [turnos, setTurnos] = useState([]);
-  const [clientes, setClientes] = useState(CLIENTES_SEED);
-  const [staff, setStaff] = useState(STAFF_SEED);
+  const [clientes, setClientes] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [toast, setToast] = useState(null);
   
-  // UI States
   const [tab, setTab] = useState("agenda");
   const [modalOpen, setModalOpen] = useState(null);
   const [editando, setEditando] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   
-  // Seguridad API
   const [geminiKey, setGeminiKey] = useState(localStorage.getItem("sofia_gemini_key") || "");
   const [keyDesbloqueada, setKeyDesbloqueada] = useState(false);
   const [inputClave, setInputClave] = useState("");
 
   const mostrarToast = (msg, tipo="ok") => setToast({ msg, tipo });
+
+  // ─── SEED AUTOMÁTICO DE DATOS INICIALES ───
+  useEffect(() => {
+    const seedIfEmpty = async () => {
+      try {
+        const cliSnap = await getDocs(collection(db, COL_CLIENTES));
+        if (cliSnap.empty) {
+          const batch = writeBatch(db);
+          CLIENTES_SEED.forEach(c => {
+            const ref = doc(collection(db, COL_CLIENTES));
+            batch.set(ref, { ...c, _ts: serverTimestamp() });
+          });
+          await batch.commit();
+          console.log("✅ Clientes seed cargados");
+        }
+
+        const staffSnap = await getDocs(collection(db, COL_STAFF));
+        if (staffSnap.empty) {
+          const batch = writeBatch(db);
+          STAFF_SEED.forEach(s => {
+            const ref = doc(collection(db, COL_STAFF));
+            batch.set(ref, { ...s, _ts: serverTimestamp() });
+          });
+          await batch.commit();
+          console.log("✅ Staff seed cargado");
+        }
+      } catch (err) {
+        console.error("Error seeding:", err);
+      }
+    };
+    seedIfEmpty();
+  }, [modoPrueba]);
 
   // ─── SUSCRIPCIÓN TIEMPO REAL ───
   useEffect(() => {
@@ -542,6 +614,7 @@ export default function App() {
   };
 
   const activarLluvia = async () => {
+    if (!diaActual?.id) return;
     await fsUpdate(COL_DIAS, diaActual.id, { lluvia: true, lluviaInicio: serverTimestamp() });
     const pendientes = turnos.filter(t => t.estado === "pendiente" && t.hora >= horaAR());
     await Promise.all(pendientes.map(t => fsUpdate(COL_TURNOS, t.id, { estado: "lluvia" })));
@@ -549,6 +622,7 @@ export default function App() {
   };
 
   const reanudarTrasLluvia = async () => {
+    if (!diaActual?.id) return;
     const minutosActuales = new Date().getHours() * 60 + new Date().getMinutes();
     let franjaInicio = FRANJAS.find(h => { const [hr,mn]=h.split(":").map(Number); return hr*60+mn >= minutosActuales; }) || FRANJAS[FRANJAS.length-1];
     
@@ -569,34 +643,109 @@ export default function App() {
     else { setInputClave(""); mostrarToast("Clave incorrecta", "error"); }
   };
 
+  const toggleDia = async () => {
+    if (!diaActual?.id) return;
+    const nuevoEstado = diaActual?.estado === "abierto" ? "cerrado" : "abierto";
+    await fsUpdate(COL_DIAS, diaActual.id, { 
+      estado: nuevoEstado,
+      apertura: nuevoEstado === "abierto" ? serverTimestamp() : diaActual.apertura,
+      cierre: nuevoEstado === "cerrado" ? serverTimestamp() : null
+    });
+    mostrarToast(nuevoEstado === "abierto" ? "☀️ Día ABIERTO" : "🌙 Día CERRADO", "ok");
+  };
+
   // ─── RENDER ───
   if (cargando) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0b1220",color:"#22d3ee"}}>⟳ Sincronizando...</div>;
 
+  // PANTALLA COMPLETA DE APERTURA
+  if (diaActual?.estado !== "abierto") {
+    return (
+      <div style={{ minHeight:"100vh", background:"#0b1220", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24 }}>
+        <div style={{ fontSize:48, marginBottom:16 }}>🚗</div>
+        <h1 style={{ color:"#e2e8f0", fontSize:24, fontWeight:800, marginBottom:8 }}>Sofía Lavados</h1>
+        <p style={{ color:"#64748b", fontSize:14, marginBottom:32 }}>{fechaAR(hoy())} • {horaAR()} hs</p>
+        
+        <button onClick={toggleDia} style={{
+          background: "linear-gradient(135deg, #059669, #047857)",
+          color: "#fff", border: "none", borderRadius: 20,
+          padding: "28px 64px", fontSize: 22, fontWeight: 800,
+          cursor: "pointer", boxShadow: "0 8px 40px rgba(5,150,105,0.5)",
+          transition: "all 0.3s ease", width: "100%", maxWidth: 400
+        }}>
+          🟢 ABRIR DÍA
+        </button>
+
+        {/* Acceso rápido a config en modo cerrado */}
+        <button onClick={() => setTab("config")} style={{
+          marginTop: 24, background: "transparent", border: "1px solid #334155",
+          borderRadius: 10, padding: "10px 20px", color: "#64748b", fontSize: 12,
+          cursor: "pointer"
+        }}>
+          ⚙️ Configuración
+        </button>
+
+        {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={()=>setToast(null)} />}
+        
+        {/* Panel Config inline cuando está cerrado */}
+        {tab === "config" && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.8)", zIndex:600, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
+               onClick={e => e.target === e.currentTarget && setTab("agenda")}>
+            <div style={{ background:"#0b1220", border:"1px solid #1e3a5f", borderRadius:14, padding:20, width:"100%", maxWidth:400 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
+                <span style={{ fontSize:14, fontWeight:700, color:"#e2e8f0" }}>⚙️ Configuración</span>
+                <button onClick={()=>setTab("agenda")} style={{ background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:18 }}>✕</button>
+              </div>
+              {!keyDesbloqueada ? (
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:13, color:"#94a3b8", marginBottom:10 }}>🔒 Clave para API Key Gemini</div>
+                  <div style={{ display:"flex", gap:8, justifyContent:"center" }}>
+                    <input type="password" placeholder="Clave maestra" value={inputClave} onChange={e=>setInputClave(e.target.value)} onKeyDown={e=>e.key==="Enter"&&verificarClaveAcceso()} style={{ background:"#0f172a", border:"1px solid #334155", borderRadius:6, padding:"8px 12px", color:"#fff", fontSize:13, outline:"none", width:160 }} />
+                    <Btn sm onClick={verificarClaveAcceso}>OK</Btn>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <input type="text" value={geminiKey} onChange={e=>setGeminiKey(e.target.value)} placeholder="API Key Gemini" style={{ width:"100%", background:"#0f172a", border:"1px solid #334155", borderRadius:6, padding:"10px 12px", color:"#e2e8f0", fontSize:12, outline:"none", boxSizing:"border-box", marginBottom:10 }} />
+                  <Btn sm full onClick={()=>{localStorage.setItem("sofia_gemini_key", geminiKey); mostrarToast("API Key guardada","ok");}}>💾 Guardar</Btn>
+                </div>
+              )}
+              <div style={{marginTop:16}}>
+                <label style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer"}}>
+                  <input type="checkbox" checked={modoPrueba} onChange={e=>setModoPrueba(e.target.checked)} />
+                  <span style={{fontSize:13, color:"#94a3b8"}}>🧪 Modo Prueba</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // APP NORMAL (DÍA ABIERTO)
   return (
     <div style={{ minHeight:"100vh", background:"#0b1220", color:"#e2e8f0", fontFamily:"'Segoe UI', system-ui, sans-serif", paddingBottom:80 }}>
       <style>{`
         @media (max-width: 768px) { .reloj-desktop { display: none !important; } .nav-tabs { overflow-x: auto !important; scrollbar-width: none; } .nav-tabs::-webkit-scrollbar { display: none; } }
       `}</style>
 
-      {/* HEADER */}
       <header style={{ position:"sticky", top:0, zIndex:100, background:"#0b1220ee", backdropFilter:"blur(10px)", borderBottom:"1px solid #1e3a5f", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ fontSize:16, fontWeight:800, color:"#22d3ee" }}>🚗 Sofía</div>
-          <div style={{ fontSize:11, fontWeight:700, padding:"3px 8px", borderRadius:4, background: diaActual?.lluvia ? "#7c2d12" : diaActual?.estado==="abierto" ? "#065f46" : "#1e293b", color: diaActual?.lluvia ? "#fca5a5" : diaActual?.estado==="abierto" ? "#6ee7b7" : "#64748b" }}>
-            {diaActual?.lluvia ? "🌧️ LLUVIA" : diaActual?.estado==="abierto" ? "🟢 ABIERTO" : "🔴 CERRADO"}
+          <div style={{ fontSize:11, fontWeight:700, padding:"3px 8px", borderRadius:4, background: diaActual?.lluvia ? "#7c2d12" : "#065f46", color: diaActual?.lluvia ? "#fca5a5" : "#6ee7b7" }}>
+            {diaActual?.lluvia ? "🌧️ LLUVIA" : "🟢 ABIERTO"}
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          {diaActual?.estado==="abierto" && (
-            <Btn sm danger={diaActual?.lluvia} color={diaActual?.lluvia ? "#059669" : "#d97706"} onClick={diaActual?.lluvia ? reanudarTrasLluvia : activarLluvia}>
-              {diaActual?.lluvia ? "☀️ Reanudar" : "🌧️ Lluvia"}
-            </Btn>
+          {diaActual?.lluvia ? (
+            <Btn sm color="#059669" onClick={reanudarTrasLluvia}>☀️ Reanudar</Btn>
+          ) : (
+            <Btn sm color="#d97706" onClick={activarLluvia}>🌧️ Lluvia</Btn>
           )}
           <div className="reloj-desktop" style={{ fontSize:13, color:"#94a3b8", fontWeight:600 }}>{horaAR()} hs</div>
         </div>
       </header>
 
-      {/* NAV TABS */}
       <nav className="nav-tabs" style={{ display:"flex", gap:4, padding:"8px 12px", borderBottom:"1px solid #1e3a5f", whiteSpace:"nowrap" }}>
         {[{id:"agenda",label:"📋 Agenda"},{id:"presentismo",label:"✅ Presentismo"},{id:"caja",label:"💰 Caja"},{id:"clientes",label:"👥 Clientes"},{id:"config",label:"⚙️ Config"}].map(t => (
           <button key={t.id} onClick={()=>setTab(t.id)} style={{ background: tab===t.id ? "#22d3ee22" : "transparent", color: tab===t.id ? "#22d3ee" : "#94a3b8", border: tab===t.id ? "1px solid #22d3ee44" : "1px solid transparent", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
@@ -605,58 +754,83 @@ export default function App() {
         ))}
       </nav>
 
-      {/* MAIN CONTENT */}
       <main style={{ padding:16, maxWidth:800, margin:"0 auto" }}>
         {tab === "agenda" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20, alignItems: "center", marginTop: 20 }}>
-            {/* BOTÓN PRINCIPAL DE APERTURA */}
-            <button 
-              onClick={async () => {
-                const nuevoEstado = diaActual?.estado === "abierto" ? "cerrado" : "abierto";
-                await fsUpdate(COL_DIAS, diaActual.id, { 
-                  estado: nuevoEstado,
-                  apertura: nuevoEstado === "abierto" ? serverTimestamp() : null,
-                  cierre: nuevoEstado === "cerrado" ? serverTimestamp() : null
-                });
-                mostrarToast(nuevoEstado === "abierto" ? "☀️ Día ABIERTO correctamente" : "🌙 Día CERRADO", "ok");
-              }}
-              style={{
-                background: diaActual?.estado === "abierto" 
-                  ? "linear-gradient(135deg, #dc2626, #991b1b)" 
-                  : "linear-gradient(135deg, #059669, #047857)",
-                color: "#fff",
-                border: "none",
-                borderRadius: 16,
-                padding: "24px 48px",
-                fontSize: 20,
-                fontWeight: 800,
-                cursor: "pointer",
-                boxShadow: diaActual?.estado === "abierto" 
-                  ? "0 8px 30px rgba(220,38,38,0.4)" 
-                  : "0 8px 30px rgba(5,150,105,0.4)",
-                transition: "all 0.3s ease",
-                width: "100%",
-                maxWidth: 400
-              }}
-            >
-              {diaActual?.estado === "abierto" ? "🔴 CERRAR DÍA" : "🟢 ABRIR DÍA"}
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <h3 style={{ margin:0, fontSize:16 }}>Turnos de Hoy</h3>
+              <Btn sm onClick={() => setModalOpen("nuevoTurno")}>➕ Nuevo Turno</Btn>
+            </div>
+
+            {turnos.length === 0 ? (
+              <div style={{ textAlign:"center", color:"#475569", padding:40, fontSize:14 }}>
+                No hay turnos registrados.<br/>Tocá "+ Nuevo Turno" para comenzar.
+              </div>
+            ) : (
+              turnos.map(t => (
+                <div key={t.id} style={{ background:"#1e293b", borderRadius:10, padding:14, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <div>
+                    <div style={{ fontSize:14, fontWeight:700, color:"#22d3ee" }}>{t.hora} hs</div>
+                    <div style={{ fontSize:13 }}>{t.clienteNombre}</div>
+                    <div style={{ fontSize:11, color:"#64748b" }}>{t.auto} • {formatP(t.precio)}</div>
+                  </div>
+                  <div style={{ display:"flex", gap:6 }}>
+                    {t.estado === "pendiente" && (
+                      <Btn sm onClick={() => { setEditando(t); setModalOpen("cerrarTurno"); }}>💰</Btn>
+                    )}
+                    {t.estado === "rendido" && (
+                      <span style={{ fontSize:11, color:"#34d399", fontWeight:700, padding:"6px 10px" }}>✓ RENDIDO</span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+
+            <button onClick={toggleDia} style={{
+              marginTop: 20, background: "linear-gradient(135deg, #dc2626, #991b1b)",
+              color: "#fff", border: "none", borderRadius: 12, padding: "16px",
+              fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%"
+            }}>
+              🔴 CERRAR DÍA
             </button>
-
-            <div style={{ textAlign: "center", color: "#64748b", fontSize: 14 }}>
-              Estado actual: <strong style={{ color: diaActual?.estado === "abierto" ? "#34d399" : "#f87171" }}>
-                {diaActual?.estado?.toUpperCase()}
-              </strong>
-            </div>
-
-            <div style={{ textAlign: "center", color: "#475569", fontSize: 13, marginTop: 10 }}>
-              {turnos.length} turnos registrados hoy
-            </div>
           </div>
         )}
         
         {tab === "presentismo" && <TabPresentismo staff={staff} turnos={turnos} hoyStr={hoy()} COL_TURNOS={COL_TURNOS} db={db} collection={collection} onSnapshot={onSnapshot} useEffect={useEffect} useState={useState} setPreviewData={setPreviewData} mostrarToast={mostrarToast} />}
-        {tab === "caja" && <div>Caja del día: {formatP(turnos.reduce((a,t) => a + (t.pagado||0), 0))}</div>}
-        {tab === "clientes" && <div>Clientes con deuda: {clientes.filter(c=>c.deuda>0).length}</div>}
+        
+        {tab === "caja" && (
+          <div style={{ textAlign:"center", padding:40 }}>
+            <div style={{ fontSize:14, color:"#94a3b8", marginBottom:8 }}>Recaudación del día</div>
+            <div style={{ fontSize:32, fontWeight:800, color:"#22d3ee" }}>
+              {formatP(turnos.reduce((a,t) => a + (t.pagado||0), 0))}
+            </div>
+            <div style={{ fontSize:12, color:"#475569", marginTop:8 }}>
+              {turnos.filter(t=>t.estado==="rendido").length} turnos rendidos
+            </div>
+          </div>
+        )}
+        
+        {tab === "clientes" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <h3 style={{ margin:0, fontSize:16, marginBottom:8 }}>👥 Clientes ({clientes.length})</h3>
+            {clientes.length === 0 ? (
+              <div style={{ textAlign:"center", color:"#475569", padding:20 }}>Cargando clientes...</div>
+            ) : (
+              clientes.sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")).map(c => (
+                <div key={c.id} style={{ background:"#1e293b", borderRadius:8, padding:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:600 }}>{c.nombre}</div>
+                    <div style={{ fontSize:11, color:"#64748b" }}>{c.barrio} • {c.tipo}</div>
+                  </div>
+                  {c.deuda > 0 && (
+                    <span style={{ fontSize:11, color:"#f87171", fontWeight:700 }}>Deuda: {formatP(c.deuda)}</span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+        
         {tab === "config" && (
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             {!keyDesbloqueada ? (
@@ -687,7 +861,7 @@ export default function App() {
         )}
       </main>
 
-      {/* MODALES */}
+      {modalOpen === "nuevoTurno" && <ModalNuevoTurno clientes={clientes} staff={staff} COL_TURNOS={COL_TURNOS} mostrarToast={mostrarToast} onClose={()=>{setModalOpen(null);}} />}
       {modalOpen === "cerrarTurno" && editando && <ModalCerrarTurno turno={editando} clientes={clientes} cerrarTurnoFn={cerrarTurno} onClose={()=>{setModalOpen(null);setEditando(null);}} />}
       {previewData && <PreviewTabla {...previewData} onImprimir={()=>window.print()} onCerrar={()=>setPreviewData(null)} />}
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={()=>setToast(null)} />}
