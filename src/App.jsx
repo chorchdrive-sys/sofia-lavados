@@ -7,7 +7,7 @@ import {
 } from "firebase/firestore";
 
 // ═══════════════════════════════════════════════════════════════
-//  FIREBASE CONFIG (INTACTO)
+//  FIREBASE CONFIG
 // ═══════════════════════════════════════════════════════════════
 const FB = {
   apiKey:            "AIzaSyDBZS7KR8YIq8UzAhnq9WaPTh8wGTZ-SMI",
@@ -22,7 +22,7 @@ const app = initializeApp(FB);
 const db = getFirestore(app);
 
 // ═══════════════════════════════════════════════════════════════
-//  CONSTANTES (INTACTAS)
+//  CONSTANTES
 // ═══════════════════════════════════════════════════════════════
 const BASE_LAT  = -34.5128;
 const BASE_LNG  = -58.4985;
@@ -37,7 +37,6 @@ const TAMANOS_DEFAULT = [
   { id:"camioneta", label:"Camioneta", precio:32000 },
 ];
 
-// Paleta ajustada a pasteles suaves para staff
 const COLORES = [
   "#93c5fd","#c4b5fd","#fca5a5","#fdba74","#86efac","#67e8f9",
   "#a5b4fc","#f0abfc","#fcd34d","#a7f3d0","#bae6fd","#fecdd3",
@@ -125,7 +124,7 @@ const MOTIVOS_OPERACION = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
-//  HELPERS (INTACTOS)
+//  HELPERS
 // ═══════════════════════════════════════════════════════════════
 const hoy = () => {
   const now = new Date();
@@ -214,8 +213,26 @@ function slotsOcupados(inicio, cant) {
   return Array.from({length: cant}, (_,i) => FRANJAS[idx+i]).filter(Boolean);
 }
 
+// Generador de código único de cliente
+async function generarCodigoCliente(barrio, nombre, COL_CLIENTES) {
+  const codBarrio = codigoBarrio(barrio);
+  const snap = await getDocs(collection(db, COL_CLIENTES));
+  const existentes = snap.docs.map(d => d.data().codigo || "");
+  const prefijo = `${codBarrio}-`;
+  let maxNum = 0;
+  existentes.forEach(c => {
+    if (c.startsWith(prefijo)) {
+      const num = parseInt(c.split("-")[1], 10);
+      if (!isNaN(num) && num > maxNum) maxNum = num;
+    }
+  });
+  const sigNum = String(maxNum + 1).padStart(3, "0");
+  const nombreClean = (nombre || "").replace(/\s+/g, "").substring(0, 10);
+  return `${codBarrio}-${sigNum}-${nombreClean}`;
+}
+
 // ═══════════════════════════════════════════════════════════════
-//  FIRESTORE HELPERS (INTACTOS)
+//  FIRESTORE HELPERS
 // ═══════════════════════════════════════════════════════════════
 const fsGet    = async (col,id)       => { if(!db)return null; try{const s=await getDoc(doc(db,col,id));return s.exists()?{id:s.id,...s.data()}:null;}catch{return null;} };
 const fsSave   = async (col,id,data)  => { if(!db)return; try{await setDoc(doc(db,col,id),{...data,_ts:serverTimestamp()},{merge:true});}catch{} };
@@ -281,7 +298,6 @@ function Modal({titulo,onClose,children,wide}) {
 }
 
 function Btn({children,onClick,color="primary",ghost,danger,disabled,full,sm,style={}}) {
-  // SOFT PASTELS: Texto oscuro sobre fondos claros
   const palettes = {
     primary:  {bg:"#bfdbfe", hover:"#93c5fd", text:"#1e3a8a", shadow:"rgba(147,197,253,.3)"},
     secondary:{bg:"#ddd6fe", hover:"#c4b5fd", text:"#5b21b6", shadow:"rgba(196,181,253,.3)"},
@@ -321,6 +337,164 @@ function Btn({children,onClick,color="primary",ghost,danger,disabled,full,sm,sty
     onClick={!disabled ? onClick : undefined}>
       {children}
     </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BUSCADOR DE CLIENTES REUTILIZABLE
+// ═══════════════════════════════════════════════════════════════
+function BuscadorClientes({ clientes, value, onChange, placeholder }) {
+  const [busqueda, setBusqueda] = useState("");
+  const [abierto, setAbierto] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setAbierto(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtrados = busqueda.trim() === "" ? clientes : clientes.filter(c =>
+    sinAcentos(c.nombre).includes(sinAcentos(busqueda)) ||
+    sinAcentos(c.codigo || "").includes(sinAcentos(busqueda)) ||
+    sinAcentos(c.barrio || "").includes(sinAcentos(busqueda))
+  );
+
+  const inputStyle = {
+    background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12,
+    padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none",
+    transition:"border-color .2s, box-shadow .2s", width:"100%", boxSizing:"border-box",
+    fontFamily:"'Inter',system-ui,sans-serif"
+  };
+
+  return (
+    <div ref={wrapperRef} style={{position:"relative"}}>
+      <input
+        type="text"
+        value={busqueda}
+        onChange={e => { setBusqueda(e.target.value); setAbierto(true); }}
+        onFocus={() => setAbierto(true)}
+        placeholder={placeholder || "Buscar cliente por nombre, código o barrio..."}
+        style={inputStyle}
+      />
+      {abierto && (
+        <div style={{
+          position:"absolute", top:"100%", left:0, right:0, zIndex:60,
+          background:"#fff", border:"1px solid #e5e7eb", borderRadius:12,
+          marginTop:4, maxHeight:220, overflowY:"auto",
+          boxShadow:"0 8px 25px rgba(0,0,0,.08)"
+        }}>
+          {filtrados.length === 0 ? (
+            <div style={{padding:14, textAlign:"center", color:"#9ca3af", fontSize:12}}>Sin resultados</div>
+          ) : (
+            filtrados.map(c => (
+              <button key={c.id} onClick={() => { onChange(c.id); setBusqueda(c.nombre); setAbierto(false); }}
+                style={{
+                  display:"block", width:"100%", textAlign:"left", padding:"10px 14px",
+                  background:"transparent", border:"none", cursor:"pointer",
+                  borderBottom:"1px solid #f3f4f6", transition:"background .15s",
+                  fontFamily:"'Inter',system-ui,sans-serif"
+                }}
+                onMouseOver={e=>e.currentTarget.style.background="#f9fafb"}
+                onMouseOut={e=>e.currentTarget.style.background="transparent"}>
+                <div style={{fontSize:13, fontWeight:700, color:"#1e293b"}}>{c.nombre}</div>
+                <div style={{fontSize:11, color:"#6b7280"}}>{c.codigo} • {c.barrio}</div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL EDITAR CLIENTE
+// ═══════════════════════════════════════════════════════════════
+function ModalEditarCliente({ cliente, onClose, COL_CLIENTES, mostrarToast }) {
+  const [datos, setDatos] = useState({...cliente});
+
+  const guardar = async () => {
+    try {
+      await fsUpdate(COL_CLIENTES, cliente.id, {
+        telefono: datos.telefono || "",
+        direccion: datos.direccion || "",
+        barrio: datos.barrio || "",
+        nota: datos.nota || "",
+        tipo: datos.tipo || "",
+        autosHabituales: Number(datos.autosHabituales) || 1,
+      });
+      mostrarToast("Cliente actualizado correctamente", "ok");
+      onClose();
+    } catch (err) {
+      mostrarToast("Error al actualizar cliente", "error");
+    }
+  };
+
+  const inputStyle = {
+    background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12,
+    padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none",
+    transition:"border-color .2s, box-shadow .2s", width:"100%", boxSizing:"border-box",
+    fontFamily:"'Inter',system-ui,sans-serif"
+  };
+  const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
+
+  return (
+    <Modal titulo={`✏️ Editar: ${cliente.nombre}`} onClose={onClose}>
+      <div style={{display:"flex", flexDirection:"column", gap:14}}>
+        <div style={{background:"#f9fafb", padding:12, borderRadius:12, border:"1px solid #e5e7eb", fontSize:12, color:"#6b7280", marginBottom:4}}>
+          Código: <strong style={{color:"#1e293b"}}>{cliente.codigo}</strong>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Teléfono</label>
+          <input value={datos.telefono||""} onChange={e=>setDatos({...datos, telefono:e.target.value})} style={inputStyle}
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+        </div>
+        <div>
+          <label style={labelStyle}>Dirección</label>
+          <input value={datos.direccion||""} onChange={e=>setDatos({...datos, direccion:e.target.value})} style={inputStyle}
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+        </div>
+        <div>
+          <label style={labelStyle}>Barrio</label>
+          <input value={datos.barrio||""} onChange={e=>setDatos({...datos, barrio:e.target.value})} style={inputStyle}
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+        </div>
+        <div>
+          <label style={labelStyle}>Tipo</label>
+          <select value={datos.tipo||""} onChange={e=>setDatos({...datos, tipo:e.target.value})} style={inputStyle}
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}}>
+            <option value="⭐ Frecuente">⭐ Frecuente</option>
+            <option value="🔥 Top">🔥 Top</option>
+            <option value="💤 Ocasional">💤 Ocasional</option>
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Autos Habituales</label>
+          <input type="number" value={datos.autosHabituales||1} onChange={e=>setDatos({...datos, autosHabituales:e.target.value})} style={inputStyle}
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+        </div>
+        <div>
+          <label style={labelStyle}>Nota</label>
+          <input value={datos.nota||""} onChange={e=>setDatos({...datos, nota:e.target.value})} style={inputStyle}
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+        </div>
+
+        <div style={{display:"flex", gap:10, marginTop:8}}>
+          <Btn ghost onClick={onClose} full>Cancelar</Btn>
+          <Btn color="primary" full onClick={guardar}>💾 Guardar Cambios</Btn>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -383,10 +557,10 @@ Respondé SOLO con el nombre exacto del lavador sugerido, sin explicaciones ni t
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL NUEVO TURNO (SOFT PASTELS)
+//  MODAL NUEVO TURNO (CON BUSCADOR DE CLIENTES)
 // ═══════════════════════════════════════════════════════════════
-function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, geminiKey, mostrarToast }) {
-  const [clienteId, setClienteId] = useState("");
+function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, geminiKey, mostrarToast, clientePreseleccionado }) {
+  const [clienteId, setClienteId] = useState(clientePreseleccionado?.id || "");
   const [hora, setHora] = useState(franjasValidas()[0] || FRANJAS[0]);
   const [tamaño, setTamaño] = useState(TAMANOS_DEFAULT[1]);
   const [lavadorId, setLavadorId] = useState("");
@@ -439,14 +613,17 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
       <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
         <div>
           <label style={labelStyle}>Cliente</label>
-          <select value={clienteId} onChange={e=>setClienteId(e.target.value)} style={inputStyle}
-            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
-            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}}>
-            <option value="">-- Seleccionar --</option>
-            {clientes.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(c=>(
-              <option key={c.id} value={c.id}>{c.nombre} ({c.barrio})</option>
-            ))}
-          </select>
+          <BuscadorClientes
+            clientes={clientes}
+            value={clienteId}
+            onChange={(id) => setClienteId(id)}
+            placeholder="Buscar por nombre, código o barrio..."
+          />
+          {clienteSel && (
+            <div style={{marginTop:6, padding:"8px 12px", background:"#eff6ff", borderRadius:10, border:"1px solid #bfdbfe", fontSize:11, color:"#1e3a8a"}}>
+              📍 {clienteSel.direccion || "Sin dirección"} • {clienteSel.barrio} • {clienteSel.codigo}
+            </div>
+          )}
         </div>
 
         <div>
@@ -495,7 +672,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
             ))}
           </select>
           {presentes.length===0 && (
-            <div style={{ fontSize:11, color:"#dc2626", marginTop:6, fontWeight:600 }}>⚠️ No hay lavadores marcados como presentes. Andá a Presentismo primero.</div>
+            <div style={{ fontSize:11, color:"#dc2626", marginTop:6, fontWeight:600 }}>⚠️ No hay lavadores marcados como presentes.</div>
           )}
         </div>
 
@@ -516,7 +693,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   );
 }
 
-// Modal Cierre Turno (SOFT PASTELS)
+// Modal Cierre Turno (SOFT PASTELS - INTACTO)
 function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
   const [monto, setMonto] = useState(turno?.precioFinal || turno?.precio || 0);
   const [metodo, setMetodo] = useState("efectivo");
@@ -580,7 +757,7 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
   );
 }
 
-// Previsualización Tabla (SOFT PASTELS)
+// Previsualización Tabla (SOFT PASTELS - INTACTO)
 function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
   if (!datos || datos.length === 0) return null;
   return (
@@ -618,7 +795,7 @@ function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MÓDULO PRESENTISMO (SOFT PASTELS)
+//  MÓDULO PRESENTISMO (SOFT PASTELS - INTACTO)
 // ═══════════════════════════════════════════════════════════════
 function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, db, doc, setDoc, onSnapshot, useEffect, useState, setPreviewData, mostrarToast }) {
   const [asistencias, setAsistencias] = useState({});
@@ -703,7 +880,7 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, db, doc, setDo
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  COMPONENTE PRINCIPAL APP (SOFT PASTELS)
+//  COMPONENTE PRINCIPAL APP
 // ═══════════════════════════════════════════════════════════════
 export default function App() {
   const [modoPrueba, setModoPrueba] = useState(false);
@@ -730,6 +907,9 @@ export default function App() {
   const [editando, setEditando] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   const [asistencias, setAsistencias] = useState({});
+  const [clienteParaTurno, setClienteParaTurno] = useState(null);
+  const [clienteParaEditar, setClienteParaEditar] = useState(null);
+  const [busquedaClientes, setBusquedaClientes] = useState("");
   
   const [geminiKey, setGeminiKey] = useState(localStorage.getItem("sofia_gemini_key") || "");
   const [keyDesbloqueada, setKeyDesbloqueada] = useState(false);
@@ -867,6 +1047,14 @@ export default function App() {
     mostrarToast(nuevoEstado==="abierto" ? "☀️ Día ABIERTO" : "🌙 Día CERRADO", "ok");
   };
 
+  // Filtrado de clientes para pestaña Clientes
+  const clientesFiltrados = busquedaClientes.trim() === "" ? clientes : clientes.filter(c =>
+    sinAcentos(c.nombre).includes(sinAcentos(busquedaClientes)) ||
+    sinAcentos(c.codigo || "").includes(sinAcentos(busquedaClientes)) ||
+    sinAcentos(c.barrio || "").includes(sinAcentos(busquedaClientes)) ||
+    sinAcentos(c.telefono || "").includes(sinAcentos(busquedaClientes))
+  );
+
   // ─── RENDER ───
   if (cargando) return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f9fafb",color:"#6b7280",fontFamily:"'Inter',system-ui,sans-serif",fontWeight:600,fontSize:14}}>
@@ -874,7 +1062,7 @@ export default function App() {
     </div>
   );
 
-  // PANTALLA COMPLETA DE APERTURA (SOFT PASTELS)
+  // PANTALLA COMPLETA DE APERTURA
   if (diaActual?.estado !== "abierto") {
     return (
       <div style={{ minHeight:"100vh", background:"#f9fafb", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"'Inter',system-ui,sans-serif" }}>
@@ -907,7 +1095,7 @@ export default function App() {
     );
   }
 
-  // APP NORMAL (DÍA ABIERTO) - SOFT PASTELS
+  // APP NORMAL (DÍA ABIERTO)
   return (
     <div style={{ minHeight:"100vh", background:"#f9fafb", color:"#1e293b", fontFamily:"'Inter',system-ui,sans-serif", paddingBottom:90 }}>
       <style>{`
@@ -922,7 +1110,7 @@ export default function App() {
         }
       `}</style>
 
-      {/* HEADER SOFT PASTELS */}
+      {/* HEADER */}
       <header style={{
         position:"sticky", top:0, zIndex:100,
         background:"rgba(255,255,255,.9)", backdropFilter:"blur(16px)",
@@ -956,7 +1144,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* NAV TABS SOFT PASTELS */}
+      {/* NAV TABS */}
       <nav className="nav-tabs" style={{
         display:"flex", gap:6, padding:"10px 16px",
         borderBottom:"1px solid #e5e7eb", whiteSpace:"nowrap", alignItems:"center",
@@ -996,7 +1184,7 @@ export default function App() {
         </button>
       </nav>
 
-      {/* MAIN CONTENT SOFT PASTELS */}
+      {/* MAIN CONTENT */}
       <main style={{ padding:20, maxWidth:800, margin:"0 auto", animation:"fadeInUp .4s ease-out" }}>
         
         {/* AGENDA */}
@@ -1004,7 +1192,7 @@ export default function App() {
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <h3 style={{ margin:0, fontSize:20, fontWeight:800, color:"#1e293b" }}>Turnos de Hoy</h3>
-              <Btn sm color="primary" onClick={()=>setModalOpen("nuevoTurno")}>➕ Nuevo Turno</Btn>
+              <Btn sm color="primary" onClick={()=>{setClienteParaTurno(null);setModalOpen("nuevoTurno");}}>➕ Nuevo Turno</Btn>
             </div>
 
             {turnos.length === 0 ? (
@@ -1024,10 +1212,7 @@ export default function App() {
                 onMouseOver={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 25px rgba(0,0,0,.06)"}}
                 onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 10px rgba(0,0,0,.03)"}}>
                   <div>
-                    <div style={{
-                      display:"inline-block",fontSize:13,fontWeight:800,
-                      color:"#1e3a8a", marginBottom:4
-                    }}>{t.hora} hs</div>
+                    <div style={{ display:"inline-block",fontSize:13,fontWeight:800, color:"#1e3a8a", marginBottom:4 }}>{t.hora} hs</div>
                     <div style={{ fontSize:14, fontWeight:700, color:"#1e293b" }}>{t.clienteNombre}</div>
                     <div style={{ fontSize:12, color:"#6b7280", fontWeight:500, marginTop:2 }}>{t.auto} • {formatP(t.precio)}</div>
                   </div>
@@ -1036,10 +1221,7 @@ export default function App() {
                       <Btn sm color="success" onClick={()=>{setEditando(t);setModalOpen("cerrarTurno");}}>💰 Cobrar</Btn>
                     )}
                     {t.estado === "rendido" && (
-                      <span style={{
-                        fontSize:11, fontWeight:800, padding:"6px 12px", borderRadius:10,
-                        background:"#ecfdf5", color:"#064e3b", border:"1px solid #a7f3d0"
-                      }}>✓ RENDIDO</span>
+                      <span style={{ fontSize:11, fontWeight:800, padding:"6px 12px", borderRadius:10, background:"#ecfdf5", color:"#064e3b", border:"1px solid #a7f3d0" }}>✓ RENDIDO</span>
                     )}
                   </div>
                 </div>
@@ -1061,47 +1243,88 @@ export default function App() {
         {tab === "caja" && (
           <div style={{ textAlign:"center", padding:50, background:"#ffffff", borderRadius:24, border:"1px solid #e5e7eb", boxShadow:"0 4px 20px rgba(0,0,0,.03)", animation:"fadeInUp .4s ease-out" }}>
             <div style={{ fontSize:13, color:"#6b7280", fontWeight:700, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>Recaudación del día</div>
-            <div style={{
-              fontSize:42, fontWeight:900, letterSpacing:"-1px",
-              color:"#1e3a8a", marginBottom:12
-            }}>
+            <div style={{ fontSize:42, fontWeight:900, letterSpacing:"-1px", color:"#1e3a8a", marginBottom:12 }}>
               {formatP(turnos.reduce((a,t) => a + (t.pagado||0), 0))}
             </div>
-            <div style={{
-              display:"inline-block",fontSize:12, fontWeight:700, padding:"6px 16px", borderRadius:10,
-              background:"#eff6ff", color:"#1e3a8a", border:"1px solid #bfdbfe"
-            }}>
+            <div style={{ display:"inline-block",fontSize:12, fontWeight:700, padding:"6px 16px", borderRadius:10, background:"#eff6ff", color:"#1e3a8a", border:"1px solid #bfdbfe" }}>
               {turnos.filter(t=>t.estado==="rendido").length} turnos rendidos
             </div>
           </div>
         )}
         
-        {/* CLIENTES */}
+        {/* CLIENTES (MEJORADO CON BÚSQUEDA, CÓDIGO, BOTONES) */}
         {tab === "clientes" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:10, animation:"fadeInUp .4s ease-out" }}>
-            <h3 style={{ margin:0, fontSize:20, fontWeight:800, color:"#1e293b", marginBottom:8 }}>👥 Clientes ({clientes.length})</h3>
-            {clientes.length === 0 ? (
-              <div style={{ textAlign:"center", color:"#9ca3af", padding:30, fontSize:13 }}>Cargando clientes...</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:12, animation:"fadeInUp .4s ease-out" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <h3 style={{ margin:0, fontSize:20, fontWeight:800, color:"#1e293b" }}>👥 Clientes ({clientesFiltrados.length})</h3>
+            </div>
+
+            {/* BUSCADOR DE CLIENTES EN PESTAÑA */}
+            <div style={{position:"relative"}}>
+              <input
+                type="text"
+                value={busquedaClientes}
+                onChange={e => setBusquedaClientes(e.target.value)}
+                placeholder="🔍 Buscar por nombre, código, barrio o teléfono..."
+                style={{
+                  background:"#ffffff", border:"1.5px solid #e5e7eb", borderRadius:14,
+                  padding:"12px 16px", color:"#1e293b", fontSize:14, outline:"none",
+                  transition:"border-color .2s, box-shadow .2s", width:"100%", boxSizing:"border-box",
+                  fontFamily:"'Inter',system-ui,sans-serif", fontWeight:500
+                }}
+                onFocus={e=>{e.target.style.borderColor="#c4b5fd";e.target.style.boxShadow="0 0 0 3px rgba(196,181,253,.2)"}}
+                onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}}
+              />
+            </div>
+
+            {clientesFiltrados.length === 0 ? (
+              <div style={{ textAlign:"center", color:"#9ca3af", padding:40, fontSize:13, background:"#ffffff", borderRadius:16, border:"1px solid #e5e7eb" }}>
+                {clientes.length === 0 ? "Cargando clientes..." : "Sin resultados para esta búsqueda"}
+              </div>
             ) : (
-              clientes.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(c => (
+              clientesFiltrados.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(c => (
                 <div key={c.id} style={{
-                  background:"#ffffff", borderRadius:16, padding:16,
-                  display:"flex", justifyContent:"space-between", alignItems:"center",
+                  background:"#ffffff", borderRadius:18, padding:18,
                   border:"1px solid #e5e7eb", boxShadow:"0 2px 8px rgba(0,0,0,.02)",
-                  transition:"all .2s"
+                  transition:"all .2s", display:"flex", flexDirection:"column", gap:10
                 }}
                 onMouseOver={e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow="0 4px 15px rgba(0,0,0,.05)"}}
                 onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,.02)"}}>
-                  <div>
-                    <div style={{ fontSize:14, fontWeight:700, color:"#1e293b" }}>{c.nombre}</div>
-                    <div style={{ fontSize:12, color:"#6b7280", fontWeight:500, marginTop:2 }}>{c.barrio} • {c.tipo}</div>
+                  
+                  {/* Fila superior: Nombre + Código + Deuda */}
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
+                    <div>
+                      <div style={{ fontSize:15, fontWeight:800, color:"#1e293b" }}>{c.nombre}</div>
+                      <div style={{ fontSize:11, fontWeight:700, color:"#7c3aed", marginTop:2, fontFamily:"monospace" }}>{c.codigo}</div>
+                    </div>
+                    <div style={{display:"flex", gap:6, alignItems:"center"}}>
+                      {c.deuda > 0 && (
+                        <span style={{ fontSize:11, fontWeight:800, padding:"4px 10px", borderRadius:8, background:"#fef2f2", color:"#991b1b", border:"1px solid #fecaca" }}>
+                          Deuda: {formatP(c.deuda)}
+                        </span>
+                      )}
+                      <span style={{ fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:8, background:"#f3f4f6", color:"#4b5563", border:"1px solid #e5e7eb" }}>
+                        {c.tipo}
+                      </span>
+                    </div>
                   </div>
-                  {c.deuda > 0 && (
-                    <span style={{
-                      fontSize:11, fontWeight:800, padding:"5px 12px", borderRadius:10,
-                      background:"#fef2f2", color:"#991b1b", border:"1px solid #fecaca"
-                    }}>Deuda: {formatP(c.deuda)}</span>
-                  )}
+
+                  {/* Info detallada */}
+                  <div style={{fontSize:12, color:"#6b7280", lineHeight:1.6}}>
+                    <div>📍 {c.direccion || "Sin dirección"} • {c.barrio}</div>
+                    <div>{mostrarTelefono(c)}</div>
+                    {c.nota && <div style={{fontStyle:"italic", opacity:.8}}>📝 {c.nota}</div>}
+                  </div>
+
+                  {/* Botones de acción */}
+                  <div style={{display:"flex", gap:8, marginTop:4}}>
+                    <Btn sm color="primary" onClick={()=>{setClienteParaTurno(c);setModalOpen("nuevoTurno");}}>
+                      ➕ Asignar Turno
+                    </Btn>
+                    <Btn sm color="secondary" onClick={()=>setClienteParaEditar(c)}>
+                      ✏️ Editar
+                    </Btn>
+                  </div>
                 </div>
               ))
             )}
@@ -1144,8 +1367,25 @@ export default function App() {
       </main>
 
       {/* MODALES */}
-      {modalOpen === "nuevoTurno" && <ModalNuevoTurno clientes={clientes} staff={staff} turnos={turnos} asistencias={asistencias} COL_TURNOS={COL_TURNOS} geminiKey={geminiKey} mostrarToast={mostrarToast} onClose={()=>{setModalOpen(null);}} />}
-      {modalOpen === "cerrarTurno" && editando && <ModalCerrarTurno turno={editando} clientes={clientes} cerrarTurnoFn={cerrarTurno} onClose={()=>{setModalOpen(null);setEditando(null);}} />}
+      {modalOpen === "nuevoTurno" && (
+        <ModalNuevoTurno 
+          clientes={clientes} staff={staff} turnos={turnos} asistencias={asistencias} 
+          COL_TURNOS={COL_TURNOS} geminiKey={geminiKey} mostrarToast={mostrarToast} 
+          clientePreseleccionado={clienteParaTurno}
+          onClose={()=>{setModalOpen(null);setClienteParaTurno(null);}} 
+        />
+      )}
+      {modalOpen === "cerrarTurno" && editando && (
+        <ModalCerrarTurno turno={editando} clientes={clientes} cerrarTurnoFn={cerrarTurno} 
+          onClose={()=>{setModalOpen(null);setEditando(null);}} 
+        />
+      )}
+      {clienteParaEditar && (
+        <ModalEditarCliente 
+          cliente={clienteParaEditar} COL_CLIENTES={COL_CLIENTES} mostrarToast={mostrarToast}
+          onClose={()=>setClienteParaEditar(null)} 
+        />
+      )}
       {previewData && <PreviewTabla {...previewData} onImprimir={()=>window.print()} onCerrar={()=>setPreviewData(null)} />}
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={()=>setToast(null)} />}
     </div>
