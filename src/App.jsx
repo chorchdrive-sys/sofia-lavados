@@ -43,27 +43,27 @@ const COLORES = [
 ];
 
 const STAFF_SEED = [
-  {nombre:"Jhony",     transporte:"moto",color:"#93c5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Sergio",    transporte:"moto",color:"#c4b5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Alexander", transporte:"moto",color:"#fca5a5",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Maxi",      transporte:"moto",color:"#fdba74",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Rene",      transporte:"moto",color:"#86efac",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Brandon",   transporte:"moto",color:"#67e8f9",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Jorge",     transporte:"moto",color:"#a5b4fc",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Emiliano",  transporte:"moto",color:"#f0abfc",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Gaby",      transporte:"moto",color:"#fcd34d",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Javi",      transporte:"moto",color:"#a7f3d0",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Franco",    transporte:"moto",color:"#bae6fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Fede",      transporte:"moto",color:"#fecdd3",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Elias",     transporte:"moto",color:"#93c5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Alvaro",    transporte:"bici",color:"#c4b5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Nestor",    transporte:"bici",color:"#fca5a5",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Matias",    transporte:"bici",color:"#fdba74",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Luis",      transporte:"bici",color:"#86efac",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Bruno",     transporte:"bici",color:"#67e8f9",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Nico Alto", transporte:"bici",color:"#a5b4fc",whatsapp:true, rol:"lavador",especial:"rapido", saldoPendiente:0},
-  {nombre:"Hernán",    transporte:"bici",color:"#f0abfc",whatsapp:false,rol:"lavador",especial:"avisar_presencia", saldoPendiente:0},
-  {nombre:"Gastón",    transporte:"bici",color:"#fcd34d",whatsapp:false,rol:"lavador",especial:"llamar_telefono", saldoPendiente:0},
+  {nombre:"Jhony",     transporte:"moto",color:"#93c5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Sergio",    transporte:"moto",color:"#c4b5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Alexander", transporte:"moto",color:"#fca5a5",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Maxi",      transporte:"moto",color:"#fdba74",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Rene",      transporte:"moto",color:"#86efac",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Brandon",   transporte:"moto",color:"#67e8f9",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Jorge",     transporte:"moto",color:"#a5b4fc",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Emiliano",  transporte:"moto",color:"#f0abfc",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Gaby",      transporte:"moto",color:"#fcd34d",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Javi",      transporte:"moto",color:"#a7f3d0",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Franco",    transporte:"moto",color:"#bae6fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Fede",      transporte:"moto",color:"#fecdd3",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Elias",     transporte:"moto",color:"#93c5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Alvaro",    transporte:"bici",color:"#c4b5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Nestor",    transporte:"bici",color:"#fca5a5",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Matias",    transporte:"bici",color:"#fdba74",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Luis",      transporte:"bici",color:"#86efac",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Bruno",     transporte:"bici",color:"#67e8f9",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
+  {nombre:"Nico Alto", transporte:"bici",color:"#a5b4fc",whatsapp:true, rol:"lavador",especial:"rapido", saldoPendiente:0, telefono:""},
+  {nombre:"Hernán",    transporte:"bici",color:"#f0abfc",whatsapp:false,rol:"lavador",especial:"avisar_presencia", saldoPendiente:0, telefono:""},
+  {nombre:"Gastón",    transporte:"bici",color:"#fcd34d",whatsapp:false,rol:"lavador",especial:"llamar_telefono", saldoPendiente:0, telefono:""},
 ];
 
 const BARRIOS_INICIALES = {
@@ -182,23 +182,38 @@ const kmToCuadras = km => km * 10;
 const tiempoViaje = (cuadras, trans) => Math.round(cuadras * (trans==="moto"?2:trans==="pie"?8:4));
 
 const _geocache = {};
+// FIX 4: Geocodificación mejorada - extrae más datos
 async function geocodificar(dir) {
-  if(!dir) return { lat:BASE_LAT, lng:BASE_LNG, barrio:"" };
+  const resultadoDefault = { lat:BASE_LAT, lng:BASE_LNG, barrio:"", codigoPostal:"", provincia:"", ciudad:"", direccionCompleta:"" };
+  if(!dir || dir.trim().length < 5) return resultadoDefault;
   if(_geocache[dir]) return _geocache[dir];
+  
   try {
     const q = encodeURIComponent(`${dir}, Buenos Aires, Argentina`);
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,{
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&addressdetails=1`,{
       headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/5.0"}
     });
     const data = await res.json();
-    if(data.length>0) {
-      const coords = { lat:parseFloat(data[0].lat), lng:parseFloat(data[0].lon), barrio:data[0].address?.suburb || data[0].address?.city_district || "" };
+    if(data && data.length>0) {
+      const addr = data[0].address || {};
+      // Extraer barrio de múltiples fuentes posibles
+      const barrio = addr.suburb || addr.city_district || addr.neighbourhood || addr.town || addr.village || "";
+      const coords = { 
+        lat:parseFloat(data[0].lat), 
+        lng:parseFloat(data[0].lon), 
+        barrio: capitalizar(barrio),
+        codigoPostal: addr.postcode || "",
+        provincia: capitalizar(addr.state || ""),
+        ciudad: capitalizar(addr.city || addr.town || addr.municipality || ""),
+        direccionCompleta: data[0].display_name || ""
+      };
       _geocache[dir] = coords;
       return coords;
     }
-  } catch {}
-  const h = (dir||"").split("").reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0),0);
-  return { lat:BASE_LAT+(((h&0xFF)-127)/10000), lng:BASE_LNG+((((h>>8)&0xFF)-127)/8000), barrio:"" };
+  } catch (err) {
+    console.warn("Geocodificación falló:", err);
+  }
+  return resultadoDefault;
 }
 
 function coordsSimuladas(dir) {
@@ -213,7 +228,6 @@ function slotsOcupados(inicio, cant) {
   return Array.from({length: cant}, (_,i) => FRANJAS[idx+i]).filter(Boolean);
 }
 
-// Generador de código único de cliente
 async function generarCodigoCliente(barrio, nombre, COL_CLIENTES) {
   const codBarrio = codigoBarrio(barrio);
   const snap = await getDocs(collection(db, COL_CLIENTES));
@@ -341,7 +355,7 @@ function Btn({children,onClick,color="primary",ghost,danger,disabled,full,sm,sty
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  BUSCADOR DE CLIENTES REUTILIZABLE
+//  BUSCADOR DE CLIENTES
 // ═══════════════════════════════════════════════════════════════
 function BuscadorClientes({ clientes, value, onChange, placeholder, onCreateNew }) {
   const [busqueda, setBusqueda] = useState("");
@@ -356,7 +370,6 @@ function BuscadorClientes({ clientes, value, onChange, placeholder, onCreateNew 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Init with current value if needed
   useEffect(() => {
     if (value && clientes) {
       const c = clientes.find(cli => cli.id === value);
@@ -431,7 +444,7 @@ function BuscadorClientes({ clientes, value, onChange, placeholder, onCreateNew 
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL NUEVO CLIENTE
+//  MODAL NUEVO CLIENTE (FIX 3: Validaciones + FIX 4: Geocodificación mejorada)
 // ═══════════════════════════════════════════════════════════════
 function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast, onClienteCreated }) {
   const [datos, setDatos] = useState({
@@ -439,25 +452,52 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
     telefono: "",
     direccion: "",
     barrio: "",
+    codigoPostal: "",
+    provincia: "",
     nota: ""
   });
   const [buscandoDir, setBuscandoDir] = useState(false);
   const [error, setError] = useState("");
 
+  // FIX 4: Búsqueda automática mejorada
   const buscarDireccion = async () => {
-    if (!datos.direccion) return;
+    if (!datos.direccion || datos.direccion.trim().length < 5) {
+      mostrarToast("Ingresá una dirección más completa (mín. 5 caracteres)", "warn");
+      return;
+    }
     setBuscandoDir(true);
     const res = await geocodificar(datos.direccion);
-    if (res.barrio && !datos.barrio) {
-      setDatos(prev => ({ ...prev, barrio: capitalizar(res.barrio) }));
+    if (res) {
+      setDatos(prev => ({ 
+        ...prev, 
+        barrio: res.barrio || prev.barrio,
+        codigoPostal: res.codigoPostal || prev.codigoPostal,
+        provincia: res.provincia || prev.provincia,
+      }));
+      if (res.barrio) {
+        mostrarToast(`📍 Barrio detectado: ${res.barrio}`, "ok");
+      } else {
+        mostrarToast("No se pudo detectar el barrio. Completalo manualmente.", "warn");
+      }
     }
     setBuscandoDir(false);
   };
 
+  // Auto-búsqueda al perder foco en dirección (si tiene largo suficiente)
+  const handleDireccionBlur = async () => {
+    if (datos.direccion && datos.direccion.trim().length >= 8 && !datos.barrio) {
+      await buscarDireccion();
+    }
+  };
+
   const guardar = async () => {
     setError("");
-    if (!datos.nombre) return setError("El nombre es obligatorio");
-    if (!datos.direccion) return setError("La dirección es obligatoria");
+    // FIX 3: Validaciones estrictas
+    if (!datos.nombre || datos.nombre.trim().length < 2) return setError("El nombre es obligatorio (mín. 2 caracteres)");
+    if (!datos.direccion || datos.direccion.trim().length < 5) return setError("La dirección debe tener al menos 5 caracteres");
+    if (!datos.barrio || datos.barrio.trim() === "" || datos.barrio.toLowerCase() === "desconocido") {
+      return setError("El barrio es obligatorio. Tocá 📍 para detectarlo o ingresalo manualmente.");
+    }
     
     try {
       const codigo = await generarCodigoCliente(datos.barrio, datos.nombre, COL_CLIENTES);
@@ -465,7 +505,9 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
         nombre: capitalizar(datos.nombre),
         telefono: datos.telefono || "",
         direccion: datos.direccion,
-        barrio: datos.barrio || "Desconocido",
+        barrio: capitalizar(datos.barrio),
+        codigoPostal: datos.codigoPostal || "",
+        provincia: datos.provincia || "",
         autosHabituales: 1,
         nota: datos.nota || "",
         tipo: "💤 Ocasional",
@@ -476,8 +518,6 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
       const docRef = await addDoc(collection(db, COL_CLIENTES), { ...nuevoCliente, _ts: serverTimestamp() });
       
       mostrarToast(`Cliente creado: ${codigo}`, "ok");
-      
-      // Devolver el ID del nuevo cliente al padre
       onClienteCreated({ id: docRef.id, ...nuevoCliente });
       onClose();
     } catch (err) {
@@ -497,7 +537,7 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
   return (
     <Modal titulo="➕ Nuevo Cliente Rápido" onClose={onClose}>
       <div style={{display:"flex", flexDirection:"column", gap:14}}>
-        {error && <div style={{color:"#dc2626", fontSize:12, background:"#fef2f2", padding:10, borderRadius:8}}>{error}</div>}
+        {error && <div style={{color:"#dc2626", fontSize:12, background:"#fef2f2", padding:10, borderRadius:8, border:"1px solid #fecaca"}}>⚠️ {error}</div>}
         
         <div>
           <label style={labelStyle}>Nombre *</label>
@@ -507,29 +547,49 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
         </div>
 
         <div>
-          <label style={labelStyle}>Teléfono (Opcional)</label>
+          <label style={labelStyle}>Teléfono (opcional - puede quedar vacío)</label>
           <input value={datos.telefono} onChange={e=>setDatos({...datos, telefono:e.target.value})} placeholder="Si no tiene, dejar vacío" style={inputStyle}
             onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
             onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
         </div>
 
         <div>
-          <label style={labelStyle}>Dirección Completa *</label>
+          <label style={labelStyle}>Dirección Completa * (mín. 5 caracteres)</label>
           <div style={{display:"flex", gap:8}}>
-            <input value={datos.direccion} onChange={e=>setDatos({...datos, direccion:e.target.value})} style={inputStyle}
+            <input value={datos.direccion} onChange={e=>setDatos({...datos, direccion:e.target.value})} 
+              onBlur={handleDireccionBlur}
+              style={{...inputStyle, flex:1}}
               onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
-              onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
-            <button onClick={buscarDireccion} disabled={buscandoDir} style={{background:"#bfdbfe", border:"none", borderRadius:8, padding:"0 12px", cursor:"pointer"}} title="Buscar en mapa">
-              📍
+              placeholder="Ej: Av. Santa Fe 1234" />
+            <button onClick={buscarDireccion} disabled={buscandoDir} style={{
+              background:buscandoDir?"#e5e7eb":"#bfdbfe", border:"none", borderRadius:12, 
+              padding:"0 14px", cursor:buscandoDir?"not-allowed":"pointer", fontSize:16,
+              transition:"all .2s"
+            }} title="Buscar en mapa">
+              {buscandoDir ? "⏳" : "📍"}
             </button>
           </div>
         </div>
 
         <div>
-          <label style={labelStyle}>Barrio</label>
-          <input value={datos.barrio} onChange={e=>setDatos({...datos, barrio:e.target.value})} placeholder="Se autocompleta si es posible" style={inputStyle}
+          <label style={labelStyle}>Barrio / Localidad * (obligatorio)</label>
+          <input value={datos.barrio} onChange={e=>setDatos({...datos, barrio:e.target.value})} 
+            placeholder="Se autocompleta con 📍 o ingresá manual" style={inputStyle}
             onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
             onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+        </div>
+
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
+          <div>
+            <label style={labelStyle}>Código Postal</label>
+            <input value={datos.codigoPostal} onChange={e=>setDatos({...datos, codigoPostal:e.target.value})} style={inputStyle} readOnly
+              onFocus={e=>{e.target.style.borderColor="#93c5fd"}} onBlur={e=>{e.target.style.borderColor="#e5e7eb"}} />
+          </div>
+          <div>
+            <label style={labelStyle}>Provincia</label>
+            <input value={datos.provincia} onChange={e=>setDatos({...datos, provincia:e.target.value})} style={inputStyle} readOnly
+              onFocus={e=>{e.target.style.borderColor="#93c5fd"}} onBlur={e=>{e.target.style.borderColor="#e5e7eb"}} />
+          </div>
         </div>
 
         <div>
@@ -583,29 +643,25 @@ function ModalEditarCliente({ cliente, onClose, COL_CLIENTES, mostrarToast }) {
     <Modal titulo={`✏️ Editar: ${cliente.nombre}`} onClose={onClose}>
       <div style={{display:"flex", flexDirection:"column", gap:14}}>
         <div style={{background:"#f9fafb", padding:12, borderRadius:12, border:"1px solid #e5e7eb", fontSize:12, color:"#6b7280", marginBottom:4}}>
-          Código: <strong style={{color:"#1e293b"}}>{cliente.codigo}</strong>
+          Código: <strong style={{color:"#1e293b", fontFamily:"monospace"}}>{cliente.codigo}</strong>
         </div>
 
-        <div>
-          <label style={labelStyle}>Teléfono</label>
+        <div><label style={labelStyle}>Teléfono</label>
           <input value={datos.telefono||""} onChange={e=>setDatos({...datos, telefono:e.target.value})} style={inputStyle}
             onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
             onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
         </div>
-        <div>
-          <label style={labelStyle}>Dirección</label>
+        <div><label style={labelStyle}>Dirección</label>
           <input value={datos.direccion||""} onChange={e=>setDatos({...datos, direccion:e.target.value})} style={inputStyle}
             onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
             onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
         </div>
-        <div>
-          <label style={labelStyle}>Barrio</label>
+        <div><label style={labelStyle}>Barrio</label>
           <input value={datos.barrio||""} onChange={e=>setDatos({...datos, barrio:e.target.value})} style={inputStyle}
             onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
             onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
         </div>
-        <div>
-          <label style={labelStyle}>Tipo</label>
+        <div><label style={labelStyle}>Tipo</label>
           <select value={datos.tipo||""} onChange={e=>setDatos({...datos, tipo:e.target.value})} style={inputStyle}
             onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
             onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}}>
@@ -614,14 +670,12 @@ function ModalEditarCliente({ cliente, onClose, COL_CLIENTES, mostrarToast }) {
             <option value="💤 Ocasional">💤 Ocasional</option>
           </select>
         </div>
-        <div>
-          <label style={labelStyle}>Autos Habituales</label>
+        <div><label style={labelStyle}>Autos Habituales</label>
           <input type="number" value={datos.autosHabituales||1} onChange={e=>setDatos({...datos, autosHabituales:e.target.value})} style={inputStyle}
             onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
             onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
         </div>
-        <div>
-          <label style={labelStyle}>Nota</label>
+        <div><label style={labelStyle}>Nota</label>
           <input value={datos.nota||""} onChange={e=>setDatos({...datos, nota:e.target.value})} style={inputStyle}
             onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
             onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
@@ -637,7 +691,82 @@ function ModalEditarCliente({ cliente, onClose, COL_CLIENTES, mostrarToast }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  LÓGICA DE SUGERENCIA IA + LOCAL (INTACTA)
+//  MODAL TURNO CREADO (NUEVO 5: Para WhatsApp)
+// ═══════════════════════════════════════════════════════════════
+function ModalTurnoCreado({ turno, cliente, lavador, onClose, mostrarToast }) {
+  const [copiado, setCopiado] = useState(false);
+
+  // Generar texto formateado para WhatsApp
+  const textoTurno = `🚗 *NUEVO TURNO - SOFÍA LAVADOS*
+
+👤 *Cliente:* ${cliente?.nombre || "Desconocido"}
+🆔 *Código:* ${cliente?.codigo || "N/A"}
+📞 *Teléfono:* ${cliente?.telefono || "Sin registrar"}
+📍 *Dirección:* ${cliente?.direccion || "Sin dirección"}
+🏘️ *Barrio:* ${cliente?.barrio || "N/A"}
+
+🕐 *Horario:* ${turno.hora} hs
+🚙 *Vehículo:* ${turno.auto}
+💵 *Precio:* ${formatP(turno.precio)}
+👷 *Lavador:* ${lavador?.nombre || "Sin asignar"} ${lavador?.telefono ? `(${lavador.telefono})` : ""}
+${turno.nota ? `📝 *Nota:* ${turno.nota}` : ""}
+${cliente?.nota ? `⚠️ *Nota del cliente:* ${cliente.nota}` : ""}
+
+📅 Fecha: ${fechaAR(hoy())}`;
+
+  const copiarAlPortapapeles = async () => {
+    try {
+      await navigator.clipboard.writeText(textoTurno);
+      setCopiado(true);
+      mostrarToast("📋 Texto copiado al portapapeles", "ok");
+      setTimeout(() => setCopiado(false), 2000);
+    } catch (err) {
+      mostrarToast("Error al copiar", "error");
+    }
+  };
+
+  // Link a WhatsApp (si el lavador tiene teléfono)
+  const telefonoLavador = lavador?.telefono ? lavador.telefono.replace(/\D/g, "") : "";
+  const whatsappLink = telefonoLavador 
+    ? `https://wa.me/549${telefonoLavador}?text=${encodeURIComponent(textoTurno)}`
+    : `https://wa.me/?text=${encodeURIComponent(textoTurno)}`;
+
+  return (
+    <Modal titulo="✅ Turno Creado Exitosamente" onClose={onClose}>
+      <div style={{display:"flex", flexDirection:"column", gap:14}}>
+        <div style={{
+          background:"linear-gradient(135deg,#ecfdf5,#d1fae5)",
+          border:"1px solid #a7f3d0", borderRadius:14, padding:16
+        }}>
+          <div style={{fontSize:13, fontWeight:800, color:"#064e3b", marginBottom:10}}>
+            📋 Resumen del Turno
+          </div>
+          <pre style={{
+            whiteSpace:"pre-wrap", fontFamily:"'Inter',system-ui,sans-serif",
+            fontSize:12, color:"#1e293b", margin:0, lineHeight:1.6,
+            background:"#ffffff", padding:12, borderRadius:10, border:"1px solid #e5e7eb"
+          }}>
+            {textoTurno}
+          </pre>
+        </div>
+
+        <div style={{display:"flex", gap:8}}>
+          <Btn color="primary" full onClick={copiarAlPortapapeles}>
+            {copiado ? "✓ Copiado" : "📋 Copiar Texto"}
+          </Btn>
+          <Btn color="success" full onClick={() => window.open(whatsappLink, "_blank")}>
+            💬 WhatsApp
+          </Btn>
+        </div>
+
+        <Btn ghost full onClick={onClose}>Cerrar</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LÓGICA DE SUGERENCIA IA
 // ═══════════════════════════════════════════════════════════════
 async function sugerirLavadorIA(presentes, turnosHoy, cliente, geminiKey) {
   const fallbackLocal = () => {
@@ -695,29 +824,37 @@ Respondé SOLO con el nombre exacto del lavador sugerido, sin explicaciones ni t
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL NUEVO TURNO (CON BUSCADOR Y NUEVO CLIENTE)
+//  MODAL NUEVO TURNO (FIX 2, 7 + NUEVO 5)
 // ═══════════════════════════════════════════════════════════════
-function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, COL_CLIENTES, geminiKey, mostrarToast, clientePreseleccionado, onClienteCreated }) {
+function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, COL_CLIENTES, geminiKey, mostrarToast, clientePreseleccionado, onClienteCreated, onTurnoCreado }) {
   const [clienteId, setClienteId] = useState(clientePreseleccionado?.id || "");
   const [hora, setHora] = useState(franjasValidas()[0] || FRANJAS[0]);
   const [tamaño, setTamaño] = useState(TAMANOS_DEFAULT[1]);
   const [lavadorId, setLavadorId] = useState("");
   const [nota, setNota] = useState("");
   const [sugiriendo, setSugiriendo] = useState(false);
-  
-  // State for New Client Modal
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClientName, setNewClientName] = useState("");
 
   const clienteSel = clientes.find(c => c.id === clienteId);
   const presentes = staff.filter(s => asistencias[s.id]);
 
-  // Si llega un cliente preseleccionado, actualizamos el estado local si es necesario
   useEffect(() => {
     if (clientePreseleccionado?.id) {
       setClienteId(clientePreseleccionado.id);
+      // FIX 2: Precargar nota del cliente si existe
+      if (clientePreseleccionado.nota) {
+        setNota(`📋 ${clientePreseleccionado.nota}`);
+      }
     }
   }, [clientePreseleccionado]);
+
+  // Cuando cambia el cliente seleccionado, actualizar nota si corresponde
+  useEffect(() => {
+    if (clienteSel && clienteSel.nota && !nota.includes(clienteSel.nota)) {
+      setNota(prev => prev ? `${prev} | 📋 ${clienteSel.nota}` : `📋 ${clienteSel.nota}`);
+    }
+  }, [clienteId]);
 
   const manejarSugerir = async () => {
     if (presentes.length === 0) return mostrarToast("No hay lavadores presentes marcados", "warn");
@@ -732,11 +869,9 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
     }
   };
 
-  // Callback when new client is created
   const handleNewClientSuccess = (newClient) => {
-    onClienteCreated(newClient); // Actualizar lista global
-    setClienteId(newClient.id); // Seleccionar en el turno actual
-    // Cargar nota en el turno si el cliente tiene nota
+    onClienteCreated(newClient);
+    setClienteId(newClient.id);
     if (newClient.nota) setNota(`📋 Nota cliente: ${newClient.nota}`);
     mostrarToast(`Cliente ${newClient.nombre} listo para asignar`, "ok");
   };
@@ -744,14 +879,23 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   const guardar = async () => {
     if (!clienteId) return mostrarToast("Seleccioná un cliente", "warn");
     try {
-      await fsAdd(COL_TURNOS, {
+      const turnoData = {
         fecha: hoy(), hora, clienteId,
         clienteNombre: clienteSel?.nombre || "Desconocido",
+        clienteCodigo: clienteSel?.codigo || "",
         auto: tamaño.label, precio: tamaño.precio,
         lavadorId, estado: "pendiente", nota,
         creadoEn: serverTimestamp()
-      });
+      };
+
+      const turnoRef = await addDoc(collection(db, COL_TURNOS), turnoData);
+      const turnoCreado = { id: turnoRef.id, ...turnoData };
+      
       mostrarToast("Turno creado correctamente", "ok");
+      
+      // NUEVO 5: Abrir modal con datos del turno
+      const lavador = staff.find(s => s.id === lavadorId);
+      onTurnoCreado(turnoCreado, clienteSel, lavador);
       onClose();
     } catch (err) {
       mostrarToast("Error al crear turno", "error");
@@ -784,20 +928,54 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           />
         </div>
 
-        {clienteSel && (
-          <div style={{ background:"linear-gradient(135deg,#f8fafc,#eff6ff)", padding:14, borderRadius:14, border:"1px solid #bfdbfe", display:"flex", flexDirection:"column", gap:8 }}>
-            <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
-               <div>
-                 <div style={{fontSize:14, fontWeight:800, color:"#1e3a8a"}}>{clienteSel.nombre}</div>
-                 <div style={{fontSize:11, color:"#7c3aed", fontFamily:"monospace", marginTop:2}}>{clienteSel.codigo}</div>
-               </div>
-               <div style={{fontSize:11, fontWeight:700, background:"#dbeafe", color:"#1e3a8a", padding:"4px 8px", borderRadius:6}}>{clienteSel.tipo}</div>
+        {/* FIX 2 + FIX 7: Tarjeta de cliente SIEMPRE visible con código destacado y nota en negrita */}
+        {clienteSel ? (
+          <div style={{ 
+            background:"linear-gradient(135deg,#eff6ff,#dbeafe)", 
+            padding:16, borderRadius:16, 
+            border:"2px solid #93c5fd",
+            boxShadow:"0 4px 14px rgba(147,197,253,.2)"
+          }}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8}}>
+              <div>
+                <div style={{fontSize:16, fontWeight:900, color:"#1e3a8a"}}>{clienteSel.nombre}</div>
+                {/* FIX 1 + FIX 2: Código visible y destacado */}
+                <div style={{
+                  fontSize:12, color:"#7c3aed", fontFamily:"monospace", 
+                  marginTop:4, fontWeight:800,
+                  background:"#ffffff", display:"inline-block",
+                  padding:"3px 8px", borderRadius:6, border:"1px solid #ddd6fe"
+                }}>
+                  🆔 {clienteSel.codigo}
+                </div>
+              </div>
+              <div style={{fontSize:11, fontWeight:800, background:"#bfdbfe", color:"#1e3a8a", padding:"4px 10px", borderRadius:8}}>
+                {clienteSel.tipo}
+              </div>
             </div>
-            <div style={{fontSize:12, color:"#4b5563", lineHeight:1.5}}>
-               <div>📍 {clienteSel.direccion} • {clienteSel.barrio}</div>
-               <div>{mostrarTelefono(clienteSel)}</div>
-               {clienteSel.nota && <div style={{fontStyle:"italic", color:"#6b7280", marginTop:2}}>📝 {clienteSel.nota}</div>}
+            <div style={{fontSize:12, color:"#1e3a8a", lineHeight:1.7, marginTop:8}}>
+              <div>📍 <strong>{clienteSel.direccion || "Sin dirección"}</strong> • {clienteSel.barrio}</div>
+              <div>{mostrarTelefono(clienteSel)}</div>
+              {/* FIX 2: Nota en negrita y destacada */}
+              {clienteSel.nota && (
+                <div style={{
+                  marginTop:6, padding:"6px 10px", 
+                  background:"#fef3c7", border:"1px solid #fcd34d",
+                  borderRadius:8, color:"#92400e",
+                  fontWeight:800, fontStyle:"italic"
+                }}>
+                  ⚠️ {clienteSel.nota}
+                </div>
+              )}
             </div>
+          </div>
+        ) : (
+          <div style={{
+            background:"#f9fafb", padding:16, borderRadius:14,
+            border:"1.5px dashed #cbd5e1", textAlign:"center",
+            color:"#94a3b8", fontSize:12
+          }}>
+            Buscá o creá un cliente para ver sus datos aquí
           </div>
         )}
 
@@ -853,7 +1031,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
 
         <div>
           <label style={labelStyle}>Nota del Turno</label>
-          <input value={nota} onChange={e=>setNota(e.target.value)} placeholder="Observaciones..."
+          <input value={nota} onChange={e=>setNota(e.target.value)} placeholder="Observaciones del servicio..."
             style={inputStyle}
             onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
             onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
@@ -878,7 +1056,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   );
 }
 
-// Modal Cierre Turno (SOFT PASTELS - INTACTO)
+// Modal Cierre Turno (INTACTO)
 function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
   const [monto, setMonto] = useState(turno?.precioFinal || turno?.precio || 0);
   const [metodo, setMetodo] = useState("efectivo");
@@ -899,6 +1077,7 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
       <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
         <div style={{ background:"linear-gradient(135deg,#eff6ff,#f0f9ff)", padding:16, borderRadius:16, border:"1px solid #bfdbfe" }}>
           <div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>👤 {cliente?.nombre || "Cliente Ocasional"}</div>
+          {cliente?.codigo && <div style={{fontSize:11, color:"#7c3aed", fontFamily:"monospace", fontWeight:700, marginTop:2}}>🆔 {cliente.codigo}</div>}
           <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>🚗 {turno?.auto || "Sin especificar"}</div>
           <div style={{ marginTop:8, fontWeight:800, fontSize:20, color:"#1e3a8a" }}>Total: {formatP(total)}</div>
         </div>
@@ -942,7 +1121,7 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
   );
 }
 
-// Previsualización Tabla (SOFT PASTELS - INTACTO)
+// Previsualización Tabla (INTACTO)
 function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
   if (!datos || datos.length === 0) return null;
   return (
@@ -979,9 +1158,7 @@ function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  MÓDULO PRESENTISMO (SOFT PASTELS - INTACTO)
-// ═══════════════════════════════════════════════════════════════
+// MÓDULO PRESENTISMO (INTACTO)
 function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, db, doc, setDoc, onSnapshot, useEffect, useState, setPreviewData, mostrarToast }) {
   const [asistencias, setAsistencias] = useState({});
   const [cargandoAsistencia, setCargandoAsistencia] = useState(true);
@@ -1095,6 +1272,7 @@ export default function App() {
   const [clienteParaTurno, setClienteParaTurno] = useState(null);
   const [clienteParaEditar, setClienteParaEditar] = useState(null);
   const [busquedaClientes, setBusquedaClientes] = useState("");
+  const [turnoCreadoData, setTurnoCreadoData] = useState(null); // NUEVO 5
   
   const [geminiKey, setGeminiKey] = useState(localStorage.getItem("sofia_gemini_key") || "");
   const [keyDesbloqueada, setKeyDesbloqueada] = useState(false);
@@ -1114,7 +1292,6 @@ export default function App() {
     }
   };
 
-  // SEED (INTACTO)
   useEffect(() => {
     const seedIfEmpty = async () => {
       try {
@@ -1135,7 +1312,6 @@ export default function App() {
     seedIfEmpty();
   }, [modoPrueba]);
 
-  // SUSCRIPCIONES TIEMPO REAL (INTACTAS)
   useEffect(() => {
     const fechaHoy = hoy();
     setCargando(true);
@@ -1173,7 +1349,6 @@ export default function App() {
     return () => unsub();
   }, [modoPrueba]);
 
-  // ACCIONES DE NEGOCIO (INTACTAS)
   const cerrarTurno = async (turno, montoRecibido, metodoPago) => {
     const total = Number(turno.precioFinal || turno.precio || 0);
     const recibido = Math.max(0, Number(montoRecibido || 0));
@@ -1232,7 +1407,17 @@ export default function App() {
     mostrarToast(nuevoEstado==="abierto" ? "☀️ Día ABIERTO" : "🌙 Día CERRADO", "ok");
   };
 
-  // Filtrado de clientes para pestaña Clientes
+  // NUEVO 6: Handler para pestaña Nuevo Turno
+  const handleTabClick = (tabId) => {
+    if (tabId === "nuevoTurno") {
+      setClienteParaTurno(null);
+      setModalOpen("nuevoTurno");
+      // No cambiamos la pestaña visual, solo abrimos el modal
+    } else {
+      setTab(tabId);
+    }
+  };
+
   const clientesFiltrados = busquedaClientes.trim() === "" ? clientes : clientes.filter(c =>
     sinAcentos(c.nombre).includes(sinAcentos(busquedaClientes)) ||
     sinAcentos(c.codigo || "").includes(sinAcentos(busquedaClientes)) ||
@@ -1240,14 +1425,12 @@ export default function App() {
     sinAcentos(c.telefono || "").includes(sinAcentos(busquedaClientes))
   );
 
-  // ─── RENDER ───
   if (cargando) return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f9fafb",color:"#6b7280",fontFamily:"'Inter',system-ui,sans-serif",fontWeight:600,fontSize:14}}>
       ⟳ Sincronizando Sofia Lavados...
     </div>
   );
 
-  // PANTALLA COMPLETA DE APERTURA
   if (diaActual?.estado !== "abierto") {
     return (
       <div style={{ minHeight:"100vh", background:"#f9fafb", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"'Inter',system-ui,sans-serif" }}>
@@ -1280,7 +1463,6 @@ export default function App() {
     );
   }
 
-  // APP NORMAL (DÍA ABIERTO)
   return (
     <div style={{ minHeight:"100vh", background:"#f9fafb", color:"#1e293b", fontFamily:"'Inter',system-ui,sans-serif", paddingBottom:90 }}>
       <style>{`
@@ -1295,7 +1477,6 @@ export default function App() {
         }
       `}</style>
 
-      {/* HEADER (FIXED) */}
       <header style={{
         position:"sticky", top:0, zIndex:100,
         background:"rgba(255,255,255,.9)", backdropFilter:"blur(16px)",
@@ -1331,7 +1512,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* NAV TABS (STICKY BELOW HEADER) */}
+      {/* NUEVO 6: Pestaña "Nuevo Turno" agregada */}
       <nav className="nav-tabs" style={{
         display:"flex", gap:6, padding:"10px 16px",
         borderBottom:"1px solid #e5e7eb", whiteSpace:"nowrap", alignItems:"center",
@@ -1340,21 +1521,22 @@ export default function App() {
       }}>
         {[
           {id:"agenda",label:"📋 Agenda",color:"#3b82f6",bg:"#dbeafe",border:"#bfdbfe"},
-          {id:"presentismo",label:"✅ Presentismo",color:"#059669",bg:"#d1fae5",border:"#a7f3d0"},
+          {id:"nuevoTurno",label:"➕ Nuevo Turno",color:"#059669",bg:"#d1fae5",border:"#a7f3d0"},
+          {id:"presentismo",label:"✅ Presentismo",color:"#0891b2",bg:"#cffafe",border:"#a5f3fc"},
           {id:"caja",label:"💰 Caja",color:"#d97706",bg:"#fef3c7",border:"#fde68a"},
           {id:"clientes",label:"👥 Clientes",color:"#7c3aed",bg:"#ede9fe",border:"#ddd6fe"},
           {id:"config",label:"⚙️ Config",color:"#4b5563",bg:"#f3f4f6",border:"#e5e7eb"}
         ].map(t => (
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{
-            background: tab===t.id ? t.bg : "transparent",
-            color: tab===t.id ? t.color : "#6b7280",
-            border: tab===t.id ? `1.5px solid ${t.border}` : "1.5px solid transparent",
+          <button key={t.id} onClick={()=>handleTabClick(t.id)} style={{
+            background: (t.id !== "nuevoTurno" && tab===t.id) ? t.bg : (t.id === "nuevoTurno" ? t.bg : "transparent"),
+            color: (t.id !== "nuevoTurno" && tab===t.id) ? t.color : (t.id === "nuevoTurno" ? t.color : "#6b7280"),
+            border: (t.id !== "nuevoTurno" && tab===t.id) ? `1.5px solid ${t.border}` : (t.id === "nuevoTurno" ? `1.5px solid ${t.border}` : "1.5px solid transparent"),
             borderRadius:12, padding:"8px 16px", fontSize:12, fontWeight:700,
             cursor:"pointer", flexShrink:0, transition:"all .2s",
             fontFamily:"'Inter',system-ui,sans-serif"
           }}
-          onMouseOver={e=>{if(tab!==t.id)e.currentTarget.style.background="#f3f4f6"}}
-          onMouseOut={e=>{if(tab!==t.id)e.currentTarget.style.background="transparent"}}>
+          onMouseOver={e=>{if(tab!==t.id && t.id !== "nuevoTurno")e.currentTarget.style.background="#f3f4f6"}}
+          onMouseOut={e=>{if(tab!==t.id && t.id !== "nuevoTurno")e.currentTarget.style.background="transparent"}}>
             {t.label}
           </button>
         ))}
@@ -1372,21 +1554,19 @@ export default function App() {
         </button>
       </nav>
 
-      {/* MAIN CONTENT */}
       <main style={{ padding:20, maxWidth:800, margin:"0 auto", animation:"fadeInUp .4s ease-out" }}>
         
-        {/* AGENDA */}
+        {/* AGENDA - sin el botón Nuevo Turno (NUEVO 6) */}
         {tab === "agenda" && (
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <h3 style={{ margin:0, fontSize:20, fontWeight:800, color:"#1e293b" }}>Turnos de Hoy</h3>
-              <Btn sm color="primary" onClick={()=>{setClienteParaTurno(null);setModalOpen("nuevoTurno");}}>➕ Nuevo Turno</Btn>
+              <h3 style={{ margin:0, fontSize:20, fontWeight:800, color:"#1e293b" }}>Turnos de Hoy ({turnos.length})</h3>
             </div>
 
             {turnos.length === 0 ? (
               <div style={{ textAlign:"center", color:"#9ca3af", padding:60, fontSize:14, background:"#ffffff", borderRadius:20, border:"1.5px dashed #e5e7eb" }}>
                 <div style={{fontSize:32,marginBottom:12}}>📋</div>
-                No hay turnos registrados.<br/><span style={{fontWeight:600,color:"#6b7280"}}>Tocá "+ Nuevo Turno" para comenzar.</span>
+                No hay turnos registrados.<br/><span style={{fontWeight:600,color:"#6b7280"}}>Tocá "➕ Nuevo Turno" en la barra superior.</span>
               </div>
             ) : (
               turnos.map(t => (
@@ -1402,6 +1582,7 @@ export default function App() {
                   <div>
                     <div style={{ display:"inline-block",fontSize:13,fontWeight:800, color:"#1e3a8a", marginBottom:4 }}>{t.hora} hs</div>
                     <div style={{ fontSize:14, fontWeight:700, color:"#1e293b" }}>{t.clienteNombre}</div>
+                    {t.clienteCodigo && <div style={{fontSize:11, color:"#7c3aed", fontFamily:"monospace", fontWeight:700}}>{t.clienteCodigo}</div>}
                     <div style={{ fontSize:12, color:"#6b7280", fontWeight:500, marginTop:2 }}>{t.auto} • {formatP(t.precio)}</div>
                   </div>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -1418,7 +1599,6 @@ export default function App() {
           </div>
         )}
         
-        {/* PRESENTISMO */}
         {tab === "presentismo" && (
           <TabPresentismo 
             staff={staff} turnos={turnos} hoyStr={hoy()} COL_ASISTENCIAS={COL_ASISTENCIAS} 
@@ -1427,7 +1607,6 @@ export default function App() {
           />
         )}
         
-        {/* CAJA */}
         {tab === "caja" && (
           <div style={{ textAlign:"center", padding:50, background:"#ffffff", borderRadius:24, border:"1px solid #e5e7eb", boxShadow:"0 4px 20px rgba(0,0,0,.03)", animation:"fadeInUp .4s ease-out" }}>
             <div style={{ fontSize:13, color:"#6b7280", fontWeight:700, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>Recaudación del día</div>
@@ -1440,7 +1619,7 @@ export default function App() {
           </div>
         )}
         
-        {/* CLIENTES (FIXED AND ENHANCED) */}
+        {/* CLIENTES */}
         {tab === "clientes" && (
           <div style={{ display:"flex", flexDirection:"column", gap:12, animation:"fadeInUp .4s ease-out" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -1481,8 +1660,15 @@ export default function App() {
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
                     <div>
                       <div style={{ fontSize:15, fontWeight:800, color:"#1e293b" }}>{c.nombre}</div>
-                      {/* FIX 1: Código Visible */}
-                      <div style={{ fontSize:11, fontWeight:700, color:"#7c3aed", marginTop:2, fontFamily:"monospace" }}>{c.codigo}</div>
+                      {/* FIX 1: Código único visible y destacado */}
+                      <div style={{ 
+                        fontSize:11, fontWeight:800, color:"#7c3aed", 
+                        marginTop:4, fontFamily:"monospace",
+                        background:"#f3e8ff", padding:"2px 8px", borderRadius:6,
+                        display:"inline-block", border:"1px solid #ddd6fe"
+                      }}>
+                        🆔 {c.codigo}
+                      </div>
                     </div>
                     <div style={{display:"flex", gap:6, alignItems:"center"}}>
                       {c.deuda > 0 && (
@@ -1496,11 +1682,10 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* FIX 2: Mostrar info completa */}
                   <div style={{fontSize:12, color:"#6b7280", lineHeight:1.6}}>
                     <div>📍 {c.direccion || "Sin dirección"} • {c.barrio}</div>
                     <div>{mostrarTelefono(c)}</div>
-                    {c.nota && <div style={{fontStyle:"italic", opacity:.8}}>📝 {c.nota}</div>}
+                    {c.nota && <div style={{fontWeight:700, fontStyle:"italic", color:"#92400e", marginTop:4, background:"#fef3c7", padding:"4px 8px", borderRadius:6, display:"inline-block"}}>📝 {c.nota}</div>}
                   </div>
 
                   <div style={{display:"flex", gap:8, marginTop:4}}>
@@ -1517,7 +1702,6 @@ export default function App() {
           </div>
         )}
         
-        {/* CONFIG */}
         {tab === "config" && (
           <div style={{ display:"flex", flexDirection:"column", gap:16, animation:"fadeInUp .4s ease-out" }}>
             {!keyDesbloqueada ? (
@@ -1559,8 +1743,10 @@ export default function App() {
           COL_TURNOS={COL_TURNOS} COL_CLIENTES={COL_CLIENTES} geminiKey={geminiKey} mostrarToast={mostrarToast} 
           clientePreseleccionado={clienteParaTurno}
           onClienteCreated={(nuevoCliente) => {
-             // Actualizar el array global de clientes inmediatamente para el buscador
              setClientes(prev => [...prev, nuevoCliente]);
+          }}
+          onTurnoCreado={(turno, cliente, lavador) => {
+            setTurnoCreadoData({ turno, cliente, lavador });
           }}
           onClose={()=>{setModalOpen(null);setClienteParaTurno(null);}} 
         />
@@ -1574,6 +1760,16 @@ export default function App() {
         <ModalEditarCliente 
           cliente={clienteParaEditar} COL_CLIENTES={COL_CLIENTES} mostrarToast={mostrarToast}
           onClose={()=>setClienteParaEditar(null)} 
+        />
+      )}
+      {/* NUEVO 5: Modal de turno creado con WhatsApp */}
+      {turnoCreadoData && (
+        <ModalTurnoCreado
+          turno={turnoCreadoData.turno}
+          cliente={turnoCreadoData.cliente}
+          lavador={turnoCreadoData.lavador}
+          mostrarToast={mostrarToast}
+          onClose={()=>setTurnoCreadoData(null)}
         />
       )}
       {previewData && <PreviewTabla {...previewData} onImprimir={()=>window.print()} onCerrar={()=>setPreviewData(null)} />}
