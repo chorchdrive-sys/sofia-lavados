@@ -183,7 +183,7 @@ const tiempoViaje = (cuadras, trans) => Math.round(cuadras * (trans==="moto"?2:t
 
 const _geocache = {};
 async function geocodificar(dir) {
-  if(!dir) return { lat:BASE_LAT, lng:BASE_LNG };
+  if(!dir) return { lat:BASE_LAT, lng:BASE_LNG, barrio:"" };
   if(_geocache[dir]) return _geocache[dir];
   try {
     const q = encodeURIComponent(`${dir}, Buenos Aires, Argentina`);
@@ -192,13 +192,13 @@ async function geocodificar(dir) {
     });
     const data = await res.json();
     if(data.length>0) {
-      const coords = { lat:parseFloat(data[0].lat), lng:parseFloat(data[0].lon) };
+      const coords = { lat:parseFloat(data[0].lat), lng:parseFloat(data[0].lon), barrio:data[0].address?.suburb || data[0].address?.city_district || "" };
       _geocache[dir] = coords;
       return coords;
     }
   } catch {}
   const h = (dir||"").split("").reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0),0);
-  return { lat:BASE_LAT+(((h&0xFF)-127)/10000), lng:BASE_LNG+((((h>>8)&0xFF)-127)/8000) };
+  return { lat:BASE_LAT+(((h&0xFF)-127)/10000), lng:BASE_LNG+((((h>>8)&0xFF)-127)/8000), barrio:"" };
 }
 
 function coordsSimuladas(dir) {
@@ -343,7 +343,7 @@ function Btn({children,onClick,color="primary",ghost,danger,disabled,full,sm,sty
 // ═══════════════════════════════════════════════════════════════
 //  BUSCADOR DE CLIENTES REUTILIZABLE
 // ═══════════════════════════════════════════════════════════════
-function BuscadorClientes({ clientes, value, onChange, placeholder }) {
+function BuscadorClientes({ clientes, value, onChange, placeholder, onCreateNew }) {
   const [busqueda, setBusqueda] = useState("");
   const [abierto, setAbierto] = useState(false);
   const wrapperRef = useRef(null);
@@ -355,6 +355,14 @@ function BuscadorClientes({ clientes, value, onChange, placeholder }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Init with current value if needed
+  useEffect(() => {
+    if (value && clientes) {
+      const c = clientes.find(cli => cli.id === value);
+      if (c) setBusqueda(c.nombre);
+    }
+  }, [value, clientes]);
 
   const filtrados = busqueda.trim() === "" ? clientes : clientes.filter(c =>
     sinAcentos(c.nombre).includes(sinAcentos(busqueda)) ||
@@ -387,7 +395,19 @@ function BuscadorClientes({ clientes, value, onChange, placeholder }) {
           boxShadow:"0 8px 25px rgba(0,0,0,.08)"
         }}>
           {filtrados.length === 0 ? (
-            <div style={{padding:14, textAlign:"center", color:"#9ca3af", fontSize:12}}>Sin resultados</div>
+            busqueda.trim().length > 2 ? (
+              <div style={{padding:14}}>
+                <div style={{fontSize:12, color:"#9ca3af", marginBottom:8}}>No se encontraron resultados</div>
+                <Btn sm color="tertiary" full onClick={()=>{
+                  onCreateNew && onCreateNew(busqueda);
+                  setAbierto(false);
+                }}>
+                  ➕ Crear "{busqueda}" como nuevo
+                </Btn>
+              </div>
+            ) : (
+              <div style={{padding:14, textAlign:"center", color:"#9ca3af", fontSize:12}}>Sin resultados</div>
+            )
           ) : (
             filtrados.map(c => (
               <button key={c.id} onClick={() => { onChange(c.id); setBusqueda(c.nombre); setAbierto(false); }}
@@ -407,6 +427,124 @@ function BuscadorClientes({ clientes, value, onChange, placeholder }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL NUEVO CLIENTE
+// ═══════════════════════════════════════════════════════════════
+function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast, onClienteCreated }) {
+  const [datos, setDatos] = useState({
+    nombre: nombreInicial || "",
+    telefono: "",
+    direccion: "",
+    barrio: "",
+    nota: ""
+  });
+  const [buscandoDir, setBuscandoDir] = useState(false);
+  const [error, setError] = useState("");
+
+  const buscarDireccion = async () => {
+    if (!datos.direccion) return;
+    setBuscandoDir(true);
+    const res = await geocodificar(datos.direccion);
+    if (res.barrio && !datos.barrio) {
+      setDatos(prev => ({ ...prev, barrio: capitalizar(res.barrio) }));
+    }
+    setBuscandoDir(false);
+  };
+
+  const guardar = async () => {
+    setError("");
+    if (!datos.nombre) return setError("El nombre es obligatorio");
+    if (!datos.direccion) return setError("La dirección es obligatoria");
+    
+    try {
+      const codigo = await generarCodigoCliente(datos.barrio, datos.nombre, COL_CLIENTES);
+      const nuevoCliente = {
+        nombre: capitalizar(datos.nombre),
+        telefono: datos.telefono || "",
+        direccion: datos.direccion,
+        barrio: datos.barrio || "Desconocido",
+        autosHabituales: 1,
+        nota: datos.nota || "",
+        tipo: "💤 Ocasional",
+        deuda: 0,
+        codigo: codigo
+      };
+
+      const docRef = await addDoc(collection(db, COL_CLIENTES), { ...nuevoCliente, _ts: serverTimestamp() });
+      
+      mostrarToast(`Cliente creado: ${codigo}`, "ok");
+      
+      // Devolver el ID del nuevo cliente al padre
+      onClienteCreated({ id: docRef.id, ...nuevoCliente });
+      onClose();
+    } catch (err) {
+      console.error(err);
+      mostrarToast("Error al crear cliente", "error");
+    }
+  };
+
+  const inputStyle = {
+    background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12,
+    padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none",
+    transition:"border-color .2s, box-shadow .2s", width:"100%", boxSizing:"border-box",
+    fontFamily:"'Inter',system-ui,sans-serif"
+  };
+  const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
+
+  return (
+    <Modal titulo="➕ Nuevo Cliente Rápido" onClose={onClose}>
+      <div style={{display:"flex", flexDirection:"column", gap:14}}>
+        {error && <div style={{color:"#dc2626", fontSize:12, background:"#fef2f2", padding:10, borderRadius:8}}>{error}</div>}
+        
+        <div>
+          <label style={labelStyle}>Nombre *</label>
+          <input value={datos.nombre} onChange={e=>setDatos({...datos, nombre:e.target.value})} style={inputStyle} autoFocus
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Teléfono (Opcional)</label>
+          <input value={datos.telefono} onChange={e=>setDatos({...datos, telefono:e.target.value})} placeholder="Si no tiene, dejar vacío" style={inputStyle}
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Dirección Completa *</label>
+          <div style={{display:"flex", gap:8}}>
+            <input value={datos.direccion} onChange={e=>setDatos({...datos, direccion:e.target.value})} style={inputStyle}
+              onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+              onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+            <button onClick={buscarDireccion} disabled={buscandoDir} style={{background:"#bfdbfe", border:"none", borderRadius:8, padding:"0 12px", cursor:"pointer"}} title="Buscar en mapa">
+              📍
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Barrio</label>
+          <input value={datos.barrio} onChange={e=>setDatos({...datos, barrio:e.target.value})} placeholder="Se autocompleta si es posible" style={inputStyle}
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Nota</label>
+          <input value={datos.nota} onChange={e=>setDatos({...datos, nota:e.target.value})} placeholder="Ej: Tiene perro, llamar antes" style={inputStyle}
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
+        </div>
+
+        <div style={{display:"flex", gap:10, marginTop:8}}>
+          <Btn ghost onClick={onClose} full>Cancelar</Btn>
+          <Btn color="success" full onClick={guardar}>💾 Crear y Asignar</Btn>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -557,18 +695,29 @@ Respondé SOLO con el nombre exacto del lavador sugerido, sin explicaciones ni t
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL NUEVO TURNO (CON BUSCADOR DE CLIENTES)
+//  MODAL NUEVO TURNO (CON BUSCADOR Y NUEVO CLIENTE)
 // ═══════════════════════════════════════════════════════════════
-function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, geminiKey, mostrarToast, clientePreseleccionado }) {
+function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, COL_CLIENTES, geminiKey, mostrarToast, clientePreseleccionado, onClienteCreated }) {
   const [clienteId, setClienteId] = useState(clientePreseleccionado?.id || "");
   const [hora, setHora] = useState(franjasValidas()[0] || FRANJAS[0]);
   const [tamaño, setTamaño] = useState(TAMANOS_DEFAULT[1]);
   const [lavadorId, setLavadorId] = useState("");
   const [nota, setNota] = useState("");
   const [sugiriendo, setSugiriendo] = useState(false);
+  
+  // State for New Client Modal
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
 
   const clienteSel = clientes.find(c => c.id === clienteId);
   const presentes = staff.filter(s => asistencias[s.id]);
+
+  // Si llega un cliente preseleccionado, actualizamos el estado local si es necesario
+  useEffect(() => {
+    if (clientePreseleccionado?.id) {
+      setClienteId(clientePreseleccionado.id);
+    }
+  }, [clientePreseleccionado]);
 
   const manejarSugerir = async () => {
     if (presentes.length === 0) return mostrarToast("No hay lavadores presentes marcados", "warn");
@@ -581,6 +730,15 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
     } else {
       mostrarToast("No se pudo generar sugerencia", "warn");
     }
+  };
+
+  // Callback when new client is created
+  const handleNewClientSuccess = (newClient) => {
+    onClienteCreated(newClient); // Actualizar lista global
+    setClienteId(newClient.id); // Seleccionar en el turno actual
+    // Cargar nota en el turno si el cliente tiene nota
+    if (newClient.nota) setNota(`📋 Nota cliente: ${newClient.nota}`);
+    mostrarToast(`Cliente ${newClient.nombre} listo para asignar`, "ok");
   };
 
   const guardar = async () => {
@@ -611,6 +769,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   return (
     <Modal titulo="➕ Nuevo Turno" onClose={onClose}>
       <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+        
         <div>
           <label style={labelStyle}>Cliente</label>
           <BuscadorClientes
@@ -618,13 +777,29 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
             value={clienteId}
             onChange={(id) => setClienteId(id)}
             placeholder="Buscar por nombre, código o barrio..."
+            onCreateNew={(nombre) => {
+              setNewClientName(nombre);
+              setShowNewClient(true);
+            }}
           />
-          {clienteSel && (
-            <div style={{marginTop:6, padding:"8px 12px", background:"#eff6ff", borderRadius:10, border:"1px solid #bfdbfe", fontSize:11, color:"#1e3a8a"}}>
-              📍 {clienteSel.direccion || "Sin dirección"} • {clienteSel.barrio} • {clienteSel.codigo}
-            </div>
-          )}
         </div>
+
+        {clienteSel && (
+          <div style={{ background:"linear-gradient(135deg,#f8fafc,#eff6ff)", padding:14, borderRadius:14, border:"1px solid #bfdbfe", display:"flex", flexDirection:"column", gap:8 }}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
+               <div>
+                 <div style={{fontSize:14, fontWeight:800, color:"#1e3a8a"}}>{clienteSel.nombre}</div>
+                 <div style={{fontSize:11, color:"#7c3aed", fontFamily:"monospace", marginTop:2}}>{clienteSel.codigo}</div>
+               </div>
+               <div style={{fontSize:11, fontWeight:700, background:"#dbeafe", color:"#1e3a8a", padding:"4px 8px", borderRadius:6}}>{clienteSel.tipo}</div>
+            </div>
+            <div style={{fontSize:12, color:"#4b5563", lineHeight:1.5}}>
+               <div>📍 {clienteSel.direccion} • {clienteSel.barrio}</div>
+               <div>{mostrarTelefono(clienteSel)}</div>
+               {clienteSel.nota && <div style={{fontStyle:"italic", color:"#6b7280", marginTop:2}}>📝 {clienteSel.nota}</div>}
+            </div>
+          </div>
+        )}
 
         <div>
           <label style={labelStyle}>Horario</label>
@@ -677,7 +852,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
         </div>
 
         <div>
-          <label style={labelStyle}>Nota</label>
+          <label style={labelStyle}>Nota del Turno</label>
           <input value={nota} onChange={e=>setNota(e.target.value)} placeholder="Observaciones..."
             style={inputStyle}
             onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
@@ -689,6 +864,16 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           <Btn color="primary" full onClick={guardar}>✓ Crear Turno</Btn>
         </div>
       </div>
+
+      {showNewClient && (
+        <ModalNuevoCliente
+          nombreInicial={newClientName}
+          COL_CLIENTES={COL_CLIENTES}
+          mostrarToast={mostrarToast}
+          onClienteCreated={handleNewClientSuccess}
+          onClose={() => setShowNewClient(false)}
+        />
+      )}
     </Modal>
   );
 }
@@ -1110,7 +1295,7 @@ export default function App() {
         }
       `}</style>
 
-      {/* HEADER */}
+      {/* HEADER (FIXED) */}
       <header style={{
         position:"sticky", top:0, zIndex:100,
         background:"rgba(255,255,255,.9)", backdropFilter:"blur(16px)",
@@ -1140,15 +1325,18 @@ export default function App() {
           ) : (
             <Btn sm color="warning" onClick={activarLluvia}>🌧️ Lluvia</Btn>
           )}
-          <div className="reloj-desktop" style={{ fontSize:13, color:"#6b7280", fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{horaAR()} hs</div>
+          <div className="reloj-desktop" style={{ fontSize:13, color:"#6b7280", fontWeight:700, fontVariantNumeric:"tabular-nums", display:"flex", alignItems:"center", gap:6 }}>
+            {fechaAR(hoy())} • {horaAR()} hs
+          </div>
         </div>
       </header>
 
-      {/* NAV TABS */}
+      {/* NAV TABS (STICKY BELOW HEADER) */}
       <nav className="nav-tabs" style={{
         display:"flex", gap:6, padding:"10px 16px",
         borderBottom:"1px solid #e5e7eb", whiteSpace:"nowrap", alignItems:"center",
-        background:"rgba(255,255,255,.7)", backdropFilter:"blur(8px)"
+        background:"rgba(255,255,255,.85)", backdropFilter:"blur(8px)",
+        position:"sticky", top:"58px", zIndex:90
       }}>
         {[
           {id:"agenda",label:"📋 Agenda",color:"#3b82f6",bg:"#dbeafe",border:"#bfdbfe"},
@@ -1252,14 +1440,13 @@ export default function App() {
           </div>
         )}
         
-        {/* CLIENTES (MEJORADO CON BÚSQUEDA, CÓDIGO, BOTONES) */}
+        {/* CLIENTES (FIXED AND ENHANCED) */}
         {tab === "clientes" && (
           <div style={{ display:"flex", flexDirection:"column", gap:12, animation:"fadeInUp .4s ease-out" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <h3 style={{ margin:0, fontSize:20, fontWeight:800, color:"#1e293b" }}>👥 Clientes ({clientesFiltrados.length})</h3>
             </div>
 
-            {/* BUSCADOR DE CLIENTES EN PESTAÑA */}
             <div style={{position:"relative"}}>
               <input
                 type="text"
@@ -1291,10 +1478,10 @@ export default function App() {
                 onMouseOver={e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow="0 4px 15px rgba(0,0,0,.05)"}}
                 onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,.02)"}}>
                   
-                  {/* Fila superior: Nombre + Código + Deuda */}
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
                     <div>
                       <div style={{ fontSize:15, fontWeight:800, color:"#1e293b" }}>{c.nombre}</div>
+                      {/* FIX 1: Código Visible */}
                       <div style={{ fontSize:11, fontWeight:700, color:"#7c3aed", marginTop:2, fontFamily:"monospace" }}>{c.codigo}</div>
                     </div>
                     <div style={{display:"flex", gap:6, alignItems:"center"}}>
@@ -1309,14 +1496,13 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Info detallada */}
+                  {/* FIX 2: Mostrar info completa */}
                   <div style={{fontSize:12, color:"#6b7280", lineHeight:1.6}}>
                     <div>📍 {c.direccion || "Sin dirección"} • {c.barrio}</div>
                     <div>{mostrarTelefono(c)}</div>
                     {c.nota && <div style={{fontStyle:"italic", opacity:.8}}>📝 {c.nota}</div>}
                   </div>
 
-                  {/* Botones de acción */}
                   <div style={{display:"flex", gap:8, marginTop:4}}>
                     <Btn sm color="primary" onClick={()=>{setClienteParaTurno(c);setModalOpen("nuevoTurno");}}>
                       ➕ Asignar Turno
@@ -1370,8 +1556,12 @@ export default function App() {
       {modalOpen === "nuevoTurno" && (
         <ModalNuevoTurno 
           clientes={clientes} staff={staff} turnos={turnos} asistencias={asistencias} 
-          COL_TURNOS={COL_TURNOS} geminiKey={geminiKey} mostrarToast={mostrarToast} 
+          COL_TURNOS={COL_TURNOS} COL_CLIENTES={COL_CLIENTES} geminiKey={geminiKey} mostrarToast={mostrarToast} 
           clientePreseleccionado={clienteParaTurno}
+          onClienteCreated={(nuevoCliente) => {
+             // Actualizar el array global de clientes inmediatamente para el buscador
+             setClientes(prev => [...prev, nuevoCliente]);
+          }}
           onClose={()=>{setModalOpen(null);setClienteParaTurno(null);}} 
         />
       )}
