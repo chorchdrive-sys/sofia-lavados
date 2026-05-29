@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import {
   getFirestore, doc, setDoc, getDoc, collection,
@@ -273,16 +273,94 @@ function Btn({children,onClick,color="#0e7490",ghost,danger,disabled,full,sm,sty
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL NUEVO TURNO
+//  LÓGICA DE SUGERENCIA IA + LOCAL
 // ═══════════════════════════════════════════════════════════════
-function ModalNuevoTurno({ onClose, clientes, staff, COL_TURNOS, mostrarToast }) {
+async function sugerirLavadorIA(presentes, turnosHoy, cliente, geminiKey) {
+  // Fallback local si no hay key o falla
+  const fallbackLocal = () => {
+    if (presentes.length === 0) return null;
+    // Contar turnos por lavador presente
+    const carga = {};
+    presentes.forEach(s => carga[s.id] = 0);
+    turnosHoy.forEach(t => { if (t.lavadorId && carga[t.lavadorId] !== undefined) carga[t.lavadorId]++; });
+    // Elegir el que menos turnos tiene
+    let mejor = presentes[0];
+    let minCarga = Infinity;
+    presentes.forEach(s => {
+      if (carga[s.id] < minCarga) { minCarga = carga[s.id]; mejor = s; }
+    });
+    return mejor;
+  };
+
+  if (!geminiKey) return fallbackLocal();
+
+  try {
+    const cargaMap = {};
+    presentes.forEach(s => cargaMap[s.id] = turnosHoy.filter(t => t.lavadorId === s.id).length);
+
+    const prompt = `Sos un asistente de asignación de lavadores para un lavadero de autos.
+Lavadores presentes hoy con su carga actual de turnos:
+${presentes.map(s => `- ${s.nombre} (${s.transporte}, especialidad: ${s.especial || "ninguna"}, turnos hoy: ${cargaMap[s.id]})`).join("\n")}
+
+Cliente: ${cliente?.nombre || "Desconocido"}, Barrio: ${cliente?.barrio || "Desconocido"}, Dirección: ${cliente?.direccion || "Desconocida"}
+Vehículo: ${cliente?.autosHabituales || 1} auto(s) habitual(es)
+
+Reglas:
+1. Priorizar lavadores con MENOS turnos hoy.
+2. Si el cliente es de un barrio lejano, preferir lavador con moto.
+3. Si el lavador tiene especialidad "rapido", priorizarlo para clientes frecuentes.
+4. NUNCA asignar a alguien que no esté en la lista de presentes.
+
+Respondé SOLO con el nombre exacto del lavador sugerido, sin explicaciones ni texto extra.`;
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+
+    const data = await res.json();
+    const nombreSugerido = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    
+    if (nombreSugerido) {
+      const encontrado = presentes.find(s => s.nombre.toLowerCase() === nombreSugerido.toLowerCase());
+      if (encontrado) return encontrado;
+    }
+    return fallbackLocal();
+  } catch (err) {
+    console.warn("IA suggestion failed, using fallback:", err);
+    return fallbackLocal();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL NUEVO TURNO (CON SUGERENCIA IA)
+// ═══════════════════════════════════════════════════════════════
+function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, geminiKey, mostrarToast }) {
   const [clienteId, setClienteId] = useState("");
   const [hora, setHora] = useState(franjasValidas()[0] || FRANJAS[0]);
   const [tamaño, setTamaño] = useState(TAMANOS_DEFAULT[1]);
   const [lavadorId, setLavadorId] = useState("");
   const [nota, setNota] = useState("");
+  const [sugiriendo, setSugiriendo] = useState(false);
 
   const clienteSel = clientes.find(c => c.id === clienteId);
+
+  // Solo lavadores marcados como PRESENTES
+  const presentes = staff.filter(s => asistencias[s.id]);
+
+  const manejarSugerir = async () => {
+    if (presentes.length === 0) return mostrarToast("No hay lavadores presentes marcados", "warn");
+    setSugiriendo(true);
+    const sugerido = await sugerirLavadorIA(presentes, turnos, clienteSel, geminiKey);
+    setSugiriendo(false);
+    if (sugerido) {
+      setLavadorId(sugerido.id);
+      mostrarToast(`🤖 Sugerido: ${sugerido.nombre}`, "ok");
+    } else {
+      mostrarToast("No se pudo generar sugerencia", "warn");
+    }
+  };
 
   const guardar = async () => {
     if (!clienteId) return mostrarToast("Seleccioná un cliente", "warn");
@@ -341,15 +419,27 @@ function ModalNuevoTurno({ onClose, clientes, staff, COL_TURNOS, mostrarToast })
           ))}
         </div>
 
-        {/* Lavador */}
-        <label style={{ fontSize: 12, color: "#94a3b8" }}>Lavador Asignado</label>
+        {/* Lavador + Botón Sugerir IA */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <label style={{ fontSize: 12, color: "#94a3b8" }}>Lavador Asignado</label>
+          <Btn sm color="#7c3aed" disabled={sugiriendo || presentes.length === 0} onClick={manejarSugerir}>
+            {sugiriendo ? "🤖 Pensando..." : `🤖 Sugerir (${presentes.length} presentes)`}
+          </Btn>
+        </div>
         <select value={lavadorId} onChange={e => setLavadorId(e.target.value)}
           style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }}>
           <option value="">-- Sin asignar --</option>
-          {staff.sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")).map(s => (
-            <option key={s.id} value={s.id}>{s.nombre}</option>
+          {presentes.sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")).map(s => (
+            <option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>
+          ))}
+          {/* Mostrar también los no presentes pero deshabilitados visualmente */}
+          {staff.filter(s => !asistencias[s.id]).sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")).map(s => (
+            <option key={s.id} value={s.id} disabled style={{color:"#475569"}}>{s.nombre} (AUSENTE)</option>
           ))}
         </select>
+        {presentes.length === 0 && (
+          <div style={{ fontSize: 11, color: "#f87171" }}>⚠️ No hay lavadores marcados como presentes. Andá a Presentismo primero.</div>
+        )}
 
         {/* Nota */}
         <label style={{ fontSize: 12, color: "#94a3b8" }}>Nota</label>
@@ -499,7 +589,10 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_TURNOS, db, collection, onS
 // ═══════════════════════════════════════════════════════════════
 export default function App() {
   const [modoPrueba, setModoPrueba] = useState(false);
-  const CLAVE_MAESTRA = "sofia2024"; 
+  const [modoOculto, setModoOculto] = useState(false);
+  const CLAVE_MAESTRA = "sofia2024";
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef(null);
   
   const COL_DIAS = modoPrueba ? "dias_prueba" : "dias";
   const COL_TURNOS = modoPrueba ? "turnos_prueba" : "turnos";
@@ -517,12 +610,26 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(null);
   const [editando, setEditando] = useState(null);
   const [previewData, setPreviewData] = useState(null);
+  const [asistencias, setAsistencias] = useState({});
   
   const [geminiKey, setGeminiKey] = useState(localStorage.getItem("sofia_gemini_key") || "");
   const [keyDesbloqueada, setKeyDesbloqueada] = useState(false);
   const [inputClave, setInputClave] = useState("");
 
   const mostrarToast = (msg, tipo="ok") => setToast({ msg, tipo });
+
+  // ─── GESTO OCULTO: 5 taps en logo para activar modo pruebas ───
+  const handleLogoTap = () => {
+    tapCountRef.current += 1;
+    clearTimeout(tapTimerRef.current);
+    tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0; }, 2000);
+    if (tapCountRef.current >= 5) {
+      tapCountRef.current = 0;
+      setModoOculto(prev => !prev);
+      setModoPrueba(prev => !prev);
+      mostrarToast(modoPrueba ? "🔓 Modo OCULTO activado" : "🔒 Modo producción restaurado", modoPrueba ? "warn" : "ok");
+    }
+  };
 
   // ─── SEED AUTOMÁTICO DE DATOS INICIALES ───
   useEffect(() => {
@@ -536,9 +643,7 @@ export default function App() {
             batch.set(ref, { ...c, _ts: serverTimestamp() });
           });
           await batch.commit();
-          console.log("✅ Clientes seed cargados");
         }
-
         const staffSnap = await getDocs(collection(db, COL_STAFF));
         if (staffSnap.empty) {
           const batch = writeBatch(db);
@@ -547,11 +652,8 @@ export default function App() {
             batch.set(ref, { ...s, _ts: serverTimestamp() });
           });
           await batch.commit();
-          console.log("✅ Staff seed cargado");
         }
-      } catch (err) {
-        console.error("Error seeding:", err);
-      }
+      } catch (err) { console.error("Error seeding:", err); }
     };
     seedIfEmpty();
   }, [modoPrueba]);
@@ -563,9 +665,8 @@ export default function App() {
 
     const unsubDia = onSnapshot(doc(db, COL_DIAS, fechaHoy), 
       (snap) => {
-        if (snap.exists()) {
-          setDiaActual({ id: snap.id, ...snap.data() });
-        } else {
+        if (snap.exists()) setDiaActual({ id: snap.id, ...snap.data() });
+        else {
           const nuevoDia = { fecha: fechaHoy, estado: "cerrado", apertura: null, cierre: null, lluvia: false };
           setDiaActual(nuevoDia);
           if(!modoPrueba) fsSave(COL_DIAS, fechaHoy, nuevoDia);
@@ -591,17 +692,26 @@ export default function App() {
     return () => { unsubDia(); unsubTurnos(); unsubClientes(); unsubStaff(); };
   }, [modoPrueba]);
 
+  // ─── ASISTENCIAS EN TIEMPO REAL (para sugerencia IA) ───
+  useEffect(() => {
+    const fechaHoy = hoy();
+    const unsub = onSnapshot(collection(db, COL_TURNOS), (snap) => {
+      const datos = {};
+      snap.docs.forEach(d => { const t = d.data(); if (t.fecha === fechaHoy && t.lavadorId) datos[t.lavadorId] = true; });
+      setAsistencias(datos);
+    });
+    return () => unsub();
+  }, [modoPrueba]);
+
   // ─── ACCIONES DE NEGOCIO ───
   const cerrarTurno = async (turno, montoRecibido, metodoPago) => {
     const total = Number(turno.precioFinal || turno.precio || 0);
     const recibido = Math.max(0, Number(montoRecibido || 0));
     const diferencia = total - recibido;
-    
     await fsUpdate(COL_TURNOS, turno.id, {
       estado: "rendido", pagado: recibido, deudaGenerada: diferencia > 0 ? diferencia : 0,
       metodoPago, rendidoEn: serverTimestamp(), editadoPostRendicion: false
     });
-
     if (diferencia > 0 && turno.clienteId) {
       const cli = clientes.find(c => c.id === turno.clienteId);
       if (cli) {
@@ -625,9 +735,7 @@ export default function App() {
     if (!diaActual?.id) return;
     const minutosActuales = new Date().getHours() * 60 + new Date().getMinutes();
     let franjaInicio = FRANJAS.find(h => { const [hr,mn]=h.split(":").map(Number); return hr*60+mn >= minutosActuales; }) || FRANJAS[FRANJAS.length-1];
-    
     await fsUpdate(COL_DIAS, diaActual.id, { lluvia: false, lluviaFin: serverTimestamp() });
-    
     const pendientes = turnos.filter(t => t.estado === "lluvia");
     let idx = FRANJAS.indexOf(franjaInicio);
     for (const t of pendientes) {
@@ -675,49 +783,13 @@ export default function App() {
           🟢 ABRIR DÍA
         </button>
 
-        {/* Acceso rápido a config en modo cerrado */}
-        <button onClick={() => setTab("config")} style={{
-          marginTop: 24, background: "transparent", border: "1px solid #334155",
-          borderRadius: 10, padding: "10px 20px", color: "#64748b", fontSize: 12,
-          cursor: "pointer"
-        }}>
-          ⚙️ Configuración
-        </button>
-
-        {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={()=>setToast(null)} />}
-        
-        {/* Panel Config inline cuando está cerrado */}
-        {tab === "config" && (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.8)", zIndex:600, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
-               onClick={e => e.target === e.currentTarget && setTab("agenda")}>
-            <div style={{ background:"#0b1220", border:"1px solid #1e3a5f", borderRadius:14, padding:20, width:"100%", maxWidth:400 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
-                <span style={{ fontSize:14, fontWeight:700, color:"#e2e8f0" }}>⚙️ Configuración</span>
-                <button onClick={()=>setTab("agenda")} style={{ background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:18 }}>✕</button>
-              </div>
-              {!keyDesbloqueada ? (
-                <div style={{ textAlign:"center" }}>
-                  <div style={{ fontSize:13, color:"#94a3b8", marginBottom:10 }}>🔒 Clave para API Key Gemini</div>
-                  <div style={{ display:"flex", gap:8, justifyContent:"center" }}>
-                    <input type="password" placeholder="Clave maestra" value={inputClave} onChange={e=>setInputClave(e.target.value)} onKeyDown={e=>e.key==="Enter"&&verificarClaveAcceso()} style={{ background:"#0f172a", border:"1px solid #334155", borderRadius:6, padding:"8px 12px", color:"#fff", fontSize:13, outline:"none", width:160 }} />
-                    <Btn sm onClick={verificarClaveAcceso}>OK</Btn>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <input type="text" value={geminiKey} onChange={e=>setGeminiKey(e.target.value)} placeholder="API Key Gemini" style={{ width:"100%", background:"#0f172a", border:"1px solid #334155", borderRadius:6, padding:"10px 12px", color:"#e2e8f0", fontSize:12, outline:"none", boxSizing:"border-box", marginBottom:10 }} />
-                  <Btn sm full onClick={()=>{localStorage.setItem("sofia_gemini_key", geminiKey); mostrarToast("API Key guardada","ok");}}>💾 Guardar</Btn>
-                </div>
-              )}
-              <div style={{marginTop:16}}>
-                <label style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer"}}>
-                  <input type="checkbox" checked={modoPrueba} onChange={e=>setModoPrueba(e.target.checked)} />
-                  <span style={{fontSize:13, color:"#94a3b8"}}>🧪 Modo Prueba</span>
-                </label>
-              </div>
-            </div>
+        {modoOculto && (
+          <div style={{ marginTop:16, padding:"8px 16px", borderRadius:8, background:"#7c2d1244", border:"1px solid #f8717155", color:"#fca5a5", fontSize:12, fontWeight:700 }}>
+            🧪 MODO OCULTO ACTIVO
           </div>
         )}
+
+        {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={()=>setToast(null)} />}
       </div>
     );
   }
@@ -731,10 +803,13 @@ export default function App() {
 
       <header style={{ position:"sticky", top:0, zIndex:100, background:"#0b1220ee", backdropFilter:"blur(10px)", borderBottom:"1px solid #1e3a5f", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ fontSize:16, fontWeight:800, color:"#22d3ee" }}>🚗 Sofía</div>
+          <div onClick={handleLogoTap} style={{ fontSize:16, fontWeight:800, color:"#22d3ee", cursor:"pointer", userSelect:"none" }}>🚗 Sofía</div>
           <div style={{ fontSize:11, fontWeight:700, padding:"3px 8px", borderRadius:4, background: diaActual?.lluvia ? "#7c2d12" : "#065f46", color: diaActual?.lluvia ? "#fca5a5" : "#6ee7b7" }}>
             {diaActual?.lluvia ? "🌧️ LLUVIA" : "🟢 ABIERTO"}
           </div>
+          {modoOculto && (
+            <span style={{ fontSize:10, fontWeight:700, color:"#f87171", background:"#7c2d1244", padding:"2px 6px", borderRadius:4 }}>OCULTO</span>
+          )}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           {diaActual?.lluvia ? (
@@ -746,12 +821,23 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="nav-tabs" style={{ display:"flex", gap:4, padding:"8px 12px", borderBottom:"1px solid #1e3a5f", whiteSpace:"nowrap" }}>
+      {/* NAV TABS CON BOTÓN CERRAR DÍA INTEGRADO */}
+      <nav className="nav-tabs" style={{ display:"flex", gap:4, padding:"8px 12px", borderBottom:"1px solid #1e3a5f", whiteSpace:"nowrap", alignItems:"center" }}>
         {[{id:"agenda",label:"📋 Agenda"},{id:"presentismo",label:"✅ Presentismo"},{id:"caja",label:"💰 Caja"},{id:"clientes",label:"👥 Clientes"},{id:"config",label:"⚙️ Config"}].map(t => (
           <button key={t.id} onClick={()=>setTab(t.id)} style={{ background: tab===t.id ? "#22d3ee22" : "transparent", color: tab===t.id ? "#22d3ee" : "#94a3b8", border: tab===t.id ? "1px solid #22d3ee44" : "1px solid transparent", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
             {t.label}
           </button>
         ))}
+        {/* BOTÓN CERRAR DÍA EN PESTAÑAS */}
+        <button onClick={toggleDia} style={{
+          marginLeft: "auto", flexShrink: 0,
+          background: "linear-gradient(135deg, #dc2626, #991b1b)",
+          color: "#fff", border: "none", borderRadius: 8,
+          padding: "8px 14px", fontSize: 12, fontWeight: 700,
+          cursor: "pointer"
+        }}>
+          🔴 Cerrar Día
+        </button>
       </nav>
 
       <main style={{ padding:16, maxWidth:800, margin:"0 auto" }}>
@@ -785,14 +871,6 @@ export default function App() {
                 </div>
               ))
             )}
-
-            <button onClick={toggleDia} style={{
-              marginTop: 20, background: "linear-gradient(135deg, #dc2626, #991b1b)",
-              color: "#fff", border: "none", borderRadius: 12, padding: "16px",
-              fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%"
-            }}>
-              🔴 CERRAR DÍA
-            </button>
           </div>
         )}
         
@@ -853,7 +931,7 @@ export default function App() {
             )}
             <div style={{background:"#1e293b", padding:16, borderRadius:10}}>
               <label style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer"}}>
-                <input type="checkbox" checked={modoPrueba} onChange={e=>setModoPrueba(e.target.checked)} />
+                <input type="checkbox" checked={modoPrueba} onChange={e=>{setModoPrueba(e.target.checked); setModoOculto(e.target.checked);}} />
                 <span style={{fontSize:13}}>🧪 Modo Prueba (Datos aislados)</span>
               </label>
             </div>
@@ -861,7 +939,7 @@ export default function App() {
         )}
       </main>
 
-      {modalOpen === "nuevoTurno" && <ModalNuevoTurno clientes={clientes} staff={staff} COL_TURNOS={COL_TURNOS} mostrarToast={mostrarToast} onClose={()=>{setModalOpen(null);}} />}
+      {modalOpen === "nuevoTurno" && <ModalNuevoTurno clientes={clientes} staff={staff} turnos={turnos} asistencias={asistencias} COL_TURNOS={COL_TURNOS} geminiKey={geminiKey} mostrarToast={mostrarToast} onClose={()=>{setModalOpen(null);}} />}
       {modalOpen === "cerrarTurno" && editando && <ModalCerrarTurno turno={editando} clientes={clientes} cerrarTurnoFn={cerrarTurno} onClose={()=>{setModalOpen(null);setEditando(null);}} />}
       {previewData && <PreviewTabla {...previewData} onImprimir={()=>window.print()} onCerrar={()=>setPreviewData(null)} />}
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={()=>setToast(null)} />}
