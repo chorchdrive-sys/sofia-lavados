@@ -37,33 +37,34 @@ const TAMANOS_DEFAULT = [
   { id:"camioneta", label:"Camioneta", precio:32000 },
 ];
 
+// Paleta ajustada a pasteles suaves para staff
 const COLORES = [
-  "#3b82f6","#8b5cf6","#ec4899","#f43f5e","#f97316","#eab308",
-  "#22c55e","#14b8a6","#06b6d4","#6366f1","#a855f7","#d946ef",
+  "#93c5fd","#c4b5fd","#fca5a5","#fdba74","#86efac","#67e8f9",
+  "#a5b4fc","#f0abfc","#fcd34d","#a7f3d0","#bae6fd","#fecdd3",
 ];
 
 const STAFF_SEED = [
-  {nombre:"Jhony",     transporte:"moto",color:"#3b82f6",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Sergio",    transporte:"moto",color:"#8b5cf6",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Alexander", transporte:"moto",color:"#ec4899",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Maxi",      transporte:"moto",color:"#f43f5e",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Rene",      transporte:"moto",color:"#f97316",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Brandon",   transporte:"moto",color:"#eab308",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Jorge",     transporte:"moto",color:"#22c55e",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Emiliano",  transporte:"moto",color:"#14b8a6",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Gaby",      transporte:"moto",color:"#06b6d4",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Javi",      transporte:"moto",color:"#6366f1",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Franco",    transporte:"moto",color:"#a855f7",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Fede",      transporte:"moto",color:"#d946ef",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Elias",     transporte:"moto",color:"#3b82f6",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Alvaro",    transporte:"bici",color:"#8b5cf6",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Nestor",    transporte:"bici",color:"#ec4899",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Matias",    transporte:"bici",color:"#f43f5e",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Luis",      transporte:"bici",color:"#f97316",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Bruno",     transporte:"bici",color:"#eab308",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
-  {nombre:"Nico Alto", transporte:"bici",color:"#22c55e",whatsapp:true, rol:"lavador",especial:"rapido", saldoPendiente:0},
-  {nombre:"Hernán",    transporte:"bici",color:"#14b8a6",whatsapp:false,rol:"lavador",especial:"avisar_presencia", saldoPendiente:0},
-  {nombre:"Gastón",    transporte:"bici",color:"#06b6d4",whatsapp:false,rol:"lavador",especial:"llamar_telefono", saldoPendiente:0},
+  {nombre:"Jhony",     transporte:"moto",color:"#93c5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Sergio",    transporte:"moto",color:"#c4b5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Alexander", transporte:"moto",color:"#fca5a5",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Maxi",      transporte:"moto",color:"#fdba74",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Rene",      transporte:"moto",color:"#86efac",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Brandon",   transporte:"moto",color:"#67e8f9",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Jorge",     transporte:"moto",color:"#a5b4fc",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Emiliano",  transporte:"moto",color:"#f0abfc",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Gaby",      transporte:"moto",color:"#fcd34d",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Javi",      transporte:"moto",color:"#a7f3d0",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Franco",    transporte:"moto",color:"#bae6fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Fede",      transporte:"moto",color:"#fecdd3",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Elias",     transporte:"moto",color:"#93c5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Alvaro",    transporte:"bici",color:"#c4b5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Nestor",    transporte:"bici",color:"#fca5a5",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Matias",    transporte:"bici",color:"#fdba74",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Luis",      transporte:"bici",color:"#86efac",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Bruno",     transporte:"bici",color:"#67e8f9",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0},
+  {nombre:"Nico Alto", transporte:"bici",color:"#a5b4fc",whatsapp:true, rol:"lavador",especial:"rapido", saldoPendiente:0},
+  {nombre:"Hernán",    transporte:"bici",color:"#f0abfc",whatsapp:false,rol:"lavador",especial:"avisar_presencia", saldoPendiente:0},
+  {nombre:"Gastón",    transporte:"bici",color:"#fcd34d",whatsapp:false,rol:"lavador",especial:"llamar_telefono", saldoPendiente:0},
 ];
 
 const BARRIOS_INICIALES = {
@@ -153,7 +154,7 @@ const franjasValidas = () => {
 const franjaFin   = h  => { const [hr,mn]=h.split(":").map(Number); const t=hr*60+mn+90; return `${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`; };
 const esTarde     = h  => FRANJAS.indexOf(h) >= FRANJA_TARDE;
 const formatP     = n  => "$" + Number(n||0).toLocaleString("es-AR");
-const colorNuevo  = (staff) => COLORES.find(c=>!staff.map(s=>s.color).includes(c)) || "#94a3b8";
+const colorNuevo  = (staff) => COLORES.find(c=>!staff.map(s=>s.color).includes(c)) || "#cbd5e1";
 const sinAcentos  = s  => (s||"").toLowerCase().replace(/[áéíóúü]/g, m=>({á:"a",é:"e",í:"i",ó:"o",ú:"u",ü:"u"}[m]||m));
 
 function mostrarTelefono(cliente) {
@@ -224,25 +225,28 @@ const fsList   = async (col)          => { if(!db)return []; try{const s=await g
 const fsUpdate = async (col,id,data)  => { if(!db)return; try{await updateDoc(doc(db,col,id),data);}catch{} };
 
 // ═══════════════════════════════════════════════════════════════
-//  COMPONENTES BASE (REDISEÑADOS - VIBRANT & MODERN)
+//  COMPONENTES BASE (SOFT PASTELS)
 // ═══════════════════════════════════════════════════════════════
 function Toast({msg,tipo,onClose}) {
   useEffect(()=>{const t=setTimeout(onClose,3500);return()=>clearTimeout(t);},[]);
-  const colors = {ok:"#10b981",error:"#ef4444",warn:"#f59e0b"};
-  const c = colors[tipo] || colors.ok;
+  const styles = {
+    ok:   {bg:"#ecfdf5", border:"#a7f3d0", text:"#064e3b", icon:"#059669"},
+    error:{bg:"#fef2f2", border:"#fecaca", text:"#991b1b", icon:"#dc2626"},
+    warn: {bg:"#fffbeb", border:"#fde68a", text:"#92400e", icon:"#d97706"},
+  };
+  const s = styles[tipo] || styles.ok;
   return (
     <div style={{
       position:"fixed",bottom:24,right:24,zIndex:9999,
-      background:"#ffffff",border:`1px solid ${c}33`,
-      borderLeft:`4px solid ${c}`,
-      color:"#1e293b",padding:"14px 20px",borderRadius:12,
-      fontSize:13,fontWeight:600,fontFamily:"'Inter',system-ui,sans-serif",
-      boxShadow:`0 8px 30px ${c}22`,maxWidth:320,
-      animation:"fadeInUp .3s ease-out",display:"flex",alignItems:"center",gap:10
+      background:s.bg, border:`1px solid ${s.border}`, borderLeft:`4px solid ${s.icon}`,
+      color:s.text, padding:"14px 20px", borderRadius:14,
+      fontSize:13, fontWeight:600, fontFamily:"'Inter',system-ui,sans-serif",
+      boxShadow:"0 8px 30px rgba(0,0,0,.06)", maxWidth:320,
+      animation:"fadeInUp .3s ease-out", display:"flex", alignItems:"center", gap:10
     }}>
       <span style={{
         display:"inline-flex",alignItems:"center",justifyContent:"center",
-        width:24,height:24,borderRadius:"50%",background:`${c}15`,color:c,fontSize:12
+        width:24,height:24,borderRadius:"50%",background:`${s.icon}18`,color:s.icon,fontSize:12
       }}>
         {tipo==="ok"?"✓":tipo==="error"?"✗":"⚠"}
       </span>
@@ -254,20 +258,20 @@ function Toast({msg,tipo,onClose}) {
 function Modal({titulo,onClose,children,wide}) {
   return (
     <div style={{
-      position:"fixed",inset:0,background:"rgba(15,23,42,.4)",backdropFilter:"blur(8px)",
+      position:"fixed",inset:0,background:"rgba(241,245,249,.6)",backdropFilter:"blur(12px)",
       zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16,
       animation:"fadeIn .2s ease-out"
     }} onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div style={{
         background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:20,
         padding:24,width:"100%",maxWidth:wide?580:440,maxHeight:"92vh",overflowY:"auto",
-        boxShadow:"0 25px 60px rgba(0,0,0,.12)",animation:"scaleIn .25s ease-out"
+        boxShadow:"0 20px 60px rgba(0,0,0,.06)",animation:"scaleIn .25s ease-out"
       }}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
           <div style={{fontSize:16,fontWeight:800,color:"#1e293b"}}>{titulo}</div>
           <button onClick={onClose} style={{
             background:"#f1f5f9",border:"none",color:"#64748b",cursor:"pointer",
-            fontSize:16,lineHeight:1,padding:"6px 10px",borderRadius:8,transition:"all .15s"
+            fontSize:16,lineHeight:1,padding:"6px 10px",borderRadius:10,transition:"all .15s"
           }} onMouseOver={e=>e.target.style.background="#e2e8f0"} onMouseOut={e=>e.target.style.background="#f1f5f9"}>✕</button>
         </div>
         {children}
@@ -277,31 +281,30 @@ function Modal({titulo,onClose,children,wide}) {
 }
 
 function Btn({children,onClick,color="primary",ghost,danger,disabled,full,sm,style={}}) {
+  // SOFT PASTELS: Texto oscuro sobre fondos claros
   const palettes = {
-    primary:  {bg:"linear-gradient(135deg,#3b82f6,#1d4ed8)",shadow:"rgba(59,130,246,.35)",text:"#fff"},
-    secondary:{bg:"linear-gradient(135deg,#8b5cf6,#7c3aed)",shadow:"rgba(139,92,246,.35)",text:"#fff"},
-    tertiary: {bg:"linear-gradient(135deg,#06b6d4,#0891b2)",shadow:"rgba(6,182,212,.35)",text:"#fff"},
-    success:  {bg:"linear-gradient(135deg,#10b981,#059669)",shadow:"rgba(16,185,129,.35)",text:"#fff"},
-    warning:  {bg:"linear-gradient(135deg,#f59e0b,#d97706)",shadow:"rgba(245,158,11,.35)",text:"#fff"},
-    danger:   {bg:"linear-gradient(135deg,#ef4444,#dc2626)",shadow:"rgba(239,68,68,.35)",text:"#fff"},
+    primary:  {bg:"#bfdbfe", hover:"#93c5fd", text:"#1e3a8a", shadow:"rgba(147,197,253,.3)"},
+    secondary:{bg:"#ddd6fe", hover:"#c4b5fd", text:"#5b21b6", shadow:"rgba(196,181,253,.3)"},
+    tertiary: {bg:"#a7f3d0", hover:"#6ee7b7", text:"#064e3b", shadow:"rgba(167,243,208,.3)"},
+    success:  {bg:"#bbf7d0", hover:"#86efac", text:"#14532d", shadow:"rgba(187,247,208,.3)"},
+    warning:  {bg:"#fed7aa", hover:"#fdba74", text:"#9a3412", shadow:"rgba(254,215,170,.3)"},
+    danger:   {bg:"#fecaca", hover:"#fca5a5", text:"#991b1b", shadow:"rgba(254,202,202,.3)"},
   };
-  const p = danger ? palettes.danger : (typeof color === "string" && palettes[color]) ? palettes[color] : {bg:color,shadow:`${color}44`,text:"#fff"};
+  const p = danger ? palettes.danger : (typeof color === "string" && palettes[color]) ? palettes[color] : {bg:color, hover:color, text:"#334155", shadow:"rgba(0,0,0,.05)"};
 
   const baseStyle = ghost ? {
-    background:"transparent",border:`1.5px solid ${typeof color==="string"&&palettes[color]?color:"#cbd5e1"}`,
-    color: typeof color==="string"&&palettes[color]?color:"#475569",
-    boxShadow:"none"
+    background:"transparent", border:`1.5px solid #cbd5e1`, color:"#475569", boxShadow:"none"
   } : disabled ? {
-    background:"#e2e8f0",color:"#94a3b8",boxShadow:"none"
+    background:"#f1f5f9", color:"#94a3b8", boxShadow:"none", border:"1px solid #e2e8f0"
   } : {
-    background:p.bg,color:p.text,
-    boxShadow:`0 4px 15px ${p.shadow}`,border:"none"
+    background:p.bg, color:p.text, border:"1px solid transparent",
+    boxShadow:`0 4px 14px ${p.shadow}`
   };
 
   return (
     <button style={{
       ...baseStyle,
-      borderRadius: sm ? 8 : 12,
+      borderRadius: sm ? 10 : 14,
       padding: sm ? "7px 14px" : "11px 22px",
       fontSize: sm ? 12 : 13,
       fontWeight: 700,
@@ -313,8 +316,8 @@ function Btn({children,onClick,color="primary",ghost,danger,disabled,full,sm,sty
       transform: "translateY(0)",
       ...style
     }}
-    onMouseOver={e=>{if(!disabled&&!ghost)e.currentTarget.style.transform="translateY(-2px)"}}
-    onMouseOut={e=>{if(!disabled&&!ghost)e.currentTarget.style.transform="translateY(0)"}}
+    onMouseOver={e=>{if(!disabled&&!ghost){e.currentTarget.style.background=p.hover;e.currentTarget.style.transform="translateY(-2px)"}}}
+    onMouseOut={e=>{if(!disabled&&!ghost){e.currentTarget.style.background=p.bg;e.currentTarget.style.transform="translateY(0)"}}}
     onClick={!disabled ? onClick : undefined}>
       {children}
     </button>
@@ -380,7 +383,7 @@ Respondé SOLO con el nombre exacto del lavador sugerido, sin explicaciones ni t
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL NUEVO TURNO (REDISEÑADO)
+//  MODAL NUEVO TURNO (SOFT PASTELS)
 // ═══════════════════════════════════════════════════════════════
 function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, geminiKey, mostrarToast }) {
   const [clienteId, setClienteId] = useState("");
@@ -424,19 +427,21 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   };
 
   const inputStyle = {
-    background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:10,
-    padding:"11px 14px",color:"#1e293b",fontSize:13,outline:"none",
-    transition:"border-color .2s",width:"100%",boxSizing:"border-box",
+    background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12,
+    padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none",
+    transition:"border-color .2s, box-shadow .2s", width:"100%", boxSizing:"border-box",
     fontFamily:"'Inter',system-ui,sans-serif"
   };
+  const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
 
   return (
     <Modal titulo="➕ Nuevo Turno" onClose={onClose}>
       <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
         <div>
-          <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" }}>Cliente</label>
+          <label style={labelStyle}>Cliente</label>
           <select value={clienteId} onChange={e=>setClienteId(e.target.value)} style={inputStyle}
-            onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}>
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}}>
             <option value="">-- Seleccionar --</option>
             {clientes.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(c=>(
               <option key={c.id} value={c.id}>{c.nombre} ({c.barrio})</option>
@@ -445,26 +450,27 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
         </div>
 
         <div>
-          <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" }}>Horario</label>
+          <label style={labelStyle}>Horario</label>
           <select value={hora} onChange={e=>setHora(e.target.value)} style={inputStyle}
-            onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}>
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}}>
             {FRANJAS.map(h=><option key={h} value={h}>{h} hs</option>)}
           </select>
         </div>
 
         <div>
-          <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" }}>Vehículo</label>
+          <label style={labelStyle}>Vehículo</label>
           <div style={{ display:"flex", gap:8 }}>
             {TAMANOS_DEFAULT.map(t=>(
               <button key={t.id} onClick={()=>setTamaño(t)} style={{
-                flex:1, padding:"12px 8px", borderRadius:12, fontSize:12, fontWeight:700, cursor:"pointer",
-                background: tamaño.id===t.id ? "linear-gradient(135deg,#3b82f6,#1d4ed8)" : "#f8fafc",
-                border: tamaño.id===t.id ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0",
-                color: tamaño.id===t.id ? "#fff" : "#64748b",
-                boxShadow: tamaño.id===t.id ? "0 4px 15px rgba(59,130,246,.3)" : "none",
+                flex:1, padding:"12px 8px", borderRadius:14, fontSize:12, fontWeight:700, cursor:"pointer",
+                background: tamaño.id===t.id ? "#dbeafe" : "#f9fafb",
+                border: tamaño.id===t.id ? "1.5px solid #93c5fd" : "1.5px solid #e5e7eb",
+                color: tamaño.id===t.id ? "#1e3a8a" : "#6b7280",
+                boxShadow: tamaño.id===t.id ? "0 4px 14px rgba(147,197,253,.2)" : "none",
                 transition:"all .2s"
               }}>
-                {t.label}<br/><span style={{fontSize:11,opacity:.85}}>{formatP(t.precio)}</span>
+                {t.label}<br/><span style={{fontSize:11,opacity:.8}}>{formatP(t.precio)}</span>
               </button>
             ))}
           </div>
@@ -472,31 +478,33 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
 
         <div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-            <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.5px" }}>Lavador Asignado</label>
+            <label style={labelStyle}>Lavador Asignado</label>
             <Btn sm color="secondary" disabled={sugiriendo||presentes.length===0} onClick={manejarSugerir}>
               {sugiriendo ? "🤖 Pensando..." : `🤖 Sugerir (${presentes.length})`}
             </Btn>
           </div>
           <select value={lavadorId} onChange={e=>setLavadorId(e.target.value)} style={inputStyle}
-            onFocus={e=>e.target.style.borderColor="#8b5cf6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}>
+            onFocus={e=>{e.target.style.borderColor="#c4b5fd";e.target.style.boxShadow="0 0 0 3px rgba(196,181,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}}>
             <option value="">-- Sin asignar --</option>
             {presentes.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(s=>(
               <option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>
             ))}
             {staff.filter(s=>!asistencias[s.id]).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(s=>(
-              <option key={s.id} value={s.id} disabled style={{color:"#cbd5e1"}}>{s.nombre} (AUSENTE)</option>
+              <option key={s.id} value={s.id} disabled style={{color:"#d1d5db"}}>{s.nombre} (AUSENTE)</option>
             ))}
           </select>
           {presentes.length===0 && (
-            <div style={{ fontSize:11, color:"#ef4444", marginTop:6, fontWeight:600 }}>⚠️ No hay lavadores marcados como presentes. Andá a Presentismo primero.</div>
+            <div style={{ fontSize:11, color:"#dc2626", marginTop:6, fontWeight:600 }}>⚠️ No hay lavadores marcados como presentes. Andá a Presentismo primero.</div>
           )}
         </div>
 
         <div>
-          <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" }}>Nota</label>
+          <label style={labelStyle}>Nota</label>
           <input value={nota} onChange={e=>setNota(e.target.value)} placeholder="Observaciones..."
             style={inputStyle}
-            onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
+            onFocus={e=>{e.target.style.borderColor="#93c5fd";e.target.style.boxShadow="0 0 0 3px rgba(147,197,253,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
         </div>
 
         <div style={{ display:"flex", gap:10, marginTop:8 }}>
@@ -508,7 +516,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   );
 }
 
-// Modal Cierre Turno (REDISEÑADO)
+// Modal Cierre Turno (SOFT PASTELS)
 function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
   const [monto, setMonto] = useState(turno?.precioFinal || turno?.precio || 0);
   const [metodo, setMetodo] = useState("efectivo");
@@ -518,31 +526,34 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
   const cliente = clientes.find(c => c.id === turno?.clienteId);
 
   const inputStyle = {
-    background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:10,
-    padding:"11px 14px",color:"#1e293b",fontSize:13,outline:"none",
-    transition:"border-color .2s",width:"100%",boxSizing:"border-box"
+    background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12,
+    padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none",
+    transition:"border-color .2s, box-shadow .2s", width:"100%", boxSizing:"border-box"
   };
+  const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
 
   return (
     <Modal titulo={`💰 Cerrar Turno: ${turno?.hora} hs`} onClose={onClose}>
       <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-        <div style={{ background:"linear-gradient(135deg,#f0f9ff,#eff6ff)", padding:16, borderRadius:14, border:"1px solid #bae6fd" }}>
+        <div style={{ background:"linear-gradient(135deg,#eff6ff,#f0f9ff)", padding:16, borderRadius:16, border:"1px solid #bfdbfe" }}>
           <div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>👤 {cliente?.nombre || "Cliente Ocasional"}</div>
-          <div style={{fontSize:12,color:"#64748b",marginTop:2}}>🚗 {turno?.auto || "Sin especificar"}</div>
-          <div style={{ marginTop:8, fontWeight:800, fontSize:18, color:"#1d4ed8" }}>Total: {formatP(total)}</div>
+          <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>🚗 {turno?.auto || "Sin especificar"}</div>
+          <div style={{ marginTop:8, fontWeight:800, fontSize:20, color:"#1e3a8a" }}>Total: {formatP(total)}</div>
         </div>
 
         <div>
-          <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" }}>Monto Físico Recibido ($)</label>
+          <label style={labelStyle}>Monto Físico Recibido ($)</label>
           <input type="number" value={monto} onChange={e=>setMonto(e.target.value)}
             style={{...inputStyle, fontSize:18, fontWeight:700}} autoFocus
-            onFocus={e=>e.target.style.borderColor="#10b981"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
+            onFocus={e=>{e.target.style.borderColor="#86efac";e.target.style.boxShadow="0 0 0 3px rgba(134,239,172,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}} />
         </div>
 
         <div>
-          <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" }}>Método de Pago</label>
+          <label style={labelStyle}>Método de Pago</label>
           <select value={metodo} onChange={e=>setMetodo(e.target.value)} style={inputStyle}
-            onFocus={e=>e.target.style.borderColor="#10b981"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}>
+            onFocus={e=>{e.target.style.borderColor="#86efac";e.target.style.boxShadow="0 0 0 3px rgba(134,239,172,.2)"}}
+            onBlur={e=>{e.target.style.borderColor="#e5e7eb";e.target.style.boxShadow="none"}}>
             <option value="efectivo">Efectivo</option>
             <option value="transferencia">Transferencia</option>
             <option value="debito">Débito</option>
@@ -551,7 +562,7 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
         </div>
 
         {deuda > 0 && (
-          <div style={{ background:"linear-gradient(135deg,#fef2f2,#fff1f2)", border:"1px solid #fecaca", borderRadius:14, padding:14, fontSize:12, color:"#991b1b" }}>
+          <div style={{ background:"linear-gradient(135deg,#fffbeb,#fef3c7)", border:"1px solid #fde68a", borderRadius:16, padding:14, fontSize:12, color:"#92400e" }}>
             ⚠️ <strong>Diferencia pendiente:</strong> {formatP(deuda)}<br/>
             <span style={{opacity:.8}}>Se registrará como deuda en el perfil de {cliente?.nombre || "el cliente"}.</span>
           </div>
@@ -569,27 +580,27 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
   );
 }
 
-// Previsualización Tabla (REDISEÑADA)
+// Previsualización Tabla (SOFT PASTELS)
 function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
   if (!datos || datos.length === 0) return null;
   return (
     <Modal titulo={`🖨️ Vista Previa: ${titulo}`} onClose={onCerrar} wide>
-      <div style={{ overflowX:"auto", marginBottom:20, borderRadius:12, border:"1px solid #e2e8f0" }}>
+      <div style={{ overflowX:"auto", marginBottom:20, borderRadius:14, border:"1px solid #e5e7eb" }}>
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
           <thead>
-            <tr style={{ background:"linear-gradient(135deg,#f8fafc,#f1f5f9)" }}>
+            <tr style={{ background:"#f9fafb" }}>
               {columnas.map(col => (
-                <th key={col.key} style={{ padding:"12px 14px", textAlign:"left", color:"#475569", fontWeight:700, borderBottom:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>{col.label}</th>
+                <th key={col.key} style={{ padding:"12px 14px", textAlign:"left", color:"#374151", fontWeight:700, borderBottom:"1px solid #e5e7eb", whiteSpace:"nowrap" }}>{col.label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {datos.map((fila, i) => (
-              <tr key={i} style={{ borderBottom:"1px solid #f1f5f9", transition:"background .15s" }}
-                onMouseOver={e=>e.currentTarget.style.background="#f8fafc"}
+              <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", transition:"background .15s" }}
+                onMouseOver={e=>e.currentTarget.style.background="#f9fafb"}
                 onMouseOut={e=>e.currentTarget.style.background="transparent"}>
                 {columnas.map(col => (
-                  <td key={col.key} style={{ padding:"10px 14px", color:"#334155" }}>
+                  <td key={col.key} style={{ padding:"10px 14px", color:"#374151" }}>
                     {col.format ? col.format(fila[col.key], fila) : fila[col.key]}
                   </td>
                 ))}
@@ -607,7 +618,7 @@ function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MÓDULO PRESENTISMO (REDISEÑADO)
+//  MÓDULO PRESENTISMO (SOFT PASTELS)
 // ═══════════════════════════════════════════════════════════════
 function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, db, doc, setDoc, onSnapshot, useEffect, useState, setPreviewData, mostrarToast }) {
   const [asistencias, setAsistencias] = useState({});
@@ -649,7 +660,7 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, db, doc, setDo
   ];
   const datosPreview = staff.map(s=>({...s, estado:asistencias[s.id]||false, turnos:turnos.filter(t=>t.lavadorId===s.id).length}));
 
-  if (cargandoAsistencia) return <div style={{textAlign:"center",color:"#94a3b8",padding:40,fontSize:13}}>Cargando presentismo...</div>;
+  if (cargandoAsistencia) return <div style={{textAlign:"center",color:"#9ca3af",padding:40,fontSize:13}}>Cargando presentismo...</div>;
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16, animation:"fadeInUp .4s ease-out" }}>
@@ -657,7 +668,7 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, db, doc, setDo
         <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:"#1e293b" }}>📋 Control de Personal</h3>
         <Btn sm color="tertiary" onClick={()=>setPreviewData({titulo:"Presentismo "+fechaAR(hoyStr),datos:datosPreview,columnas:columnasPreview})}>🖨️ Previsualizar</Btn>
       </div>
-      <div style={{ fontSize:12, color:"#64748b", background:"#f8fafc", padding:"10px 14px", borderRadius:10, border:"1px solid #e2e8f0" }}>
+      <div style={{ fontSize:12, color:"#6b7280", background:"#f9fafb", padding:"10px 14px", borderRadius:12, border:"1px solid #e5e7eb" }}>
         💡 Marcá quién vino hoy ANTES de crear turnos. Los presentes aparecerán disponibles en "+ Nuevo Turno".
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))", gap:10 }}>
@@ -665,23 +676,23 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, db, doc, setDo
           const presente = asistencias[s.id];
           return (
             <button key={s.id} onClick={()=>toggleAsistencia(s.id)} style={{
-              background: presente ? "linear-gradient(135deg,#ecfdf5,#d1fae5)" : "#ffffff",
-              border: `1.5px solid ${presente ? "#6ee7b7" : "#e2e8f0"}`,
-              borderRadius:14, padding:"14px 16px", cursor:"pointer",
+              background: presente ? "linear-gradient(135deg,#ecfdf5,#f0fdf4)" : "#ffffff",
+              border: `1.5px solid ${presente ? "#a7f3d0" : "#e5e7eb"}`,
+              borderRadius:16, padding:"14px 16px", cursor:"pointer",
               display:"flex", alignItems:"center", gap:12, textAlign:"left",
               transition:"all .2s ease",
-              boxShadow: presente ? "0 4px 15px rgba(16,185,129,.15)" : "0 2px 8px rgba(0,0,0,.04)"
+              boxShadow: presente ? "0 4px 14px rgba(167,243,208,.2)" : "0 2px 8px rgba(0,0,0,.03)"
             }}
             onMouseOver={e=>e.currentTarget.style.transform="translateY(-2px)"}
             onMouseOut={e=>e.currentTarget.style.transform="translateY(0)"}>
               <div style={{
                 width:12, height:12, borderRadius:"50%", flexShrink:0,
-                background: presente ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
-                boxShadow: presente ? "0 0 8px rgba(16,185,129,.5)" : "none"
+                background: presente ? "#10b981" : "#d1d5db",
+                boxShadow: presente ? "0 0 8px rgba(16,185,129,.4)" : "none"
               }} />
               <div>
-                <div style={{ fontSize:13, fontWeight:700, color: presente ? "#065f46" : "#475569" }}>{s.nombre}</div>
-                <div style={{ fontSize:11, color: presente ? "#059669" : "#94a3b8", fontWeight:600 }}>{s.transporte}</div>
+                <div style={{ fontSize:13, fontWeight:700, color: presente ? "#064e3b" : "#374151" }}>{s.nombre}</div>
+                <div style={{ fontSize:11, color: presente ? "#059669" : "#9ca3af", fontWeight:600 }}>{s.transporte}</div>
               </div>
             </button>
           );
@@ -692,7 +703,7 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, db, doc, setDo
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  COMPONENTE PRINCIPAL APP (REDISEÑADO)
+//  COMPONENTE PRINCIPAL APP (SOFT PASTELS)
 // ═══════════════════════════════════════════════════════════════
 export default function App() {
   const [modoPrueba, setModoPrueba] = useState(false);
@@ -858,35 +869,35 @@ export default function App() {
 
   // ─── RENDER ───
   if (cargando) return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"linear-gradient(135deg,#f8fafc,#f1f5f9)",color:"#3b82f6",fontFamily:"'Inter',system-ui,sans-serif",fontWeight:700,fontSize:14}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f9fafb",color:"#6b7280",fontFamily:"'Inter',system-ui,sans-serif",fontWeight:600,fontSize:14}}>
       ⟳ Sincronizando Sofia Lavados...
     </div>
   );
 
-  // PANTALLA COMPLETA DE APERTURA (REDISEÑADA)
+  // PANTALLA COMPLETA DE APERTURA (SOFT PASTELS)
   if (diaActual?.estado !== "abierto") {
     return (
-      <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#f8fafc 0%,#eff6ff 50%,#f0fdf4 100%)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"'Inter',system-ui,sans-serif" }}>
+      <div style={{ minHeight:"100vh", background:"#f9fafb", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"'Inter',system-ui,sans-serif" }}>
         <div style={{ animation:"fadeInUp .5s ease-out", textAlign:"center" }}>
-          <div style={{ fontSize:64, marginBottom:12, filter:"drop-shadow(0 4px 12px rgba(59,130,246,.2))" }}>🚗</div>
+          <div style={{ fontSize:64, marginBottom:12 }}>🚗</div>
           <h1 style={{ color:"#1e293b", fontSize:28, fontWeight:900, marginBottom:6, letterSpacing:"-0.5px" }}>Sofía Lavados</h1>
-          <p style={{ color:"#64748b", fontSize:14, marginBottom:40, fontWeight:500 }}>{fechaAR(hoy())} • {horaAR()} hs</p>
+          <p style={{ color:"#6b7280", fontSize:14, marginBottom:40, fontWeight:500 }}>{fechaAR(hoy())} • {horaAR()} hs</p>
           
           <button onClick={toggleDia} style={{
-            background:"linear-gradient(135deg,#10b981,#059669)",
-            color:"#fff", border:"none", borderRadius:20,
+            background:"linear-gradient(135deg,#bbf7d0,#a7f3d0)",
+            color:"#14532d", border:"1px solid #86efac", borderRadius:20,
             padding:"22px 56px", fontSize:20, fontWeight:800,
-            cursor:"pointer", boxShadow:"0 12px 40px rgba(16,185,129,.35)",
+            cursor:"pointer", boxShadow:"0 8px 30px rgba(167,243,208,.3)",
             transition:"all .3s ease", width:"100%", maxWidth:380,
             fontFamily:"'Inter',system-ui,sans-serif",letterSpacing:"0.3px"
           }}
-          onMouseOver={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 16px 50px rgba(16,185,129,.45)"}}
-          onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 12px 40px rgba(16,185,129,.35)"}}>
+          onMouseOver={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 12px 40px rgba(167,243,208,.4)"}}
+          onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 8px 30px rgba(167,243,208,.3)"}}>
             🟢 ABRIR DÍA
           </button>
 
           {modoOculto && (
-            <div style={{ marginTop:20, padding:"8px 20px", borderRadius:10, background:"linear-gradient(135deg,#fef3c7,#fffbeb)", border:"1px solid #fcd34d", color:"#92400e", fontSize:12, fontWeight:700, display:"inline-block" }}>
+            <div style={{ marginTop:20, padding:"8px 20px", borderRadius:12, background:"#fffbeb", border:"1px solid #fde68a", color:"#92400e", fontSize:12, fontWeight:700, display:"inline-block" }}>
               🧪 MODO OCULTO ACTIVO
             </div>
           )}
@@ -896,10 +907,9 @@ export default function App() {
     );
   }
 
-  // APP NORMAL (DÍA ABIERTO) - REDISEÑADA
+  // APP NORMAL (DÍA ABIERTO) - SOFT PASTELS
   return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%)", color:"#1e293b", fontFamily:"'Inter',system-ui,sans-serif", paddingBottom:90 }}>
-      {/* Animaciones CSS */}
+    <div style={{ minHeight:"100vh", background:"#f9fafb", color:"#1e293b", fontFamily:"'Inter',system-ui,sans-serif", paddingBottom:90 }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         @keyframes fadeInUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
@@ -912,30 +922,28 @@ export default function App() {
         }
       `}</style>
 
-      {/* HEADER REDISEÑADO */}
+      {/* HEADER SOFT PASTELS */}
       <header style={{
         position:"sticky", top:0, zIndex:100,
-        background:"rgba(255,255,255,.85)", backdropFilter:"blur(16px)",
-        borderBottom:"1px solid #e2e8f0",
+        background:"rgba(255,255,255,.9)", backdropFilter:"blur(16px)",
+        borderBottom:"1px solid #e5e7eb",
         padding:"12px 20px", display:"flex", justifyContent:"space-between", alignItems:"center"
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <div onClick={handleLogoTap} style={{
             fontSize:18, fontWeight:900, cursor:"pointer", userSelect:"none",
-            background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",
-            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-            letterSpacing:"-0.3px"
+            color:"#1e293b", letterSpacing:"-0.3px"
           }}>🚗 Sofía</div>
           <div style={{
-            fontSize:11, fontWeight:800, padding:"4px 10px", borderRadius:8,
-            background: diaActual?.lluvia ? "linear-gradient(135deg,#fef3c7,#fffbeb)" : "linear-gradient(135deg,#ecfdf5,#d1fae5)",
-            color: diaActual?.lluvia ? "#92400e" : "#065f46",
-            border: diaActual?.lluvia ? "1px solid #fcd34d" : "1px solid #6ee7b7"
+            fontSize:11, fontWeight:800, padding:"4px 10px", borderRadius:10,
+            background: diaActual?.lluvia ? "#fffbeb" : "#ecfdf5",
+            color: diaActual?.lluvia ? "#92400e" : "#064e3b",
+            border: diaActual?.lluvia ? "1px solid #fde68a" : "1px solid #a7f3d0"
           }}>
             {diaActual?.lluvia ? "🌧️ LLUVIA" : "🟢 ABIERTO"}
           </div>
           {modoOculto && (
-            <span style={{ fontSize:10, fontWeight:800, color:"#92400e", background:"linear-gradient(135deg,#fef3c7,#fffbeb)", padding:"3px 8px", borderRadius:6, border:"1px solid #fcd34d" }}>OCULTO</span>
+            <span style={{ fontSize:10, fontWeight:800, color:"#92400e", background:"#fffbeb", padding:"3px 8px", borderRadius:8, border:"1px solid #fde68a" }}>OCULTO</span>
           )}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -944,51 +952,51 @@ export default function App() {
           ) : (
             <Btn sm color="warning" onClick={activarLluvia}>🌧️ Lluvia</Btn>
           )}
-          <div className="reloj-desktop" style={{ fontSize:13, color:"#64748b", fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{horaAR()} hs</div>
+          <div className="reloj-desktop" style={{ fontSize:13, color:"#6b7280", fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{horaAR()} hs</div>
         </div>
       </header>
 
-      {/* NAV TABS REDISEÑADA */}
+      {/* NAV TABS SOFT PASTELS */}
       <nav className="nav-tabs" style={{
         display:"flex", gap:6, padding:"10px 16px",
-        borderBottom:"1px solid #e2e8f0", whiteSpace:"nowrap", alignItems:"center",
-        background:"rgba(255,255,255,.6)", backdropFilter:"blur(8px)"
+        borderBottom:"1px solid #e5e7eb", whiteSpace:"nowrap", alignItems:"center",
+        background:"rgba(255,255,255,.7)", backdropFilter:"blur(8px)"
       }}>
         {[
-          {id:"agenda",label:"📋 Agenda",color:"#3b82f6"},
-          {id:"presentismo",label:"✅ Presentismo",color:"#10b981"},
-          {id:"caja",label:"💰 Caja",color:"#f59e0b"},
-          {id:"clientes",label:"👥 Clientes",color:"#8b5cf6"},
-          {id:"config",label:"⚙️ Config",color:"#64748b"}
+          {id:"agenda",label:"📋 Agenda",color:"#3b82f6",bg:"#dbeafe",border:"#bfdbfe"},
+          {id:"presentismo",label:"✅ Presentismo",color:"#059669",bg:"#d1fae5",border:"#a7f3d0"},
+          {id:"caja",label:"💰 Caja",color:"#d97706",bg:"#fef3c7",border:"#fde68a"},
+          {id:"clientes",label:"👥 Clientes",color:"#7c3aed",bg:"#ede9fe",border:"#ddd6fe"},
+          {id:"config",label:"⚙️ Config",color:"#4b5563",bg:"#f3f4f6",border:"#e5e7eb"}
         ].map(t => (
           <button key={t.id} onClick={()=>setTab(t.id)} style={{
-            background: tab===t.id ? `${t.color}12` : "transparent",
-            color: tab===t.id ? t.color : "#64748b",
-            border: tab===t.id ? `1.5px solid ${t.color}44` : "1.5px solid transparent",
-            borderRadius:10, padding:"8px 16px", fontSize:12, fontWeight:700,
+            background: tab===t.id ? t.bg : "transparent",
+            color: tab===t.id ? t.color : "#6b7280",
+            border: tab===t.id ? `1.5px solid ${t.border}` : "1.5px solid transparent",
+            borderRadius:12, padding:"8px 16px", fontSize:12, fontWeight:700,
             cursor:"pointer", flexShrink:0, transition:"all .2s",
             fontFamily:"'Inter',system-ui,sans-serif"
           }}
-          onMouseOver={e=>{if(tab!==t.id)e.currentTarget.style.background="#f1f5f9"}}
+          onMouseOver={e=>{if(tab!==t.id)e.currentTarget.style.background="#f3f4f6"}}
           onMouseOut={e=>{if(tab!==t.id)e.currentTarget.style.background="transparent"}}>
             {t.label}
           </button>
         ))}
         <button onClick={toggleDia} style={{
           marginLeft:"auto", flexShrink:0,
-          background:"linear-gradient(135deg,#ef4444,#dc2626)",
-          color:"#fff", border:"none", borderRadius:10,
+          background:"#fecaca", color:"#991b1b",
+          border:"1px solid #fca5a5", borderRadius:12,
           padding:"8px 16px", fontSize:12, fontWeight:800,
-          cursor:"pointer", boxShadow:"0 4px 15px rgba(239,68,68,.3)",
+          cursor:"pointer", boxShadow:"0 4px 14px rgba(254,202,202,.25)",
           transition:"all .2s", fontFamily:"'Inter',system-ui,sans-serif"
         }}
-        onMouseOver={e=>e.currentTarget.style.transform="translateY(-2px)"}
-        onMouseOut={e=>e.currentTarget.style.transform="translateY(0)"}>
+        onMouseOver={e=>{e.currentTarget.style.background="#fca5a5";e.currentTarget.style.transform="translateY(-2px)"}}
+        onMouseOut={e=>{e.currentTarget.style.background="#fecaca";e.currentTarget.style.transform="translateY(0)"}}>
           🔴 Cerrar Día
         </button>
       </nav>
 
-      {/* MAIN CONTENT REDISEÑADO */}
+      {/* MAIN CONTENT SOFT PASTELS */}
       <main style={{ padding:20, maxWidth:800, margin:"0 auto", animation:"fadeInUp .4s ease-out" }}>
         
         {/* AGENDA */}
@@ -1000,30 +1008,28 @@ export default function App() {
             </div>
 
             {turnos.length === 0 ? (
-              <div style={{ textAlign:"center", color:"#94a3b8", padding:60, fontSize:14, background:"#ffffff", borderRadius:16, border:"1.5px dashed #e2e8f0" }}>
+              <div style={{ textAlign:"center", color:"#9ca3af", padding:60, fontSize:14, background:"#ffffff", borderRadius:20, border:"1.5px dashed #e5e7eb" }}>
                 <div style={{fontSize:32,marginBottom:12}}>📋</div>
-                No hay turnos registrados.<br/><span style={{fontWeight:600,color:"#64748b"}}>Tocá "+ Nuevo Turno" para comenzar.</span>
+                No hay turnos registrados.<br/><span style={{fontWeight:600,color:"#6b7280"}}>Tocá "+ Nuevo Turno" para comenzar.</span>
               </div>
             ) : (
               turnos.map(t => (
                 <div key={t.id} style={{
-                  background:"#ffffff", borderRadius:16, padding:18,
+                  background:"#ffffff", borderRadius:18, padding:18,
                   display:"flex", justifyContent:"space-between", alignItems:"center",
-                  border:"1px solid #e2e8f0",
-                  boxShadow:"0 2px 12px rgba(0,0,0,.04)",
+                  border:"1px solid #e5e7eb",
+                  boxShadow:"0 2px 10px rgba(0,0,0,.03)",
                   transition:"all .2s ease"
                 }}
-                onMouseOver={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 25px rgba(0,0,0,.08)"}}
-                onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 12px rgba(0,0,0,.04)"}}>
+                onMouseOver={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 25px rgba(0,0,0,.06)"}}
+                onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 10px rgba(0,0,0,.03)"}}>
                   <div>
                     <div style={{
                       display:"inline-block",fontSize:13,fontWeight:800,
-                      background:"linear-gradient(135deg,#3b82f6,#1d4ed8)",
-                      WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
-                      marginBottom:4
+                      color:"#1e3a8a", marginBottom:4
                     }}>{t.hora} hs</div>
                     <div style={{ fontSize:14, fontWeight:700, color:"#1e293b" }}>{t.clienteNombre}</div>
-                    <div style={{ fontSize:12, color:"#64748b", fontWeight:500, marginTop:2 }}>{t.auto} • {formatP(t.precio)}</div>
+                    <div style={{ fontSize:12, color:"#6b7280", fontWeight:500, marginTop:2 }}>{t.auto} • {formatP(t.precio)}</div>
                   </div>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                     {t.estado === "pendiente" && (
@@ -1031,9 +1037,8 @@ export default function App() {
                     )}
                     {t.estado === "rendido" && (
                       <span style={{
-                        fontSize:11, fontWeight:800, padding:"6px 12px", borderRadius:8,
-                        background:"linear-gradient(135deg,#ecfdf5,#d1fae5)",
-                        color:"#059669", border:"1px solid #6ee7b7"
+                        fontSize:11, fontWeight:800, padding:"6px 12px", borderRadius:10,
+                        background:"#ecfdf5", color:"#064e3b", border:"1px solid #a7f3d0"
                       }}>✓ RENDIDO</span>
                     )}
                   </div>
@@ -1054,19 +1059,17 @@ export default function App() {
         
         {/* CAJA */}
         {tab === "caja" && (
-          <div style={{ textAlign:"center", padding:50, background:"#ffffff", borderRadius:20, border:"1px solid #e2e8f0", boxShadow:"0 4px 20px rgba(0,0,0,.04)", animation:"fadeInUp .4s ease-out" }}>
-            <div style={{ fontSize:13, color:"#64748b", fontWeight:700, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>Recaudación del día</div>
+          <div style={{ textAlign:"center", padding:50, background:"#ffffff", borderRadius:24, border:"1px solid #e5e7eb", boxShadow:"0 4px 20px rgba(0,0,0,.03)", animation:"fadeInUp .4s ease-out" }}>
+            <div style={{ fontSize:13, color:"#6b7280", fontWeight:700, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>Recaudación del día</div>
             <div style={{
               fontSize:42, fontWeight:900, letterSpacing:"-1px",
-              background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",
-              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-              marginBottom:12
+              color:"#1e3a8a", marginBottom:12
             }}>
               {formatP(turnos.reduce((a,t) => a + (t.pagado||0), 0))}
             </div>
             <div style={{
-              display:"inline-block",fontSize:12, fontWeight:700, padding:"6px 16px", borderRadius:8,
-              background:"linear-gradient(135deg,#f0f9ff,#eff6ff)", color:"#1d4ed8", border:"1px solid #bae6fd"
+              display:"inline-block",fontSize:12, fontWeight:700, padding:"6px 16px", borderRadius:10,
+              background:"#eff6ff", color:"#1e3a8a", border:"1px solid #bfdbfe"
             }}>
               {turnos.filter(t=>t.estado==="rendido").length} turnos rendidos
             </div>
@@ -1078,26 +1081,25 @@ export default function App() {
           <div style={{ display:"flex", flexDirection:"column", gap:10, animation:"fadeInUp .4s ease-out" }}>
             <h3 style={{ margin:0, fontSize:20, fontWeight:800, color:"#1e293b", marginBottom:8 }}>👥 Clientes ({clientes.length})</h3>
             {clientes.length === 0 ? (
-              <div style={{ textAlign:"center", color:"#94a3b8", padding:30, fontSize:13 }}>Cargando clientes...</div>
+              <div style={{ textAlign:"center", color:"#9ca3af", padding:30, fontSize:13 }}>Cargando clientes...</div>
             ) : (
               clientes.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(c => (
                 <div key={c.id} style={{
-                  background:"#ffffff", borderRadius:14, padding:16,
+                  background:"#ffffff", borderRadius:16, padding:16,
                   display:"flex", justifyContent:"space-between", alignItems:"center",
-                  border:"1px solid #e2e8f0", boxShadow:"0 2px 8px rgba(0,0,0,.03)",
+                  border:"1px solid #e5e7eb", boxShadow:"0 2px 8px rgba(0,0,0,.02)",
                   transition:"all .2s"
                 }}
-                onMouseOver={e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow="0 4px 15px rgba(0,0,0,.06)"}}
-                onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,.03)"}}>
+                onMouseOver={e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow="0 4px 15px rgba(0,0,0,.05)"}}
+                onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,.02)"}}>
                   <div>
                     <div style={{ fontSize:14, fontWeight:700, color:"#1e293b" }}>{c.nombre}</div>
-                    <div style={{ fontSize:12, color:"#64748b", fontWeight:500, marginTop:2 }}>{c.barrio} • {c.tipo}</div>
+                    <div style={{ fontSize:12, color:"#6b7280", fontWeight:500, marginTop:2 }}>{c.barrio} • {c.tipo}</div>
                   </div>
                   {c.deuda > 0 && (
                     <span style={{
-                      fontSize:11, fontWeight:800, padding:"5px 12px", borderRadius:8,
-                      background:"linear-gradient(135deg,#fef2f2,#fff1f2)",
-                      color:"#dc2626", border:"1px solid #fecaca"
+                      fontSize:11, fontWeight:800, padding:"5px 12px", borderRadius:10,
+                      background:"#fef2f2", color:"#991b1b", border:"1px solid #fecaca"
                     }}>Deuda: {formatP(c.deuda)}</span>
                   )}
                 </div>
@@ -1110,31 +1112,31 @@ export default function App() {
         {tab === "config" && (
           <div style={{ display:"flex", flexDirection:"column", gap:16, animation:"fadeInUp .4s ease-out" }}>
             {!keyDesbloqueada ? (
-              <div style={{ background:"#ffffff", padding:24, borderRadius:16, textAlign:"center", border:"1px solid #e2e8f0", boxShadow:"0 4px 20px rgba(0,0,0,.04)" }}>
-                <div style={{ fontSize:14, color:"#475569", marginBottom:14, fontWeight:600 }}>🔒 Ingresa clave para ver API Key Gemini</div>
+              <div style={{ background:"#ffffff", padding:24, borderRadius:20, textAlign:"center", border:"1px solid #e5e7eb", boxShadow:"0 4px 20px rgba(0,0,0,.03)" }}>
+                <div style={{ fontSize:14, color:"#374151", marginBottom:14, fontWeight:600 }}>🔒 Ingresa clave para ver API Key Gemini</div>
                 <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
                   <input type="password" placeholder="Clave maestra" value={inputClave} onChange={e=>setInputClave(e.target.value)} onKeyDown={e=>e.key==="Enter"&&verificarClaveAcceso()} style={{
-                    background:"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:10, padding:"10px 16px", color:"#1e293b", fontSize:13, outline:"none", width:180, fontFamily:"'Inter',system-ui,sans-serif"
+                    background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12, padding:"10px 16px", color:"#1e293b", fontSize:13, outline:"none", width:180, fontFamily:"'Inter',system-ui,sans-serif"
                   }} />
                   <Btn sm color="secondary" onClick={verificarClaveAcceso}>Desbloquear</Btn>
                 </div>
               </div>
             ) : (
-              <div style={{ background:"#ffffff", padding:24, borderRadius:16, border:"1px solid #e2e8f0", boxShadow:"0 4px 20px rgba(0,0,0,.04)" }}>
+              <div style={{ background:"#ffffff", padding:24, borderRadius:20, border:"1px solid #e5e7eb", boxShadow:"0 4px 20px rgba(0,0,0,.03)" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14 }}>
                   <span style={{ fontSize:14, fontWeight:800, color:"#1e293b" }}>🔑 API Key Gemini</span>
-                  <button onClick={()=>setKeyDesbloqueada(false)} style={{ background:"none", border:"none", color:"#ef4444", cursor:"pointer", fontSize:12, fontWeight:700 }}>🔒 Bloquear</button>
+                  <button onClick={()=>setKeyDesbloqueada(false)} style={{ background:"none", border:"none", color:"#dc2626", cursor:"pointer", fontSize:12, fontWeight:700 }}>🔒 Bloquear</button>
                 </div>
                 <input type="text" value={geminiKey} onChange={e=>setGeminiKey(e.target.value)} style={{
-                  width:"100%", background:"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:10, padding:"12px 16px", color:"#1e293b", fontSize:12, outline:"none", boxSizing:"border-box", fontFamily:"monospace"
+                  width:"100%", background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12, padding:"12px 16px", color:"#1e293b", fontSize:12, outline:"none", boxSizing:"border-box", fontFamily:"monospace"
                 }} />
                 <Btn sm color="primary" full style={{marginTop:12}} onClick={()=>{localStorage.setItem("sofia_gemini_key", geminiKey); mostrarToast("API Key guardada","ok");}}>💾 Guardar</Btn>
               </div>
             )}
-            <div style={{background:"#ffffff", padding:20, borderRadius:16, border:"1px solid #e2e8f0", boxShadow:"0 4px 20px rgba(0,0,0,.04)"}}>
+            <div style={{background:"#ffffff", padding:20, borderRadius:20, border:"1px solid #e5e7eb", boxShadow:"0 4px 20px rgba(0,0,0,.03)"}}>
               <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}>
-                <input type="checkbox" checked={modoPrueba} onChange={e=>{setModoPrueba(e.target.checked);setModoOculto(e.target.checked);}} style={{width:18,height:18,accentColor:"#8b5cf6"}} />
-                <span style={{fontSize:14,fontWeight:600,color:"#475569"}}>🧪 Modo Prueba (Datos aislados)</span>
+                <input type="checkbox" checked={modoPrueba} onChange={e=>{setModoPrueba(e.target.checked);setModoOculto(e.target.checked);}} style={{width:18,height:18,accentColor:"#7c3aed"}} />
+                <span style={{fontSize:14,fontWeight:600,color:"#374151"}}>🧪 Modo Prueba (Datos aislados)</span>
               </label>
             </div>
           </div>
