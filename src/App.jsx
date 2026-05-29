@@ -276,14 +276,11 @@ function Btn({children,onClick,color="#0e7490",ghost,danger,disabled,full,sm,sty
 //  LÓGICA DE SUGERENCIA IA + LOCAL
 // ═══════════════════════════════════════════════════════════════
 async function sugerirLavadorIA(presentes, turnosHoy, cliente, geminiKey) {
-  // Fallback local si no hay key o falla
   const fallbackLocal = () => {
     if (presentes.length === 0) return null;
-    // Contar turnos por lavador presente
     const carga = {};
     presentes.forEach(s => carga[s.id] = 0);
     turnosHoy.forEach(t => { if (t.lavadorId && carga[t.lavadorId] !== undefined) carga[t.lavadorId]++; });
-    // Elegir el que menos turnos tiene
     let mejor = presentes[0];
     let minCarga = Infinity;
     presentes.forEach(s => {
@@ -345,8 +342,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   const [sugiriendo, setSugiriendo] = useState(false);
 
   const clienteSel = clientes.find(c => c.id === clienteId);
-
-  // Solo lavadores marcados como PRESENTES
+  // Solo lavadores marcados como PRESENTES en la colección independiente
   const presentes = staff.filter(s => asistencias[s.id]);
 
   const manejarSugerir = async () => {
@@ -387,7 +383,6 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   return (
     <Modal titulo="➕ Nuevo Turno" onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {/* Cliente */}
         <label style={{ fontSize: 12, color: "#94a3b8" }}>Cliente</label>
         <select value={clienteId} onChange={e => setClienteId(e.target.value)}
           style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }}>
@@ -397,14 +392,12 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           ))}
         </select>
 
-        {/* Hora */}
         <label style={{ fontSize: 12, color: "#94a3b8" }}>Horario</label>
         <select value={hora} onChange={e => setHora(e.target.value)}
           style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }}>
           {FRANJAS.map(h => <option key={h} value={h}>{h} hs</option>)}
         </select>
 
-        {/* Tamaño */}
         <label style={{ fontSize: 12, color: "#94a3b8" }}>Vehículo</label>
         <div style={{ display: "flex", gap: 6 }}>
           {TAMANOS_DEFAULT.map(t => (
@@ -419,7 +412,6 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           ))}
         </div>
 
-        {/* Lavador + Botón Sugerir IA */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <label style={{ fontSize: 12, color: "#94a3b8" }}>Lavador Asignado</label>
           <Btn sm color="#7c3aed" disabled={sugiriendo || presentes.length === 0} onClick={manejarSugerir}>
@@ -432,7 +424,6 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           {presentes.sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")).map(s => (
             <option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>
           ))}
-          {/* Mostrar también los no presentes pero deshabilitados visualmente */}
           {staff.filter(s => !asistencias[s.id]).sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")).map(s => (
             <option key={s.id} value={s.id} disabled style={{color:"#475569"}}>{s.nombre} (AUSENTE)</option>
           ))}
@@ -441,7 +432,6 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           <div style={{ fontSize: 11, color: "#f87171" }}>⚠️ No hay lavadores marcados como presentes. Andá a Presentismo primero.</div>
         )}
 
-        {/* Nota */}
         <label style={{ fontSize: 12, color: "#94a3b8" }}>Nota</label>
         <input value={nota} onChange={e => setNota(e.target.value)} placeholder="Observaciones..."
           style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none" }} />
@@ -532,22 +522,46 @@ function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
   );
 }
 
-// Módulo Presentismo
-function TabPresentismo({ staff, turnos, hoyStr, COL_TURNOS, db, collection, onSnapshot, useEffect, useState, setPreviewData, mostrarToast }) {
+// ═══════════════════════════════════════════════════════════════
+//  MÓDULO PRESENTISMO (INDEPENDIENTE DE TURNOS)
+// ═══════════════════════════════════════════════════════════════
+function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, db, doc, setDoc, onSnapshot, useEffect, useState, setPreviewData, mostrarToast }) {
   const [asistencias, setAsistencias] = useState({});
+  const [cargandoAsistencia, setCargandoAsistencia] = useState(true);
+
+  // Escuchar asistencias desde colección INDEPENDIENTE
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, COL_TURNOS), (snap) => {
-      const datos = {};
-      snap.docs.forEach(d => { const t = d.data(); if (t.fecha === hoyStr && t.lavadorId) datos[t.lavadorId] = true; });
-      setAsistencias(datos);
+    const docRef = doc(db, COL_ASISTENCIAS, hoyStr);
+    const unsub = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        setAsistencias(snap.data().registros || {});
+      } else {
+        setAsistencias({});
+      }
+      setCargandoAsistencia(false);
     });
     return () => unsub();
-  }, [hoyStr]);
+  }, [hoyStr, COL_ASISTENCIAS]);
 
-  const toggleAsistencia = (staffId) => {
+  const toggleAsistencia = async (staffId) => {
     const nuevoEstado = !asistencias[staffId];
+    // Optimistic update
     setAsistencias(prev => ({ ...prev, [staffId]: nuevoEstado }));
-    mostrarToast(nuevoEstado ? "Marcado como PRESENTE" : "Marcado como AUSENTE", nuevoEstado ? "ok" : "warn");
+    
+    try {
+      const docRef = doc(db, COL_ASISTENCIAS, hoyStr);
+      const nuevosRegistros = { ...asistencias, [staffId]: nuevoEstado };
+      await setDoc(docRef, { 
+        fecha: hoyStr, 
+        registros: nuevosRegistros,
+        actualizadoEn: serverTimestamp() 
+      }, { merge: true });
+      mostrarToast(nuevoEstado ? `${staff.find(s=>s.id===staffId)?.nombre} ✅ PRESENTE` : `${staff.find(s=>s.id===staffId)?.nombre} ❌ AUSENTE`, nuevoEstado ? "ok" : "warn");
+    } catch (err) {
+      // Revertir si falla
+      setAsistencias(prev => ({ ...prev, [staffId]: !nuevoEstado }));
+      mostrarToast("Error al guardar asistencia", "error");
+    }
   };
 
   const columnasPreview = [
@@ -557,11 +571,16 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_TURNOS, db, collection, onS
   ];
   const datosPreview = staff.map(s => ({ ...s, estado: asistencias[s.id] || false, turnos: turnos.filter(t => t.lavadorId === s.id).length }));
 
+  if (cargandoAsistencia) return <div style={{textAlign:"center", color:"#64748b", padding:20}}>Cargando presentismo...</div>;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h3 style={{ margin: 0, fontSize: 16, color: "#e2e8f0" }}>📋 Control de Personal</h3>
         <Btn sm onClick={() => setPreviewData({ titulo: "Presentismo " + fechaAR(hoyStr), datos: datosPreview, columnas: columnasPreview })}>🖨️ Previsualizar</Btn>
+      </div>
+      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>
+        Marcá quién vino hoy ANTES de crear turnos. Los presentes aparecerán disponibles en "+ Nuevo Turno".
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
         {staff.map(s => {
@@ -598,6 +617,7 @@ export default function App() {
   const COL_TURNOS = modoPrueba ? "turnos_prueba" : "turnos";
   const COL_CLIENTES = modoPrueba ? "clientes_prueba" : "clientes";
   const COL_STAFF = modoPrueba ? "staff_prueba" : "staff";
+  const COL_ASISTENCIAS = modoPrueba ? "asistencias_prueba" : "asistencias";
 
   const [diaActual, setDiaActual] = useState(null);
   const [turnos, setTurnos] = useState([]);
@@ -618,7 +638,7 @@ export default function App() {
 
   const mostrarToast = (msg, tipo="ok") => setToast({ msg, tipo });
 
-  // ─── GESTO OCULTO: 5 taps en logo para activar modo pruebas ───
+  // ─── GESTO OCULTO: 5 taps en logo ───
   const handleLogoTap = () => {
     tapCountRef.current += 1;
     clearTimeout(tapTimerRef.current);
@@ -627,11 +647,11 @@ export default function App() {
       tapCountRef.current = 0;
       setModoOculto(prev => !prev);
       setModoPrueba(prev => !prev);
-      mostrarToast(modoPrueba ? "🔓 Modo OCULTO activado" : "🔒 Modo producción restaurado", modoPrueba ? "warn" : "ok");
+      mostrarToast(!modoPrueba ? "🧪 Modo OCULTO activado" : "🔒 Modo producción restaurado", !modoPrueba ? "warn" : "ok");
     }
   };
 
-  // ─── SEED AUTOMÁTICO DE DATOS INICIALES ───
+  // ─── SEED AUTOMÁTICO ───
   useEffect(() => {
     const seedIfEmpty = async () => {
       try {
@@ -692,13 +712,16 @@ export default function App() {
     return () => { unsubDia(); unsubTurnos(); unsubClientes(); unsubStaff(); };
   }, [modoPrueba]);
 
-  // ─── ASISTENCIAS EN TIEMPO REAL (para sugerencia IA) ───
+  // ─── ASISTENCIAS EN TIEMPO REAL (desde colección independiente) ───
   useEffect(() => {
     const fechaHoy = hoy();
-    const unsub = onSnapshot(collection(db, COL_TURNOS), (snap) => {
-      const datos = {};
-      snap.docs.forEach(d => { const t = d.data(); if (t.fecha === fechaHoy && t.lavadorId) datos[t.lavadorId] = true; });
-      setAsistencias(datos);
+    const docRef = doc(db, COL_ASISTENCIAS, fechaHoy);
+    const unsub = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        setAsistencias(snap.data().registros || {});
+      } else {
+        setAsistencias({});
+      }
     });
     return () => unsub();
   }, [modoPrueba]);
@@ -821,14 +844,13 @@ export default function App() {
         </div>
       </header>
 
-      {/* NAV TABS CON BOTÓN CERRAR DÍA INTEGRADO */}
+      {/* NAV TABS CON BOTÓN CERRAR DÍA */}
       <nav className="nav-tabs" style={{ display:"flex", gap:4, padding:"8px 12px", borderBottom:"1px solid #1e3a5f", whiteSpace:"nowrap", alignItems:"center" }}>
         {[{id:"agenda",label:"📋 Agenda"},{id:"presentismo",label:"✅ Presentismo"},{id:"caja",label:"💰 Caja"},{id:"clientes",label:"👥 Clientes"},{id:"config",label:"⚙️ Config"}].map(t => (
           <button key={t.id} onClick={()=>setTab(t.id)} style={{ background: tab===t.id ? "#22d3ee22" : "transparent", color: tab===t.id ? "#22d3ee" : "#94a3b8", border: tab===t.id ? "1px solid #22d3ee44" : "1px solid transparent", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
             {t.label}
           </button>
         ))}
-        {/* BOTÓN CERRAR DÍA EN PESTAÑAS */}
         <button onClick={toggleDia} style={{
           marginLeft: "auto", flexShrink: 0,
           background: "linear-gradient(135deg, #dc2626, #991b1b)",
@@ -874,7 +896,22 @@ export default function App() {
           </div>
         )}
         
-        {tab === "presentismo" && <TabPresentismo staff={staff} turnos={turnos} hoyStr={hoy()} COL_TURNOS={COL_TURNOS} db={db} collection={collection} onSnapshot={onSnapshot} useEffect={useEffect} useState={useState} setPreviewData={setPreviewData} mostrarToast={mostrarToast} />}
+        {tab === "presentismo" && (
+          <TabPresentismo 
+            staff={staff} 
+            turnos={turnos} 
+            hoyStr={hoy()} 
+            COL_ASISTENCIAS={COL_ASISTENCIAS} 
+            db={db} 
+            doc={doc} 
+            setDoc={setDoc}
+            onSnapshot={onSnapshot} 
+            useEffect={useEffect} 
+            useState={useState} 
+            setPreviewData={setPreviewData} 
+            mostrarToast={mostrarToast} 
+          />
+        )}
         
         {tab === "caja" && (
           <div style={{ textAlign:"center", padding:40 }}>
