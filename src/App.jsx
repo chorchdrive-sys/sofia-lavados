@@ -24,12 +24,16 @@ const db = getFirestore(app);
 // ═══════════════════════════════════════════════════════════════
 //  CONSTANTES
 // ═══════════════════════════════════════════════════════════════
-const BASE_LAT  = -34.5128;
+const BASE_LAT  = -34.5128; // Olivos como base para cercanía
 const BASE_LNG  = -58.4985;
 const FRANJAS = ["09:00","10:30","12:00","13:30","15:00","16:30","18:00"];
-const FRANJA_TARDE = 3;
-const FRANJA_MANANA = 0;
-const FRANJA_MEDIODIA = 2;
+
+// PUNTO 7: Tiempos estimados por vehículo (en minutos)
+const TIEMPOS_LAVADO = {
+  "Chico": 30,
+  "Mediano": 45,
+  "Camioneta": 60,
+};
 
 const TAMANOS_DEFAULT = [
   { id:"chico",     label:"Chico",     precio:25000 },
@@ -42,7 +46,6 @@ const COLORES = [
   "#a5b4fc","#f0abfc","#fcd34d","#a7f3d0","#bae6fd","#fecdd3",
 ];
 
-// STAFF_SEED con campo teléfono (Punto 4 y 6)
 const STAFF_SEED = [
   {nombre:"Jhony",     transporte:"moto",color:"#93c5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
   {nombre:"Sergio",    transporte:"moto",color:"#c4b5fd",whatsapp:true, rol:"lavador",especial:"", saldoPendiente:0, telefono:""},
@@ -67,6 +70,7 @@ const STAFF_SEED = [
   {nombre:"Gastón",    transporte:"bici",color:"#fcd34d",whatsapp:false,rol:"lavador",especial:"llamar_telefono", saldoPendiente:0, telefono:""},
 ];
 
+// PUNTO 1: BARRIOS_INICIALES sin "GEN" → todo usa prefijo DES para desconocidos
 const BARRIOS_INICIALES = {
   "olivos":"OLI","martinez":"MAR","florida":"FLO","san isidro":"SIS",
   "acassuso":"ACA","la lucila":"LAL","boulogne":"BOU","vicente lopez":"VLO",
@@ -74,8 +78,9 @@ const BARRIOS_INICIALES = {
 };
 let LISTA_BARRIOS = Object.keys(BARRIOS_INICIALES).map(k=>k.charAt(0).toUpperCase()+k.slice(1));
 
+// PUNTO 1: Prefijo unificado "DES" para clientes sin barrio
 function codigoBarrio(barrioNombre) {
-  if(!barrioNombre) return "GEN";
+  if(!barrioNombre || barrioNombre.trim() === "" || barrioNombre.toLowerCase() === "desconocido") return "DES";
   const limpio = barrioNombre.replace(/[\(\)\[\],]/g," ").replace(/\s+/g," ").trim();
   const b = limpio.toLowerCase().replace(/[áéíóúü]/g, m=>({á:"a",é:"e",í:"i",ó:"o",ú:"u",ü:"u"}[m]||m));
   for(const [k,v] of Object.entries(BARRIOS_INICIALES)) {
@@ -107,11 +112,6 @@ const CLIENTES_SEED = [
   {nombre:"Ale",       telefono:"", direccion:"Sáenz Valiente 2163",           barrio:"Olivos",     autosHabituales:1, nota:"",                                tipo:"💤 Ocasional", deuda:0, codigo:"OLI-004-Ale"},
   {nombre:"GabyC",     telefono:"", direccion:"Catamarca 1304",                barrio:"Florida",    autosHabituales:2, nota:"",                                tipo:"💤 Ocasional", deuda:0, codigo:"FLO-001-GabyC"},
   {nombre:"Pablo",     telefono:"", direccion:"Ezpeleta 531",                  barrio:"Martínez",   autosHabituales:2, nota:"",                                tipo:"💤 Ocasional", deuda:0, codigo:"MAR-011-Pablo"},
-];
-
-const NOTAS_PREDEFINIDAS = [
-  "Cliente detallista","Insectos de ruta","Barro extremo","Decir precio antes de empezar",
-  "Avisar cuando va","No usar revividor","Llevar doble alargue","Auto muy sucio","Cliente nuevo",
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -146,8 +146,7 @@ const sinAcentos  = s  => (s||"").toLowerCase().replace(/[áéíóúü]/g, m=>({
 
 function mostrarTelefono(cliente) {
   const telefono = cliente?.telefono;
-  const esFicticio = telefono && String(telefono).startsWith("1100000");
-  if (telefono && !esFicticio && telefono !== "") return `📞 ${telefono}`;
+  if (telefono && telefono !== "") return `📞 ${telefono}`;
   return "📞 Sin registrar";
 }
 
@@ -162,33 +161,53 @@ function capitalizar(nombre) {
 }
 
 const _geocache = {};
-// FIX 3 - OPCIÓN B: Geocodificación mejorada con fallback y edición manual
+// PUNTO 2: Geocodificación mejorada con advertencia clara y prioridad zona base
 async function geocodificar(dir) {
   const resultadoDefault = { 
     lat:BASE_LAT, lng:BASE_LNG, barrio:"", codigoPostal:"", 
-    provincia:"", ciudad:"", direccionCompleta:"", encontrado:false 
+    provincia:"", ciudad:"", encontrado:false 
   };
   if(!dir || dir.trim().length < 5) return resultadoDefault;
   if(_geocache[dir]) return _geocache[dir];
   
   try {
+    // PUNTO 2: Priorizar búsqueda cerca de Olivos (zona base)
     const q = encodeURIComponent(`${dir}, Buenos Aires, Argentina`);
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&addressdetails=1`,{
-      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/5.0"}
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&viewbox=-58.55,-34.45,-58.40,-34.55&bounded=0`,{
+      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/6.0"}
     });
     const data = await res.json();
+    
     if(data && data.length>0) {
-      const addr = data[0].address || {};
+      // Buscar el resultado más cercano a la zona base (Olivos)
+      let mejorResultado = data[0];
+      let menorDistancia = Infinity;
+      
+      for(const item of data) {
+        const addr = item.address || {};
+        const barrio = addr.suburb || addr.city_district || addr.neighbourhood || addr.town || "";
+        if(barrio) {
+          const lat = parseFloat(item.lat);
+          const lng = parseFloat(item.lon);
+          const dist = Math.sqrt(Math.pow(lat-BASE_LAT,2) + Math.pow(lng-BASE_LNG,2));
+          if(dist < menorDistancia) {
+            menorDistancia = dist;
+            mejorResultado = item;
+          }
+        }
+      }
+      
+      const addr = mejorResultado.address || {};
       const barrio = addr.suburb || addr.city_district || addr.neighbourhood || addr.town || addr.village || "";
+      
       const coords = { 
-        lat:parseFloat(data[0].lat), 
-        lng:parseFloat(data[0].lon), 
+        lat:parseFloat(mejorResultado.lat), 
+        lng:parseFloat(mejorResultado.lon), 
         barrio: capitalizar(barrio),
         codigoPostal: addr.postcode || "",
         provincia: capitalizar(addr.state || ""),
         ciudad: capitalizar(addr.city || addr.town || addr.municipality || ""),
-        direccionCompleta: data[0].display_name || "",
-        encontrado: true
+        encontrado: !!barrio
       };
       _geocache[dir] = coords;
       return coords;
@@ -199,7 +218,6 @@ async function geocodificar(dir) {
   return resultadoDefault;
 }
 
-// Generador de código único (Punto 2 - usa para migración y nuevos)
 async function generarCodigoCliente(barrio, nombre, COL_CLIENTES, codigosExistentes = []) {
   const codBarrio = codigoBarrio(barrio);
   let existentes = codigosExistentes;
@@ -220,6 +238,92 @@ async function generarCodigoCliente(barrio, nombre, COL_CLIENTES, codigosExisten
   const sigNum = String(maxNum + 1).padStart(3, "0");
   const nombreClean = (nombre || "").replace(/\s+/g, "").substring(0, 10);
   return `${codBarrio}-${sigNum}-${nombreClean}`;
+}
+
+// PUNTO 7: Calcular tiempo estimado de finalización de un turno
+function calcularFinTurno(horaInicio, tipoVehiculo) {
+  const [hr, mn] = horaInicio.split(":").map(Number);
+  const minutosInicio = hr * 60 + mn;
+  const duracion = TIEMPOS_LAVADO[tipoVehiculo] || 45;
+  const minutosFin = minutosInicio + duracion;
+  const hrFin = Math.floor(minutosFin / 60);
+  const mnFin = minutosFin % 60;
+  return { 
+    minutosFin, 
+    horaFin: `${String(hrFin).padStart(2,"0")}:${String(mnFin).padStart(2,"0")}`,
+    duracion 
+  };
+}
+
+// PUNTO 7: Lógica de prioridad para asignar lavadores
+function sugerirLavadorPrioridad(presentes, turnosHoy, cliente) {
+  if (presentes.length === 0) return null;
+  
+  const ahora = new Date();
+  const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
+  
+  // Calcular estado de cada lavador presente
+  const estadoLavadores = presentes.map(lavador => {
+    // Turnos activos del lavador (pendientes o en progreso)
+    const turnosActivos = turnosHoy.filter(t => 
+      t.lavadorId === lavador.id && 
+      (t.estado === "pendiente" || t.estado === "en_progreso")
+    );
+    
+    if (turnosActivos.length === 0) {
+      // PRIORIDAD 1: Lavador INACTIVO
+      return { lavador, inactivo: true, minutosFin: 0, distancia: 0 };
+    }
+    
+    // Calcular cuándo termina su turno actual más tardío
+    let maxMinutosFin = 0;
+    turnosActivos.forEach(t => {
+      const fin = calcularFinTurno(t.hora, t.auto);
+      if (fin.minutosFin > maxMinutosFin) maxMinutosFin = fin.minutosFin;
+    });
+    
+    // PRIORIDAD 2: El que termina más pronto
+    // PRIORIDAD 3: Cercanía geográfica (simplificada por barrio)
+    const barrioLavador = lavador.barrioActual || "";
+    const barrioCliente = cliente?.barrio || "";
+    const mismaZona = barrioLavador && barrioCliente && 
+      sinAcentos(barrioLavador).includes(sinAcentos(barrioCliente));
+    
+    return { 
+      lavador, 
+      inactivo: false, 
+      minutosFin: maxMinutosFin,
+      distancia: mismaZona ? 0 : 1
+    };
+  });
+  
+  // Ordenar por prioridad
+  estadoLavadores.sort((a, b) => {
+    // 1. Inactivos primero
+    if (a.inactivo && !b.inactivo) return -1;
+    if (!a.inactivo && b.inactivo) return 1;
+    
+    // 2. Si ambos inactivos o ambos activos, el que termina antes
+    if (a.minutosFin !== b.minutosFin) return a.minutosFin - b.minutosFin;
+    
+    // 3. Desempate por cercanía
+    return a.distancia - b.distancia;
+  });
+  
+  // REGLA ADICIONAL: No asignar a quien le falta mucho si hay otro inactivo
+  const hayInactivos = estadoLavadores.some(e => e.inactivo);
+  const mejor = estadoLavadores[0];
+  
+  if (!mejor.inactivo && hayInactivos) {
+    // Si el mejor candidato está activo y le falta más de 20 min, buscar inactivo
+    const minutosRestantes = mejor.minutosFin - minutosAhora;
+    if (minutosRestantes > 20) {
+      const inactivo = estadoLavadores.find(e => e.inactivo);
+      if (inactivo) return inactivo.lavador;
+    }
+  }
+  
+  return mejor.lavador;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -421,7 +525,7 @@ function BuscadorClientes({ clientes, value, onChange, placeholder, onCreateNew 
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL NUEVO CLIENTE (con FIX 3 - Opción B)
+//  MODAL NUEVO CLIENTE (con FIX 2: Advertencia clara)
 // ═══════════════════════════════════════════════════════════════
 function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast, onClienteCreated, codigosExistentes }) {
   const [datos, setDatos] = useState({
@@ -435,9 +539,8 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
   });
   const [buscandoDir, setBuscandoDir] = useState(false);
   const [error, setError] = useState("");
-  const [avisoGeo, setAvisoGeo] = useState(null); // FIX 3 - Opción B
+  const [avisoGeo, setAvisoGeo] = useState(null);
 
-  // FIX 3 - OPCIÓN B: Búsqueda automática con aviso
   const buscarDireccion = async () => {
     if (!datos.direccion || datos.direccion.trim().length < 5) {
       mostrarToast("Ingresá una dirección más completa (mín. 5 caracteres)", "warn");
@@ -454,13 +557,18 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
         codigoPostal: res.codigoPostal || prev.codigoPostal,
         provincia: res.provincia || prev.provincia,
       }));
-      // FIX 3: Mostrar aviso con opción de cambiar
       setAvisoGeo({
         detectado: res.barrio,
-        mensaje: `Se detectó: ${res.barrio}. ¿Es correcto?`
+        mensaje: `Se detectó: ${res.barrio}. ¿Es correcto?`,
+        tipo: "ok"
       });
     } else {
-      mostrarToast("No se pudo detectar el barrio. Ingresalo manualmente.", "warn");
+      // PUNTO 2: Advertencia clara cuando no se puede determinar
+      setAvisoGeo({
+        detectado: "",
+        mensaje: "⚠️ No se pudo determinar el barrio. Preguntale al cliente e ingresalo manualmente.",
+        tipo: "warn"
+      });
     }
     setBuscandoDir(false);
   };
@@ -476,7 +584,7 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
     if (!datos.nombre || datos.nombre.trim().length < 2) return setError("El nombre es obligatorio (mín. 2 caracteres)");
     if (!datos.direccion || datos.direccion.trim().length < 5) return setError("La dirección debe tener al menos 5 caracteres");
     if (!datos.barrio || datos.barrio.trim() === "" || datos.barrio.toLowerCase() === "desconocido") {
-      return setError("El barrio es obligatorio. Tocá 📍 para detectarlo o ingresalo manualmente.");
+      return setError("El barrio es obligatorio. Tocá 📍 para detectarlo o preguntale al cliente.");
     }
     
     try {
@@ -519,22 +627,29 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
       <div style={{display:"flex", flexDirection:"column", gap:14}}>
         {error && <div style={{color:"#dc2626", fontSize:12, background:"#fef2f2", padding:10, borderRadius:8, border:"1px solid #fecaca"}}>⚠️ {error}</div>}
         
-        {/* FIX 3 - OPCIÓN B: Aviso de geocodificación */}
+        {/* PUNTO 2: Aviso de geocodificación claro */}
         {avisoGeo && (
           <div style={{
-            background:"linear-gradient(135deg,#dbeafe,#eff6ff)", 
-            border:"1.5px solid #93c5fd", borderRadius:12, padding:12,
+            background: avisoGeo.tipo === "ok" ? "linear-gradient(135deg,#dbeafe,#eff6ff)" : "linear-gradient(135deg,#fef3c7,#fffbeb)",
+            border: `1.5px solid ${avisoGeo.tipo === "ok" ? "#93c5fd" : "#fcd34d"}`, 
+            borderRadius:12, padding:12,
             display:"flex", justifyContent:"space-between", alignItems:"center", gap:10
           }}>
-            <div style={{fontSize:12, color:"#1e3a8a", fontWeight:600}}>
+            <div style={{
+              fontSize:12, 
+              color: avisoGeo.tipo === "ok" ? "#1e3a8a" : "#92400e", 
+              fontWeight:600
+            }}>
               📍 {avisoGeo.mensaje}
             </div>
-            <Btn sm color="warning" onClick={() => {
-              setDatos(prev => ({ ...prev, barrio: "" }));
-              setAvisoGeo(null);
-            }}>
-              Cambiar
-            </Btn>
+            {avisoGeo.tipo === "ok" && (
+              <Btn sm color="warning" onClick={() => {
+                setDatos(prev => ({ ...prev, barrio: "" }));
+                setAvisoGeo(null);
+              }}>
+                Cambiar
+              </Btn>
+            )}
           </div>
         )}
 
@@ -568,7 +683,7 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
         <div>
           <label style={labelStyle}>Barrio / Localidad * (obligatorio)</label>
           <input value={datos.barrio} onChange={e=>{setDatos({...datos, barrio:e.target.value}); setAvisoGeo(null);}} 
-            placeholder="Se autocompleta con 📍 o ingresá manual" style={inputStyle} />
+            placeholder="Se autocompleta con 📍 o preguntale al cliente" style={inputStyle} />
         </div>
 
         <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
@@ -666,7 +781,7 @@ function ModalEditarCliente({ cliente, onClose, COL_CLIENTES, mostrarToast }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL GESTIÓN DE LAVADORES (Punto 4 - Opción B)
+//  MODAL GESTIÓN DE LAVADORES
 // ═══════════════════════════════════════════════════════════════
 function ModalGestionLavadores({ staff, onClose, COL_STAFF, mostrarToast }) {
   const [nuevoLavador, setNuevoLavador] = useState({ nombre:"", telefono:"", transporte:"moto", whatsapp:true });
@@ -729,7 +844,6 @@ function ModalGestionLavadores({ staff, onClose, COL_STAFF, mostrarToast }) {
     <Modal titulo="⚙️ Gestión de Lavadores" onClose={onClose} wide>
       <div style={{display:"flex", flexDirection:"column", gap:14}}>
         
-        {/* Botón para mostrar form nuevo */}
         {!mostrarFormNuevo ? (
           <Btn color="success" full onClick={() => setMostrarFormNuevo(true)}>
             ➕ Agregar Nuevo Lavador
@@ -774,7 +888,6 @@ function ModalGestionLavadores({ staff, onClose, COL_STAFF, mostrarToast }) {
           </div>
         )}
 
-        {/* Lista de lavadores */}
         <div style={{display:"flex", flexDirection:"column", gap:8, maxHeight:"400px", overflowY:"auto"}}>
           <div style={{fontSize:12, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", padding:"4px 0"}}>
             Lavadores registrados ({staff.length})
@@ -795,7 +908,6 @@ function ModalGestionLavadores({ staff, onClose, COL_STAFF, mostrarToast }) {
   );
 }
 
-// Componente individual para cada lavador en la lista
 function LavadorItem({ lavador, editandoId, setEditandoId, onEliminar, onActualizarTelefono }) {
   const [telefonoEdit, setTelefonoEdit] = useState(lavador.telefono || "");
   const estaEditando = editandoId === lavador.id;
@@ -840,7 +952,6 @@ function LavadorItem({ lavador, editandoId, setEditandoId, onEliminar, onActuali
         </button>
       </div>
 
-      {/* Teléfono editable */}
       <div>
         <label style={{fontSize:10, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", display:"block", marginBottom:4}}>
           📞 Teléfono WhatsApp
@@ -893,7 +1004,7 @@ function LavadorItem({ lavador, editandoId, setEditandoId, onEliminar, onActuali
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL TURNO CREADO (con FIX 6: WhatsApp con teléfono del lavador)
+//  MODAL TURNO CREADO (con WhatsApp)
 // ═══════════════════════════════════════════════════════════════
 function ModalTurnoCreado({ turno, cliente, lavador, onClose, mostrarToast }) {
   const [copiado, setCopiado] = useState(false);
@@ -926,7 +1037,6 @@ ${cliente?.nota ? `⚠️ *Nota del cliente:* ${cliente.nota}` : ""}
     }
   };
 
-  // FIX 6: Usar teléfono del lavador si existe
   const telefonoLavador = lavador?.telefono ? lavador.telefono.replace(/\D/g, "") : "";
   const whatsappLink = telefonoLavador 
     ? `https://wa.me/549${telefonoLavador}?text=${encodeURIComponent(textoTurno)}`
@@ -959,7 +1069,6 @@ ${cliente?.nota ? `⚠️ *Nota del cliente:* ${cliente.nota}` : ""}
           </pre>
         </div>
 
-        {/* FIX 6: Información del lavador con teléfono */}
         {lavador && (
           <div style={{
             background: telefonoLavador ? "#eff6ff" : "#fef3c7",
@@ -997,64 +1106,7 @@ ${cliente?.nota ? `⚠️ *Nota del cliente:* ${cliente.nota}` : ""}
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  LÓGICA DE SUGERENCIA IA
-// ═══════════════════════════════════════════════════════════════
-async function sugerirLavadorIA(presentes, turnosHoy, cliente, geminiKey) {
-  const fallbackLocal = () => {
-    if (presentes.length === 0) return null;
-    const carga = {};
-    presentes.forEach(s => carga[s.id] = 0);
-    turnosHoy.forEach(t => { if (t.lavadorId && carga[t.lavadorId] !== undefined) carga[t.lavadorId]++; });
-    let mejor = presentes[0];
-    let minCarga = Infinity;
-    presentes.forEach(s => {
-      if (carga[s.id] < minCarga) { minCarga = carga[s.id]; mejor = s; }
-    });
-    return mejor;
-  };
-
-  if (!geminiKey) return fallbackLocal();
-
-  try {
-    const cargaMap = {};
-    presentes.forEach(s => cargaMap[s.id] = turnosHoy.filter(t => t.lavadorId === s.id).length);
-
-    const prompt = `Sos un asistente de asignación de lavadores para un lavadero de autos.
-Lavadores presentes hoy con su carga actual de turnos:
-${presentes.map(s => `- ${s.nombre} (${s.transporte}, especialidad: ${s.especial || "ninguna"}, turnos hoy: ${cargaMap[s.id]})`).join("\n")}
-
-Cliente: ${cliente?.nombre || "Desconocido"}, Barrio: ${cliente?.barrio || "Desconocido"}, Dirección: ${cliente?.direccion || "Desconocida"}
-
-Reglas:
-1. Priorizar lavadores con MENOS turnos hoy.
-2. Si el cliente es de un barrio lejano, preferir lavador con moto.
-3. Si el lavador tiene especialidad "rapido", priorizarlo para clientes frecuentes.
-4. NUNCA asignar a alguien que no esté en la lista de presentes.
-
-Respondé SOLO con el nombre exacto del lavador sugerido, sin explicaciones ni texto extra.`;
-
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
-
-    const data = await res.json();
-    const nombreSugerido = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    
-    if (nombreSugerido) {
-      const encontrado = presentes.find(s => s.nombre.toLowerCase() === nombreSugerido.toLowerCase());
-      if (encontrado) return encontrado;
-    }
-    return fallbackLocal();
-  } catch (err) {
-    console.warn("IA suggestion failed:", err);
-    return fallbackLocal();
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  MODAL NUEVO TURNO (con FIX 1: código visible)
+//  MODAL NUEVO TURNO (con PUNTO 7: Lógica de prioridad)
 // ═══════════════════════════════════════════════════════════════
 function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, COL_CLIENTES, geminiKey, mostrarToast, clientePreseleccionado, onClienteCreated, onTurnoCreado, codigosExistentes }) {
   const [clienteId, setClienteId] = useState(clientePreseleccionado?.id || "");
@@ -1084,17 +1136,25 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
     }
   }, [clienteId]);
 
-  const manejarSugerir = async () => {
+  // PUNTO 7: Sugerir con lógica de prioridad (reemplaza IA)
+  const manejarSugerir = () => {
     if (presentes.length === 0) return mostrarToast("No hay lavadores presentes marcados", "warn");
     setSugiriendo(true);
-    const sugerido = await sugerirLavadorIA(presentes, turnos, clienteSel, geminiKey);
-    setSugiriendo(false);
-    if (sugerido) {
-      setLavadorId(sugerido.id);
-      mostrarToast(`🤖 Sugerido: ${sugerido.nombre}`, "ok");
-    } else {
-      mostrarToast("No se pudo generar sugerencia", "warn");
-    }
+    
+    // Usar lógica local de prioridad en lugar de IA
+    setTimeout(() => {
+      const sugerido = sugerirLavadorPrioridad(presentes, turnos, clienteSel);
+      setSugiriendo(false);
+      if (sugerido) {
+        setLavadorId(sugerido.id);
+        const razon = turnos.filter(t => t.lavadorId === sugerido.id && t.estado !== "terminado").length === 0 
+          ? "INACTIVO" 
+          : "termina más pronto";
+        mostrarToast(`🎯 Sugerido: ${sugerido.nombre} (${razon})`, "ok");
+      } else {
+        mostrarToast("No se pudo generar sugerencia", "warn");
+      }
+    }, 300);
   };
 
   const handleNewClientSuccess = (newClient) => {
@@ -1154,7 +1214,6 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           />
         </div>
 
-        {/* FIX 1: Código único COMPLETO visible en tarjeta (monospace) */}
         {clienteSel ? (
           <div style={{ 
             background:"linear-gradient(135deg,#eff6ff,#dbeafe)", 
@@ -1165,7 +1224,6 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8}}>
               <div>
                 <div style={{fontSize:16, fontWeight:900, color:"#1e3a8a"}}>{clienteSel.nombre}</div>
-                {/* FIX 1: Código COMPLETO en formato monospace */}
                 <div style={{
                   fontSize:12, color:"#7c3aed", fontFamily:"monospace", 
                   marginTop:4, fontWeight:800,
@@ -1233,7 +1291,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
             <label style={labelStyle}>Lavador Asignado</label>
             <Btn sm color="secondary" disabled={sugiriendo||presentes.length===0} onClick={manejarSugerir}>
-              {sugiriendo ? "🤖 Pensando..." : `🤖 Sugerir (${presentes.length})`}
+              {sugiriendo ? "🎯 Analizando..." : `🎯 Sugerir (${presentes.length})`}
             </Btn>
           </div>
           <select value={lavadorId} onChange={e=>setLavadorId(e.target.value)} style={inputStyle}>
@@ -1275,7 +1333,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   );
 }
 
-// Modal Cierre Turno (INTACTO)
+// Modal Cierre Turno (PUNTO 4: Ahora marca como "Terminado")
 function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
   const [monto, setMonto] = useState(turno?.precioFinal || turno?.precio || 0);
   const [metodo, setMetodo] = useState("efectivo");
@@ -1292,11 +1350,10 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
   const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
 
   return (
-    <Modal titulo={`💰 Cerrar Turno: ${turno?.hora} hs`} onClose={onClose}>
+    <Modal titulo={`✅ Terminar Turno: ${turno?.hora} hs`} onClose={onClose}>
       <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-        <div style={{ background:"linear-gradient(135deg,#eff6ff,#f0f9ff)", padding:16, borderRadius:16, border:"1px solid #bfdbfe" }}>
-          <div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>👤 {cliente?.nombre || "Cliente Ocasional"}</div>
-          {/* FIX 1: Código visible también al cobrar */}
+        <div style={{ background:"linear-gradient(135deg,#ecfdf5,#d1fae5)", padding:16, borderRadius:16, border:"1px solid #a7f3d0" }}>
+          <div style={{fontSize:13,fontWeight:600,color:"#064e3b"}}>👤 {cliente?.nombre || "Cliente Ocasional"}</div>
           {cliente?.codigo && (
             <div style={{
               fontSize:11, color:"#7c3aed", fontFamily:"monospace", 
@@ -1305,12 +1362,12 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
               {cliente.codigo}
             </div>
           )}
-          <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>🚗 {turno?.auto || "Sin especificar"}</div>
-          <div style={{ marginTop:8, fontWeight:800, fontSize:20, color:"#1e3a8a" }}>Total: {formatP(total)}</div>
+          <div style={{fontSize:12,color:"#064e3b",marginTop:2}}>🚗 {turno?.auto || "Sin especificar"}</div>
+          <div style={{ marginTop:8, fontWeight:800, fontSize:20, color:"#064e3b" }}>Total: {formatP(total)}</div>
         </div>
 
         <div>
-          <label style={labelStyle}>Monto Físico Recibido ($)</label>
+          <label style={labelStyle}>Monto Recibido ($)</label>
           <input type="number" value={monto} onChange={e=>setMonto(e.target.value)}
             style={{...inputStyle, fontSize:18, fontWeight:700}} autoFocus />
         </div>
@@ -1336,7 +1393,7 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
           <Btn ghost onClick={onClose} full>Cancelar</Btn>
           <Btn color={deuda > 0 ? "warning" : "success"} full 
             onClick={() => { cerrarTurnoFn(turno, monto, metodo); onClose(); }}>
-            {deuda > 0 ? `Registrar Deuda y Cerrar` : `✓ Confirmar Pago Completo`}
+            {deuda > 0 ? `Registrar Deuda y Terminar` : `✓ Terminar Turno`}
           </Btn>
         </div>
       </div>
@@ -1344,7 +1401,7 @@ function ModalCerrarTurno({ turno, onClose, clientes, cerrarTurnoFn }) {
   );
 }
 
-// Previsualización Tabla (INTACTO)
+// Previsualización Tabla
 function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
   if (!datos || datos.length === 0) return null;
   return (
@@ -1381,7 +1438,7 @@ function PreviewTabla({ datos, columnas, titulo, onImprimir, onCerrar }) {
   );
 }
 
-// MÓDULO PRESENTISMO (con Punto 4 - Opción B: Gestión de Lavadores)
+// MÓDULO PRESENTISMO
 function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, db, doc, setDoc, onSnapshot, useEffect, useState, setPreviewData, mostrarToast }) {
   const [asistencias, setAsistencias] = useState({});
   const [cargandoAsistencia, setCargandoAsistencia] = useState(true);
@@ -1430,7 +1487,6 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, db,
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap" }}>
         <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:"#1e293b" }}>📋 Control de Personal</h3>
         <div style={{display:"flex", gap:8}}>
-          {/* PUNTO 4: Botón Gestionar Lavadores */}
           <Btn sm color="secondary" onClick={()=>setMostrarGestion(true)}>
             ⚙️ Gestionar Lavadores
           </Btn>
@@ -1484,6 +1540,146 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, db,
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  PUNTO 6: PESTAÑA SEGUIMIENTO TURNOS
+// ═══════════════════════════════════════════════════════════════
+function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado }) {
+  // Estados con colores
+  const estadosConfig = {
+    pendiente:     { color:"#dc2626", bg:"#fef2f2", border:"#fecaca", label:"🔴 Pendiente", icon:"⏳" },
+    en_progreso:   { color:"#d97706", bg:"#fffbeb", border:"#fde68a", label:"🟡 En Progreso", icon:"🔄" },
+    terminado:     { color:"#059669", bg:"#ecfdf5", border:"#a7f3d0", label:"🟢 Terminado", icon:"✅" },
+    lluvia:        { color:"#6b7280", bg:"#f3f4f6", border:"#e5e7eb", label:"🌧️ Lluvia", icon:"☔" },
+  };
+
+  const getEstadoConfig = (estado) => estadosConfig[estado] || estadosConfig.pendiente;
+
+  // Ordenar: pendientes primero, luego en progreso, luego terminados
+  const turnosOrdenados = [...turnos].sort((a, b) => {
+    const orden = { pendiente: 0, en_progreso: 1, lluvia: 2, terminado: 3 };
+    return (orden[a.estado] || 0) - (orden[b.estado] || 0);
+  });
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16, animation:"fadeInUp .4s ease-out" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:"#1e293b" }}>📊 Seguimiento de Turnos</h3>
+        <div style={{display:"flex", gap:8, fontSize:11, fontWeight:700}}>
+          <span style={{color:"#dc2626"}}>● {turnos.filter(t=>t.estado==="pendiente").length} Pendientes</span>
+          <span style={{color:"#d97706"}}>● {turnos.filter(t=>t.estado==="en_progreso").length} En Progreso</span>
+          <span style={{color:"#059669"}}>● {turnos.filter(t=>t.estado==="terminado").length} Terminados</span>
+        </div>
+      </div>
+
+      {turnosOrdenados.length === 0 ? (
+        <div style={{ textAlign:"center", color:"#9ca3af", padding:60, fontSize:14, background:"#ffffff", borderRadius:20, border:"1.5px dashed #e5e7eb" }}>
+          <div style={{fontSize:32,marginBottom:12}}>📊</div>
+          No hay turnos registrados hoy.
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 }}>
+          {turnosOrdenados.map(t => {
+            const config = getEstadoConfig(t.estado);
+            const cliente = clientes.find(c => c.id === t.clienteId);
+            const lavador = staff.find(s => s.id === t.lavadorId);
+            const finEstimado = t.estado !== "terminado" ? calcularFinTurno(t.hora, t.auto) : null;
+
+            return (
+              <div key={t.id} style={{
+                background:"#ffffff",
+                border:`2px solid ${config.border}`,
+                borderRadius:16,
+                padding:16,
+                boxShadow:"0 2px 10px rgba(0,0,0,.03)",
+                transition:"all .2s ease",
+                position:"relative",
+                overflow:"hidden"
+              }}
+              onMouseOver={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 25px rgba(0,0,0,.06)"}}
+              onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 10px rgba(0,0,0,.03)"}}>
+                
+                {/* Barra de estado superior */}
+                <div style={{
+                  position:"absolute", top:0, left:0, right:0, height:4,
+                  background:config.color
+                }} />
+
+                {/* Header de tarjeta */}
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10, marginTop:4}}>
+                  <div>
+                    <div style={{fontSize:16, fontWeight:800, color:"#1e3a8a"}}>{t.hora} hs</div>
+                    <div style={{fontSize:13, fontWeight:700, color:"#1e293b", marginTop:2}}>{t.clienteNombre}</div>
+                    {t.clienteCodigo && (
+                      <div style={{fontSize:10, color:"#7c3aed", fontFamily:"monospace", fontWeight:700, marginTop:2}}>
+                        {t.clienteCodigo}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{
+                    background:config.bg,
+                    border:`1px solid ${config.border}`,
+                    borderRadius:8,
+                    padding:"4px 10px",
+                    fontSize:11,
+                    fontWeight:800,
+                    color:config.color,
+                    whiteSpace:"nowrap"
+                  }}>
+                    {config.label}
+                  </div>
+                </div>
+
+                {/* Info del turno */}
+                <div style={{fontSize:12, color:"#4b5563", lineHeight:1.6, marginBottom:10}}>
+                  <div>🚙 {t.auto} • {formatP(t.precio)}</div>
+                  {lavador && <div>👷 {lavador.nombre} ({lavador.transporte})</div>}
+                  {cliente?.barrio && <div>📍 {cliente.barrio}</div>}
+                  {finEstimado && t.estado !== "terminado" && (
+                    <div style={{fontWeight:600, color:"#6b7280", marginTop:4}}>
+                      ⏱️ Fin estimado: {finEstimado.horaFin} ({finEstimado.duracion} min)
+                    </div>
+                  )}
+                </div>
+
+                {/* Nota si existe */}
+                {t.nota && (
+                  <div style={{
+                    fontSize:11, fontStyle:"italic", color:"#92400e",
+                    background:"#fef3c7", padding:"4px 8px", borderRadius:6,
+                    marginBottom:10, border:"1px solid #fde68a"
+                  }}>
+                    📝 {t.nota}
+                  </div>
+                )}
+
+                {/* Botón de acción según estado */}
+                {t.estado === "pendiente" && (
+                  <Btn sm color="warning" full onClick={() => onMarcarTerminado(t.id, "en_progreso")}>
+                    ▶️ Iniciar Lavado
+                  </Btn>
+                )}
+                {t.estado === "en_progreso" && (
+                  <Btn sm color="success" full onClick={() => onMarcarTerminado(t.id, "terminado")}>
+                    ✅ Marcar Terminado
+                  </Btn>
+                )}
+                {t.estado === "terminado" && (
+                  <div style={{
+                    textAlign:"center", fontSize:12, fontWeight:700, 
+                    color:"#059669", padding:"8px 0"
+                  }}>
+                    ✅ Completado
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  COMPONENTE PRINCIPAL APP
 // ═══════════════════════════════════════════════════════════════
 export default function App() {
@@ -1515,7 +1711,7 @@ export default function App() {
   const [clienteParaEditar, setClienteParaEditar] = useState(null);
   const [busquedaClientes, setBusquedaClientes] = useState("");
   const [turnoCreadoData, setTurnoCreadoData] = useState(null);
-  const [mostrarNuevoClienteDirecto, setMostrarNuevoClienteDirecto] = useState(false); // PUNTO 5
+  const [mostrarNuevoClienteDirecto, setMostrarNuevoClienteDirecto] = useState(false);
   
   const [geminiKey, setGeminiKey] = useState(localStorage.getItem("sofia_gemini_key") || "");
   const [keyDesbloqueada, setKeyDesbloqueada] = useState(false);
@@ -1535,11 +1731,10 @@ export default function App() {
     }
   };
 
-  // SEED + MIGRACIÓN (Punto 2)
+  // SEED + MIGRACIÓN (incluye PUNTO 1: Unificar prefijo GEN→DES)
   useEffect(() => {
     const seedAndMigrate = async () => {
       try {
-        // Seed inicial
         const cliSnap = await getDocs(collection(db, COL_CLIENTES));
         if (cliSnap.empty) {
           const batch = writeBatch(db);
@@ -1559,8 +1754,7 @@ export default function App() {
           await batch.commit();
         }
 
-        // PUNTO 2: MIGRACIÓN DE CÓDIGOS PARA CLIENTES VIEJOS
-        // Solo se ejecuta si hay clientes sin código
+        // Migración de códigos para clientes viejos
         const cliSnapMigrar = await getDocs(collection(db, COL_CLIENTES));
         const clientesSinCodigo = cliSnapMigrar.docs.filter(d => !d.data().codigo || d.data().codigo === "");
         
@@ -1580,6 +1774,25 @@ export default function App() {
           
           await batchMigrar.commit();
           console.log(`✅ Migración completada: ${clientesSinCodigo.length} códigos generados`);
+        }
+
+        // PUNTO 1: Migrar clientes con prefijo GEN a DES
+        const cliSnapGen = await getDocs(collection(db, COL_CLIENTES));
+        const clientesConGen = cliSnapGen.docs.filter(d => {
+          const codigo = d.data().codigo || "";
+          return codigo.startsWith("GEN-");
+        });
+        
+        if (clientesConGen.length > 0) {
+          console.log(`🔄 Migrando ${clientesConGen.length} clientes de GEN a DES...`);
+          const batchGen = writeBatch(db);
+          for (const docSnap of clientesConGen) {
+            const data = docSnap.data();
+            const nuevoCodigo = data.codigo.replace(/^GEN-/, "DES-");
+            batchGen.update(doc(db, COL_CLIENTES, docSnap.id), { codigo: nuevoCodigo });
+          }
+          await batchGen.commit();
+          console.log(`✅ Migración GEN→DES completada`);
         }
       } catch (err) { 
         console.error("Error en seed/migración:", err); 
@@ -1625,12 +1838,13 @@ export default function App() {
     return () => unsub();
   }, [modoPrueba]);
 
+  // PUNTO 4: Terminar turno (cambia estado a "terminado")
   const cerrarTurno = async (turno, montoRecibido, metodoPago) => {
     const total = Number(turno.precioFinal || turno.precio || 0);
     const recibido = Math.max(0, Number(montoRecibido || 0));
     const diferencia = total - recibido;
     await fsUpdate(COL_TURNOS, turno.id, {
-      estado:"rendido", pagado:recibido, deudaGenerada:diferencia>0?diferencia:0,
+      estado:"terminado", pagado:recibido, deudaGenerada:diferencia>0?diferencia:0,
       metodoPago, rendidoEn:serverTimestamp(), editadoPostRendicion:false
     });
     if (diferencia > 0 && turno.clienteId) {
@@ -1640,7 +1854,18 @@ export default function App() {
         mostrarToast(`Deuda registrada: ${formatP(diferencia)}`, "warn");
       }
     } else {
-      mostrarToast("Turno cerrado correctamente", "ok");
+      mostrarToast("Turno terminado correctamente", "ok");
+    }
+  };
+
+  // PUNTO 6: Cambiar estado de turno desde Seguimiento
+  const cambiarEstadoTurno = async (turnoId, nuevoEstado) => {
+    try {
+      await fsUpdate(COL_TURNOS, turnoId, { estado: nuevoEstado });
+      const labels = { en_progreso: "En Progreso", terminado: "Terminado" };
+      mostrarToast(`Turno marcado como ${labels[nuevoEstado] || nuevoEstado}`, "ok");
+    } catch (err) {
+      mostrarToast("Error al actualizar estado", "error");
     }
   };
 
@@ -1699,7 +1924,6 @@ export default function App() {
     sinAcentos(c.telefono || "").includes(sinAcentos(busquedaClientes))
   );
 
-  // Lista de códigos existentes (para evitar duplicados en migración y nuevos)
   const codigosExistentes = clientes.map(c => c.codigo || "").filter(Boolean);
 
   if (cargando) return (
@@ -1738,6 +1962,16 @@ export default function App() {
       </div>
     );
   }
+
+  // PUNTO 5: Pestañas visibles (Caja oculta)
+  const tabsVisibles = [
+    {id:"agenda",label:"📋 Agenda",color:"#3b82f6",bg:"#dbeafe",border:"#bfdbfe"},
+    {id:"seguimiento",label:"📊 Seguimiento",color:"#0891b2",bg:"#cffafe",border:"#a5f3fc"},
+    {id:"nuevoTurno",label:"➕ Nuevo Turno",color:"#059669",bg:"#d1fae5",border:"#a7f3d0"},
+    {id:"presentismo",label:"✅ Presentismo",color:"#7c3aed",bg:"#ede9fe",border:"#ddd6fe"},
+    {id:"clientes",label:"👥 Clientes",color:"#d97706",bg:"#fef3c7",border:"#fde68a"},
+    {id:"config",label:"⚙️ Config",color:"#4b5563",bg:"#f3f4f6",border:"#e5e7eb"},
+  ];
 
   return (
     <div style={{ minHeight:"100vh", background:"#f9fafb", color:"#1e293b", fontFamily:"'Inter',system-ui,sans-serif", paddingBottom:90 }}>
@@ -1788,20 +2022,14 @@ export default function App() {
         </div>
       </header>
 
+      {/* PUNTO 5: Caja oculta de la navegación */}
       <nav className="nav-tabs" style={{
         display:"flex", gap:6, padding:"10px 16px",
         borderBottom:"1px solid #e5e7eb", whiteSpace:"nowrap", alignItems:"center",
         background:"rgba(255,255,255,.85)", backdropFilter:"blur(8px)",
         position:"sticky", top:"58px", zIndex:90
       }}>
-        {[
-          {id:"agenda",label:"📋 Agenda",color:"#3b82f6",bg:"#dbeafe",border:"#bfdbfe"},
-          {id:"nuevoTurno",label:"➕ Nuevo Turno",color:"#059669",bg:"#d1fae5",border:"#a7f3d0"},
-          {id:"presentismo",label:"✅ Presentismo",color:"#0891b2",bg:"#cffafe",border:"#a5f3fc"},
-          {id:"caja",label:"💰 Caja",color:"#d97706",bg:"#fef3c7",border:"#fde68a"},
-          {id:"clientes",label:"👥 Clientes",color:"#7c3aed",bg:"#ede9fe",border:"#ddd6fe"},
-          {id:"config",label:"⚙️ Config",color:"#4b5563",bg:"#f3f4f6",border:"#e5e7eb"}
-        ].map(t => (
+        {tabsVisibles.map(t => (
           <button key={t.id} onClick={()=>handleTabClick(t.id)} style={{
             background: (t.id !== "nuevoTurno" && tab===t.id) ? t.bg : (t.id === "nuevoTurno" ? t.bg : "transparent"),
             color: (t.id !== "nuevoTurno" && tab===t.id) ? t.color : (t.id === "nuevoTurno" ? t.color : "#6b7280"),
@@ -1825,7 +2053,7 @@ export default function App() {
 
       <main style={{ padding:20, maxWidth:800, margin:"0 auto", animation:"fadeInUp .4s ease-out" }}>
         
-        {/* AGENDA - FIX 1: Código visible */}
+        {/* AGENDA - PUNTO 4: Botón dice "Terminado" */}
         {tab === "agenda" && (
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -1853,7 +2081,6 @@ export default function App() {
                     <div>
                       <div style={{ display:"inline-block",fontSize:13,fontWeight:800, color:"#1e3a8a", marginBottom:4 }}>{t.hora} hs</div>
                       <div style={{ fontSize:14, fontWeight:700, color:"#1e293b" }}>{t.clienteNombre}</div>
-                      {/* FIX 1: Código COMPLETO visible en Agenda (monospace) */}
                       {(t.clienteCodigo || clienteTurno?.codigo) && (
                         <div style={{
                           fontSize:11, color:"#7c3aed", fontFamily:"monospace", 
@@ -1866,10 +2093,14 @@ export default function App() {
                     </div>
                     <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                       {t.estado === "pendiente" && (
-                        <Btn sm color="success" onClick={()=>{setEditando(t);setModalOpen("cerrarTurno");}}>💰 Cobrar</Btn>
+                        /* PUNTO 4: Cambiado de "Cobrar" a "Terminado" */
+                        <Btn sm color="success" onClick={()=>{setEditando(t);setModalOpen("cerrarTurno");}}>✅ Terminado</Btn>
                       )}
-                      {t.estado === "rendido" && (
-                        <span style={{ fontSize:11, fontWeight:800, padding:"6px 12px", borderRadius:10, background:"#ecfdf5", color:"#064e3b", border:"1px solid #a7f3d0" }}>✓ RENDIDO</span>
+                      {t.estado === "en_progreso" && (
+                        <Btn sm color="warning" onClick={()=>{setEditando(t);setModalOpen("cerrarTurno");}}>✅ Terminar</Btn>
+                      )}
+                      {t.estado === "terminado" && (
+                        <span style={{ fontSize:11, fontWeight:800, padding:"6px 12px", borderRadius:10, background:"#ecfdf5", color:"#064e3b", border:"1px solid #a7f3d0" }}>✓ TERMINADO</span>
                       )}
                     </div>
                   </div>
@@ -1877,6 +2108,16 @@ export default function App() {
               })
             )}
           </div>
+        )}
+
+        {/* PUNTO 6: Nueva pestaña Seguimiento Turnos */}
+        {tab === "seguimiento" && (
+          <TabSeguimientoTurnos 
+            turnos={turnos} 
+            clientes={clientes} 
+            staff={staff}
+            onMarcarTerminado={cambiarEstadoTurno}
+          />
         )}
         
         {tab === "presentismo" && (
@@ -1888,6 +2129,7 @@ export default function App() {
           />
         )}
         
+        {/* PUNTO 5: Caja oculta (solo accesible por URL directa o modo oculto futuro) */}
         {tab === "caja" && (
           <div style={{ textAlign:"center", padding:50, background:"#ffffff", borderRadius:24, border:"1px solid #e5e7eb", boxShadow:"0 4px 20px rgba(0,0,0,.03)" }}>
             <div style={{ fontSize:13, color:"#6b7280", fontWeight:700, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>Recaudación del día</div>
@@ -1895,17 +2137,22 @@ export default function App() {
               {formatP(turnos.reduce((a,t) => a + (t.pagado||0), 0))}
             </div>
             <div style={{ display:"inline-block",fontSize:12, fontWeight:700, padding:"6px 16px", borderRadius:10, background:"#eff6ff", color:"#1e3a8a", border:"1px solid #bfdbfe" }}>
-              {turnos.filter(t=>t.estado==="rendido").length} turnos rendidos
+              {turnos.filter(t=>t.estado==="terminado").length} turnos terminados
             </div>
           </div>
         )}
         
-        {/* CLIENTES - FIX 1 + PUNTO 5 */}
+        {/* CLIENTES - PUNTO 3: Botón sticky */}
         {tab === "clientes" && (
           <div style={{ display:"flex", flexDirection:"column", gap:12, animation:"fadeInUp .4s ease-out" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            {/* PUNTO 3: Botón Nuevo Cliente STICKY */}
+            <div style={{
+              position:"sticky", top:"110px", zIndex:80,
+              background:"rgba(249,250,251,.95)", backdropFilter:"blur(8px)",
+              padding:"8px 0", display:"flex", justifyContent:"space-between", alignItems:"center",
+              borderBottom:"1px solid #e5e7eb"
+            }}>
               <h3 style={{ margin:0, fontSize:20, fontWeight:800, color:"#1e293b" }}>👥 Clientes ({clientesFiltrados.length})</h3>
-              {/* PUNTO 5: Botón Nuevo Cliente directo */}
               <Btn sm color="success" onClick={()=>setMostrarNuevoClienteDirecto(true)}>
                 ➕ Nuevo Cliente
               </Btn>
@@ -1942,7 +2189,6 @@ export default function App() {
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
                     <div>
                       <div style={{ fontSize:15, fontWeight:800, color:"#1e293b" }}>{c.nombre}</div>
-                      {/* FIX 1: Código COMPLETO visible (monospace, sin botón ID) */}
                       <div style={{ 
                         fontSize:11, fontWeight:800, color:"#7c3aed", 
                         marginTop:4, fontFamily:"monospace",
@@ -2045,7 +2291,6 @@ export default function App() {
           onClose={()=>setClienteParaEditar(null)} 
         />
       )}
-      {/* PUNTO 5: Modal nuevo cliente directo desde pestaña Clientes */}
       {mostrarNuevoClienteDirecto && (
         <ModalNuevoCliente
           nombreInicial=""
