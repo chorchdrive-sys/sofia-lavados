@@ -28,7 +28,6 @@ const BASE_LAT  = -34.5128;
 const BASE_LNG  = -58.4985;
 const FRANJAS = ["09:00","10:30","12:00","13:30","15:00","16:30","18:00"];
 
-// PUNTO 4: Tiempos base por vehículo (en minutos)
 const TIEMPOS_LAVADO_BASE = {
   "Chico": 30,
   "Mediano": 45,
@@ -235,7 +234,6 @@ async function generarCodigoCliente(barrio, nombre, COL_CLIENTES, codigosExisten
   return `${codBarrio}-${sigNum}-${nombreClean}`;
 }
 
-// PUNTO 4: Calcular tiempo estimado CON multiplicación por cantidad de autos
 function calcularFinTurno(horaInicio, tipoVehiculo, cantidadAutos = 1) {
   const [hr, mn] = horaInicio.split(":").map(Number);
   const minutosInicio = hr * 60 + mn;
@@ -252,7 +250,6 @@ function calcularFinTurno(horaInicio, tipoVehiculo, cantidadAutos = 1) {
   };
 }
 
-// PUNTO 4: Lógica de prioridad considerando cantidad de autos
 function sugerirLavadorPrioridad(presentes, turnosHoy, cliente) {
   if (presentes.length === 0) return null;
   
@@ -271,7 +268,6 @@ function sugerirLavadorPrioridad(presentes, turnosHoy, cliente) {
     
     let maxMinutosFin = 0;
     turnosActivos.forEach(t => {
-      // PUNTO 4: Usar cantidadAutos del turno para calcular fin real
       const cant = t.cantidadAutos || 1;
       const fin = calcularFinTurno(t.hora, t.auto, cant);
       if (fin.minutosFin > maxMinutosFin) maxMinutosFin = fin.minutosFin;
@@ -863,13 +859,12 @@ ${cliente?.nota ? `⚠️ *Nota del cliente:* ${cliente.nota}` : ""}
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL NUEVO TURNO (PUNTO 4: Múltiples autos)
+//  MODAL NUEVO TURNO
 // ═══════════════════════════════════════════════════════════════
 function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, COL_CLIENTES, geminiKey, mostrarToast, clientePreseleccionado, onClienteCreated, onTurnoCreado, codigosExistentes }) {
   const [clienteId, setClienteId] = useState(clientePreseleccionado?.id || "");
   const [hora, setHora] = useState(franjasValidas()[0] || FRANJAS[0]);
   const [tamaño, setTamaño] = useState(TAMANOS_DEFAULT[1]);
-  // PUNTO 4: Selector de cantidad de autos
   const [cantidadAutos, setCantidadAutos] = useState(clientePreseleccionado?.autosHabituales || 1);
   const [lavadorId, setLavadorId] = useState("");
   const [nota, setNota] = useState("");
@@ -880,11 +875,9 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   const clienteSel = clientes.find(c => c.id === clienteId);
   const presentes = staff.filter(s => asistencias[s.id]);
 
-  // PUNTO 4: Calcular precio total dinámico
   const precioUnitario = tamaño.precio;
   const precioTotal = precioUnitario * cantidadAutos;
 
-  // PUNTO 4: Calcular tiempo estimado dinámico
   const tiempoBase = TIEMPOS_LAVADO_BASE[tamaño.label] || 45;
   const tiempoTotal = tiempoBase * cantidadAutos;
   const formatoTiempo = tiempoTotal >= 60 
@@ -903,7 +896,6 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
     if (clienteSel && clienteSel.nota && !nota.includes(clienteSel.nota)) {
       setNota(prev => prev ? `${prev} | 📋 ${clienteSel.nota}` : `📋 ${clienteSel.nota}`);
     }
-    // PUNTO 4: Actualizar cantidad si el cliente tiene autos habituales
     if (clienteSel && clienteSel.autosHabituales && cantidadAutos === 1) {
       setCantidadAutos(clienteSel.autosHabituales);
     }
@@ -940,7 +932,6 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
         clienteNombre: clienteSel?.nombre || "Desconocido",
         clienteCodigo: clienteSel?.codigo || "",
         auto: tamaño.label,
-        // PUNTO 4: Guardar precio unitario, cantidad y precio total
         precioUnitario: precioUnitario,
         cantidadAutos: cantidadAutos,
         precio: precioTotal,
@@ -1014,7 +1005,6 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           </div>
         </div>
 
-        {/* PUNTO 4: Selector de cantidad de autos */}
         <div>
           <label style={labelStyle}>Cantidad de Autos</label>
           <div style={{ display:"flex", gap:6, alignItems:"center" }}>
@@ -1030,7 +1020,6 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
               </button>
             ))}
           </div>
-          {/* PUNTO 4: Resumen dinámico de precio y tiempo */}
           <div style={{
             marginTop:8, padding:"10px 14px", borderRadius:12,
             background: cantidadAutos > 1 ? "linear-gradient(135deg,#eff6ff,#dbeafe)" : "#f9fafb",
@@ -1222,63 +1211,109 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, db,
   );
 }
 
-// PESTAÑA SEGUIMIENTO TURNOS
+// ═══════════════════════════════════════════════════════════════
+//  PUNTO 2: SEGUIMIENTO EN 3 COLUMNAS
+// ═══════════════════════════════════════════════════════════════
 function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado }) {
   const estadosConfig = {
-    pendiente:     { color:"#dc2626", bg:"#fef2f2", border:"#fecaca", label:"🔴 Pendiente" },
-    en_progreso:   { color:"#d97706", bg:"#fffbeb", border:"#fde68a", label:"🟡 En Progreso" },
-    terminado:     { color:"#059669", bg:"#ecfdf5", border:"#a7f3d0", label:"🟢 Terminado" },
-    lluvia:        { color:"#6b7280", bg:"#f3f4f6", border:"#e5e7eb", label:"🌧️ Lluvia" },
+    pendiente:     { color:"#dc2626", bg:"#fef2f2", border:"#fecaca", label:"🔴 Pendientes", headerBg:"#fee2e2" },
+    en_progreso:   { color:"#d97706", bg:"#fffbeb", border:"#fde68a", label:"🟡 En Progreso", headerBg:"#fef3c7" },
+    terminado:     { color:"#059669", bg:"#ecfdf5", border:"#a7f3d0", label:"🟢 Terminados", headerBg:"#d1fae5" },
+    lluvia:        { color:"#6b7280", bg:"#f3f4f6", border:"#e5e7eb", label:"🌧️ Lluvia", headerBg:"#f3f4f6" },
   };
-  const getEstadoConfig = (estado) => estadosConfig[estado] || estadosConfig.pendiente;
-  const turnosOrdenados = [...turnos].sort((a, b) => { const orden = { pendiente: 0, en_progreso: 1, lluvia: 2, terminado: 3 }; return (orden[a.estado] || 0) - (orden[b.estado] || 0); });
+
+  // Separar turnos por estado
+  const pendientes = turnos.filter(t => t.estado === "pendiente").sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+  const enProgreso = turnos.filter(t => t.estado === "en_progreso").sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+  const terminados = turnos.filter(t => t.estado === "terminado").sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+  const lluvia = turnos.filter(t => t.estado === "lluvia").sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+
+  const renderTarjeta = (t) => {
+    const config = estadosConfig[t.estado] || estadosConfig.pendiente;
+    const cliente = clientes.find(c => c.id === t.clienteId);
+    const lavador = staff.find(s => s.id === t.lavadorId);
+    const cant = t.cantidadAutos || 1;
+    const finEstimado = t.estado !== "terminado" ? calcularFinTurno(t.hora, t.auto, cant) : null;
+
+    return (
+      <div key={t.id} style={{
+        background:"#ffffff", border:`2px solid ${config.border}`, borderRadius:16, padding:16,
+        boxShadow:"0 2px 10px rgba(0,0,0,.03)", transition:"all .2s ease",
+        position:"relative", overflow:"hidden", marginBottom:10
+      }}
+      onMouseOver={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 25px rgba(0,0,0,.06)"}}
+      onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 10px rgba(0,0,0,.03)"}}>
+        <div style={{position:"absolute", top:0, left:0, right:0, height:4, background:config.color}} />
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10, marginTop:4}}>
+          <div>
+            <div style={{fontSize:16, fontWeight:800, color:"#1e3a8a"}}>{t.hora} hs</div>
+            <div style={{fontSize:13, fontWeight:700, color:"#1e293b", marginTop:2}}>{t.clienteNombre}</div>
+            {t.clienteCodigo && (<div style={{fontSize:10, color:"#7c3aed", fontFamily:"monospace", fontWeight:700, marginTop:2}}>{t.clienteCodigo}</div>)}
+          </div>
+        </div>
+        <div style={{fontSize:12, color:"#4b5563", lineHeight:1.6, marginBottom:10}}>
+          <div>🚙 {t.auto}{cant > 1 ? ` (×${cant})` : ""} • {formatP(t.precio)}</div>
+          {lavador && <div>👷 {lavador.nombre} ({lavador.transporte})</div>}
+          {cliente?.barrio && <div>📍 {cliente.barrio}</div>}
+          {finEstimado && t.estado !== "terminado" && (<div style={{fontWeight:600, color:"#6b7280", marginTop:4}}>⏱️ Fin: {finEstimado.horaFin} ({finEstimado.duracion}min)</div>)}
+        </div>
+        {t.nota && (<div style={{fontSize:11, fontStyle:"italic", color:"#92400e", background:"#fef3c7", padding:"4px 8px", borderRadius:6, marginBottom:10, border:"1px solid #fde68a"}}>📝 {t.nota}</div>)}
+        {t.estado === "pendiente" && (<Btn sm color="warning" full onClick={() => onMarcarTerminado(t.id, "en_progreso")}>▶️ Iniciar Lavado</Btn>)}
+        {t.estado === "en_progreso" && (<Btn sm color="success" full onClick={() => onMarcarTerminado(t.id, "terminado")}>✅ Marcar Terminado</Btn>)}
+        {t.estado === "terminado" && (<div style={{textAlign:"center", fontSize:12, fontWeight:700, color:"#059669", padding:"8px 0"}}>✅ Completado</div>)}
+      </div>
+    );
+  };
+
+  const renderColumna = (titulo, items, config) => (
+    <div style={{
+      flex:1, minWidth:260, display:"flex", flexDirection:"column",
+      background:config.headerBg, borderRadius:16, padding:12,
+      border:`1px solid ${config.border}`
+    }}>
+      <div style={{
+        fontSize:14, fontWeight:800, color:config.color,
+        marginBottom:12, padding:"6px 12px", borderRadius:10,
+        background:"rgba(255,255,255,.7)", display:"flex",
+        justifyContent:"space-between", alignItems:"center"
+      }}>
+        <span>{titulo}</span>
+        <span style={{
+          fontSize:12, fontWeight:800, background:config.bg,
+          border:`1px solid ${config.border}`, borderRadius:8,
+          padding:"2px 8px"
+        }}>{items.length}</span>
+      </div>
+      <div style={{flex:1, overflowY:"auto"}}>
+        {items.length === 0 ? (
+          <div style={{textAlign:"center", color:"#9ca3af", fontSize:12, padding:20, fontStyle:"italic"}}>
+            Sin turnos
+          </div>
+        ) : (
+          items.map(renderTarjeta)
+        )}
+      </div>
+    </div>
+  );
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:16, animation:"fadeInUp .4s ease-out" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:"#1e293b" }}>📊 Seguimiento de Turnos</h3>
-        <div style={{display:"flex", gap:8, fontSize:11, fontWeight:700}}>
-          <span style={{color:"#dc2626"}}>● {turnos.filter(t=>t.estado==="pendiente").length} Pendientes</span>
-          <span style={{color:"#d97706"}}>● {turnos.filter(t=>t.estado==="en_progreso").length} En Progreso</span>
-          <span style={{color:"#059669"}}>● {turnos.filter(t=>t.estado==="terminado").length} Terminados</span>
-        </div>
+    <div style={{ animation:"fadeInUp .4s ease-out" }}>
+      <h3 style={{ margin:"0 0 16px 0", fontSize:18, fontWeight:800, color:"#1e293b" }}>📊 Seguimiento de Turnos</h3>
+      
+      {/* Layout de 3 columnas con scroll horizontal en móvil */}
+      <div style={{
+        display:"flex", gap:12, overflowX:"auto",
+        paddingBottom:8, minHeight:"60vh"
+      }}>
+        {renderColumna("🔴 Pendientes", pendientes, estadosConfig.pendiente)}
+        {renderColumna("🟡 En Progreso", enProgreso, estadosConfig.en_progreso)}
+        {renderColumna("🟢 Terminados", terminados, estadosConfig.terminado)}
       </div>
-      {turnosOrdenados.length === 0 ? (
-        <div style={{ textAlign:"center", color:"#9ca3af", padding:60, fontSize:14, background:"#ffffff", borderRadius:20, border:"1.5px dashed #e5e7eb" }}><div style={{fontSize:32,marginBottom:12}}>📊</div>No hay turnos registrados hoy.</div>
-      ) : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 }}>
-          {turnosOrdenados.map(t => {
-            const config = getEstadoConfig(t.estado);
-            const cliente = clientes.find(c => c.id === t.clienteId);
-            const lavador = staff.find(s => s.id === t.lavadorId);
-            const cant = t.cantidadAutos || 1;
-            const finEstimado = t.estado !== "terminado" ? calcularFinTurno(t.hora, t.auto, cant) : null;
-            return (
-              <div key={t.id} style={{background:"#ffffff", border:`2px solid ${config.border}`, borderRadius:16, padding:16, boxShadow:"0 2px 10px rgba(0,0,0,.03)", transition:"all .2s ease", position:"relative", overflow:"hidden"}}
-                onMouseOver={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 25px rgba(0,0,0,.06)"}}
-                onMouseOut={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 2px 10px rgba(0,0,0,.03)"}}>
-                <div style={{position:"absolute", top:0, left:0, right:0, height:4, background:config.color}} />
-                <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10, marginTop:4}}>
-                  <div>
-                    <div style={{fontSize:16, fontWeight:800, color:"#1e3a8a"}}>{t.hora} hs</div>
-                    <div style={{fontSize:13, fontWeight:700, color:"#1e293b", marginTop:2}}>{t.clienteNombre}</div>
-                    {t.clienteCodigo && (<div style={{fontSize:10, color:"#7c3aed", fontFamily:"monospace", fontWeight:700, marginTop:2}}>{t.clienteCodigo}</div>)}
-                  </div>
-                  <div style={{background:config.bg, border:`1px solid ${config.border}`, borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:800, color:config.color, whiteSpace:"nowrap"}}>{config.label}</div>
-                </div>
-                <div style={{fontSize:12, color:"#4b5563", lineHeight:1.6, marginBottom:10}}>
-                  <div>🚙 {t.auto}{cant > 1 ? ` (×${cant})` : ""} • {formatP(t.precio)}</div>
-                  {lavador && <div>👷 {lavador.nombre} ({lavador.transporte})</div>}
-                  {cliente?.barrio && <div>📍 {cliente.barrio}</div>}
-                  {finEstimado && t.estado !== "terminado" && (<div style={{fontWeight:600, color:"#6b7280", marginTop:4}}>⏱️ Fin estimado: {finEstimado.horaFin} ({finEstimado.duracion} min)</div>)}
-                </div>
-                {t.nota && (<div style={{fontSize:11, fontStyle:"italic", color:"#92400e", background:"#fef3c7", padding:"4px 8px", borderRadius:6, marginBottom:10, border:"1px solid #fde68a"}}>📝 {t.nota}</div>)}
-                {t.estado === "pendiente" && (<Btn sm color="warning" full onClick={() => onMarcarTerminado(t.id, "en_progreso")}>▶️ Iniciar Lavado</Btn>)}
-                {t.estado === "en_progreso" && (<Btn sm color="success" full onClick={() => onMarcarTerminado(t.id, "terminado")}>✅ Marcar Terminado</Btn>)}
-                {t.estado === "terminado" && (<div style={{textAlign:"center", fontSize:12, fontWeight:700, color:"#059669", padding:"8px 0"}}>✅ Completado</div>)}
-              </div>
-            );
-          })}
+
+      {/* Columna de lluvia solo si hay turnos en ese estado */}
+      {lluvia.length > 0 && (
+        <div style={{marginTop:16}}>
+          {renderColumna("🌧️ Lluvia", lluvia, estadosConfig.lluvia)}
         </div>
       )}
     </div>
@@ -1473,9 +1508,9 @@ export default function App() {
         <button onClick={toggleDia} style={{marginLeft:"auto", flexShrink:0, background:"#fecaca", color:"#991b1b", border:"1px solid #fca5a5", borderRadius:12, padding:"8px 16px", fontSize:12, fontWeight:800, cursor:"pointer", boxShadow:"0 4px 14px rgba(254,202,202,.25)"}}>🔴 Cerrar Día</button>
       </nav>
 
-      <main style={{ padding:20, maxWidth:800, margin:"0 auto", animation:"fadeInUp .4s ease-out" }}>
+      <main style={{ padding:20, maxWidth:900, margin:"0 auto", animation:"fadeInUp .4s ease-out" }}>
         
-        {/* AGENDA - PUNTO 1 y 2: Botones "Llegó" y "Marcar como terminado" */}
+        {/* AGENDA - PUNTO 1: Badge "En Progreso" visible */}
         {tab === "agenda" && (
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -1499,16 +1534,23 @@ export default function App() {
                         {t.auto}{cant > 1 ? ` (×${cant})` : ""} • {formatP(t.precio)}
                       </div>
                     </div>
-                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                      {/* PUNTO 2: Botón "Llegó" solo cuando está pendiente */}
+                    <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap", justifyContent:"flex-end" }}>
+                      {/* PUNTO 1: Badge "En Progreso" visible junto al botón */}
+                      {t.estado === "en_progreso" && (
+                        <span style={{
+                          fontSize:11, fontWeight:800, padding:"5px 10px", borderRadius:8,
+                          background:"#fffbeb", color:"#d97706", border:"1px solid #fde68a",
+                          whiteSpace:"nowrap"
+                        }}>
+                          🟡 En Progreso
+                        </span>
+                      )}
                       {t.estado === "pendiente" && (
                         <Btn sm color="warning" onClick={() => cambiarEstadoTurno(t.id, "en_progreso")}>🚗 Llegó</Btn>
                       )}
-                      {/* PUNTO 1: "Marcar como terminado" solo cuando está en progreso */}
                       {t.estado === "en_progreso" && (
                         <Btn sm color="success" onClick={()=>{setEditando(t);setModalOpen("cerrarTurno");}}>✅ Marcar como terminado</Btn>
                       )}
-                      {/* Permitir terminar directo si está pendiente también */}
                       {t.estado === "pendiente" && (
                         <Btn sm color="success" onClick={()=>{setEditando(t);setModalOpen("cerrarTurno");}} style={{fontSize:11}}>✅ Terminar</Btn>
                       )}
@@ -1527,7 +1569,6 @@ export default function App() {
         
         {tab === "presentismo" && (<TabPresentismo staff={staff} turnos={turnos} hoyStr={hoy()} COL_ASISTENCIAS={COL_ASISTENCIAS} COL_STAFF={COL_STAFF} db={db} doc={doc} setDoc={setDoc} onSnapshot={onSnapshot} useEffect={useEffect} useState={useState} setPreviewData={setPreviewData} mostrarToast={mostrarToast} />)}
         
-        {/* PUNTO 3: Barra de búsqueda STICKY junto con título y botón */}
         {tab === "clientes" && (
           <div style={{ display:"flex", flexDirection:"column", gap:12, animation:"fadeInUp .4s ease-out" }}>
             <div style={{
@@ -1540,7 +1581,6 @@ export default function App() {
                 <h3 style={{ margin:0, fontSize:20, fontWeight:800, color:"#1e293b" }}>👥 Clientes ({clientesFiltrados.length})</h3>
                 <Btn sm color="success" onClick={()=>setMostrarNuevoClienteDirecto(true)}>➕ Nuevo Cliente</Btn>
               </div>
-              {/* PUNTO 3: Input de búsqueda dentro del contenedor sticky */}
               <input
                 type="text"
                 value={busquedaClientes}
