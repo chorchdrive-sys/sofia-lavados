@@ -3,19 +3,19 @@ import { initializeApp } from "firebase/app";
 import {
   getFirestore, doc, setDoc, getDoc, collection,
   addDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp,
-  updateDoc, writeBatch, query, where, orderBy, limit
+  updateDoc, writeBatch
 } from "firebase/firestore";
 
 // ═══════════════════════════════════════════════════════════════
 //  FIREBASE CONFIG
 // ═══════════════════════════════════════════════════════════════
 const FB = {
-  apiKey:            "AIzaSyDBZS7KR8YIq8UzAhnq9WaPTh8wGTZ-SMI",
-  authDomain:        "sofia-lavados-99231.firebaseapp.com",
-  projectId:         "sofia-lavados-99231",
-  storageBucket:     "sofia-lavados-99231.firebasestorage.app",
+  apiKey: "AIzaSyDBZS7KR8YIq8UzAhnq9WaPTh8wGTZ-SMI",
+  authDomain: "sofia-lavados-99231.firebaseapp.com",
+  projectId: "sofia-lavados-99231",
+  storageBucket: "sofia-lavados-99231.firebasestorage.app",
   messagingSenderId: "738758410354",
-  appId:             "1:738758410354:web:0c07ee6f2906d8add402eb",
+  appId: "1:738758410354:web:0c07ee6f2906d8add402eb",
 };
 
 const app = initializeApp(FB);
@@ -24,15 +24,15 @@ const db = getFirestore(app);
 // ═══════════════════════════════════════════════════════════════
 //  CONSTANTES
 // ═══════════════════════════════════════════════════════════════
-const BASE_LAT  = -34.5128;
-const BASE_LNG  = -58.4985;
-const FRANJAS_BASE = ["09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00"];
+const BASE_LAT = -34.5128;
+const BASE_LNG = -58.4985;
+const FRANJAS = ["09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00"];
 const TIEMPOS_LAVADO_BASE = { "Chico": 30, "Mediano": 45, "Camioneta": 60 };
 
 const TAMANOS_DEFAULT = [
-  { id:"chico", label:"Chico", precio:25000 },
-  { id:"mediano", label:"Mediano", precio:28000 },
-  { id:"camioneta", label:"Camioneta", precio:32000 },
+  { id: "chico", label: "Chico", precio: 25000 },
+  { id: "mediano", label: "Mediano", precio: 28000 },
+  { id: "camioneta", label: "Camioneta", precio: 32000 },
 ];
 
 const COLORES = ["#93c5fd", "#c4b5fd", "#fca5a5", "#fdba74", "#86efac", "#67e8f9", "#a5b4fc", "#f0abfc", "#fcd34d", "#a7f3d0", "#bae6fd", "#fecdd3"];
@@ -129,46 +129,10 @@ const horaAR = () => {
 const franjasValidas = () => {
   const ahora = new Date();
   const minutos = ahora.getHours() * 60 + ahora.getMinutes() + 30;
-  return FRANJAS_BASE.filter(h => {
+  return FRANJAS.filter(h => {
     const [hr, mn] = h.split(":").map(Number);
     return hr * 60 + mn > minutos;
   });
-};
-
-// PUNTO 7: Generar franjas dinámicas según necesidad
-const generarFranjasDinamicas = (turnos) => {
-  let franjas = [...FRANJAS_BASE];
-  if (turnos.length === 0) return franjas;
-  
-  // Encontrar el turno que termina más tarde
-  let maxHoraFin = 0;
-  turnos.forEach(t => {
-    if (t.estado === "terminado") return;
-    const [hr, mn] = t.hora.split(":").map(Number);
-    const duracionBase = TIEMPOS_LAVADO_BASE[t.auto] || 45;
-    const cant = t.cantidadAutos || 1;
-    const duracionTotal = duracionBase * cant;
-    const minutosFin = hr * 60 + mn + duracionTotal;
-    if (minutosFin > maxHoraFin) maxHoraFin = minutosFin;
-  });
-  
-  // Agregar franjas adicionales si es necesario
-  const ultimaFranjaBase = franjas[franjAS_BASE.length - 1];
-  const [hrUltima, mnUltima] = ultimaFranjaBase.split(":").map(Number);
-  const minutosUltima = hrUltima * 60 + mnUltima;
-  
-  if (maxHoraFin > minutosUltima) {
-    // Agregar franjas cada 90 minutos después de las 18:00
-    let minutosSiguiente = minutosUltima + 90;
-    while (minutosSiguiente <= maxHoraFin + 30) {
-      const hr = Math.floor(minutosSiguiente / 60);
-      const mn = minutosSiguiente % 60;
-      franjas.push(`${String(hr).padStart(2, "0")}:${String(mn).padStart(2, "0")}`);
-      minutosSiguiente += 90;
-    }
-  }
-  
-  return franjas;
 };
 
 const formatP = n => "$" + Number(n || 0).toLocaleString("es-AR");
@@ -269,14 +233,25 @@ const fsGet = async (col, id) => { if (!db) return null; try { const s = await g
 const fsSave = async (col, id, data) => { if (!db) return; try { await setDoc(doc(db, col, id), { ...data, _ts: serverTimestamp() }, { merge: true }); } catch { } };
 const fsAdd = async (col, data) => { if (!db) return null; try { const r = await addDoc(collection(db, col), { ...data, _ts: serverTimestamp() }); return r.id; } catch { return null; } };
 const fsDel = async (col, id) => { if (!db) return; try { await deleteDoc(doc(db, col, id)); } catch { } };
-const fsList = async (col) => { if (!db) return []; try { const s = await getDocs(collection(db, col)); return s.docs.map(d => ({ id: d.id, ...s.data() })); } catch { return []; } };
+
+// ✅ CORRECCIÓN 1.3: fsList - corregido d.data() en lugar de s.data()
+const fsList = async (col) => {
+  if (!db) return [];
+  try {
+    const s = await getDocs(collection(db, col));
+    return s.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch {
+    return [];
+  }
+};
+
 const fsUpdate = async (col, id, data) => { if (!db) return; try { await updateDoc(doc(db, col, id), data); } catch { } };
 
 // ═══════════════════════════════════════════════════════════════
 //  COMPONENTES BASE
 // ═══════════════════════════════════════════════════════════════
 function Toast({ msg, tipo, onClose }) {
-  useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t); }, []);
+  useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t); }, [onClose]);
   const styles = { ok: { bg: "#ecfdf5", border: "#a7f3d0", text: "#064e3b", icon: "#059669" }, error: { bg: "#fef2f2", border: "#fecaca", text: "#991b1b", icon: "#dc2626" }, warn: { bg: "#fffbeb", border: "#fde68a", text: "#92400e", icon: "#d97706" } };
   const s = styles[tipo] || styles.ok;
   return (
@@ -479,7 +454,7 @@ function ModalTurnoCreado({ turno, cliente, lavador, onClose, mostrarToast }) {
 // ═══════════════════════════════════════════════════════════════
 function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, COL_CLIENTES, geminiKey, mostrarToast, clientePreseleccionado, onClienteCreated, onTurnoCreado, codigosExistentes }) {
   const [clienteId, setClienteId] = useState(clientePreseleccionado?.id || "");
-  const [hora, setHora] = useState(franjasValidas()[0] || FRANJAS_BASE[0]);
+  const [hora, setHora] = useState(franjasValidas()[0] || FRANJAS[0]);
   const [tamaño, setTamaño] = useState(TAMANOS_DEFAULT[1]);
   const [cantidadAutos, setCantidadAutos] = useState(clientePreseleccionado?.autosHabituales || 1);
   const [lavadorId, setLavadorId] = useState("");
@@ -506,7 +481,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div><label style={labelStyle}>Cliente</label><BuscadorClientes clientes={clientes} value={clienteId} onChange={(id) => setClienteId(id)} placeholder="Buscar por nombre, código o barrio..." onCreateNew={(nombre) => { setNewClientName(nombre); setShowNewClient(true); }} /></div>
         {clienteSel ? (<div style={{ background: "linear-gradient(135deg,#eff6ff,#dbeafe)", padding: 16, borderRadius: 16, border: "2px solid #93c5fd", boxShadow: "0 4px 14px rgba(147,197,253,.2)" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}><div><div style={{ fontSize: 16, fontWeight: 900, color: "#1e3a8a" }}>{clienteSel.nombre}</div><div style={{ fontSize: 12, color: "#7c3aed", fontFamily: "monospace", marginTop: 4, fontWeight: 800, background: "#ffffff", display: "inline-block", padding: "4px 10px", borderRadius: 6, border: "1px solid #ddd6fe" }}>{clienteSel.codigo || "Sin código"}</div></div><div style={{ fontSize: 11, fontWeight: 800, background: "#bfdbfe", color: "#1e3a8a", padding: "4px 10px", borderRadius: 8 }}>{clienteSel.tipo}</div></div><div style={{ fontSize: 12, color: "#1e3a8a", lineHeight: 1.7, marginTop: 8 }}><div>📍 <strong>{clienteSel.direccion || "Sin dirección"}</strong> • {clienteSel.barrio}</div><div>{mostrarTelefono(clienteSel)}</div>{clienteSel.autosHabituales > 1 && <div>🚗 Autos habituales: <strong>{clienteSel.autosHabituales}</strong></div>}{clienteSel.nota && (<div style={{ marginTop: 6, padding: "6px 10px", background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 8, color: "#92400e", fontWeight: 800, fontStyle: "italic" }}>⚠️ {clienteSel.nota}</div>)}</div></div>) : (<div style={{ background: "#f9fafb", padding: 16, borderRadius: 14, border: "1.5px dashed #cbd5e1", textAlign: "center", color: "#94a3b8", fontSize: 12 }}>Buscá o creá un cliente para ver sus datos aquí</div>)}
-        <div><label style={labelStyle}>Horario</label><select value={hora} onChange={e => setHora(e.target.value)} style={inputStyle}>{FRANJAS_BASE.map(h => <option key={h} value={h}>{h} hs</option>)}</select></div>
+        <div><label style={labelStyle}>Horario</label><select value={hora} onChange={e => setHora(e.target.value)} style={inputStyle}>{FRANJAS.map(h => <option key={h} value={h}>{h} hs</option>)}</select></div>
         <div><label style={labelStyle}>Vehículo</label><div style={{ display: "flex", gap: 8 }}>{TAMANOS_DEFAULT.map(t => (<button key={t.id} onClick={() => setTamaño(t)} style={{ flex: 1, padding: "12px 8px", borderRadius: 14, fontSize: 12, fontWeight: 700, cursor: "pointer", background: tamaño.id === t.id ? "#dbeafe" : "#f9fafb", border: tamaño.id === t.id ? "1.5px solid #93c5fd" : "1.5px solid #e5e7eb", color: tamaño.id === t.id ? "#1e3a8a" : "#6b7280", boxShadow: tamaño.id === t.id ? "0 4px 14px rgba(147,197,253,.2)" : "none", transition: "all .2s" }}>{t.label}<br /><span style={{ fontSize: 11, opacity: .8 }}>{formatP(t.precio)}</span></button>))}</div></div>
         <div><label style={labelStyle}>Cantidad de Autos</label><div style={{ display: "flex", gap: 6, alignItems: "center" }}>{[1, 2, 3, 4, 5].map(n => (<button key={n} onClick={() => setCantidadAutos(n)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: "pointer", background: cantidadAutos === n ? "#dbeafe" : "#f9fafb", border: cantidadAutos === n ? "2px solid #3b82f6" : "1.5px solid #e5e7eb", color: cantidadAutos === n ? "#1e3a8a" : "#6b7280", boxShadow: cantidadAutos === n ? "0 4px 14px rgba(59,130,246,.2)" : "none", transition: "all .2s" }}>{n}{n === 5 ? "+" : ""}</button>))}</div><div style={{ marginTop: 8, padding: "10px 14px", borderRadius: 12, background: cantidadAutos > 1 ? "linear-gradient(135deg,#eff6ff,#dbeafe)" : "#f9fafb", border: cantidadAutos > 1 ? "1.5px solid #93c5fd" : "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, fontWeight: 700 }}><span style={{ color: "#1e3a8a" }}>💰 Total: <strong>{formatP(precioTotal)}</strong>{cantidadAutos > 1 && <span style={{ fontSize: 11, fontWeight: 500, color: "#6b7280" }}> ({formatP(precioUnitario)} × {cantidadAutos})</span>}</span><span style={{ color: "#059669" }}>⏱️ {formatoTiempo}</span></div></div>
         <div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><label style={labelStyle}>Lavador Asignado</label><Btn sm color="secondary" disabled={sugiriendo || presentes.length === 0} onClick={manejarSugerir}>{sugiriendo ? "🎯 Analizando..." : `🎯 Sugerir (${presentes.length})`}</Btn></div><select value={lavadorId} onChange={e => setLavadorId(e.target.value)} style={inputStyle}><option value="">-- Sin asignar --</option>{presentes.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")).map(s => (<option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>))}{staff.filter(s => !asistencias[s.id]).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")).map(s => (<option key={s.id} value={s.id} disabled style={{ color: "#d1d5db" }}>{s.nombre} (AUSENTE)</option>))}</select>{presentes.length === 0 && (<div style={{ fontSize: 11, color: "#dc2626", marginTop: 6, fontWeight: 600 }}>⚠️ No hay lavadores marcados como presentes.</div>)}</div>
@@ -577,11 +552,14 @@ function ModalArchivarTurnos({ turnos, onConfirm, onClose, mostrarToast }) {
 
 // ═══════════════════════════════════════════════════════════════
 //  PESTAÑA HISTORIAL / ARCHIVO
+// ✅ CORRECCIÓN 1.1: Agregado useState para mostrarExportar
 // ═══════════════════════════════════════════════════════════════
-function TabHistorial({ turnosArchivados, clientes, staff, onRestaurar }) {
+function TabHistorial({ turnosArchivados, clientes, staff, onRestaurar, mostrarToast }) {
   const [filtroFecha, setFiltroFecha] = useState("");
   const [filtroCliente, setFiltroCliente] = useState("");
   const [filtroLavador, setFiltroLavador] = useState("");
+  const [mostrarExportar, setMostrarExportar] = useState(false);
+  
   const turnosFiltrados = turnosArchivados.filter(t => {
     if (filtroFecha && t.fecha !== filtroFecha) return false;
     if (filtroCliente && !sinAcentos(t.clienteNombre).includes(sinAcentos(filtroCliente))) return false;
@@ -589,7 +567,6 @@ function TabHistorial({ turnosArchivados, clientes, staff, onRestaurar }) {
     return true;
   }).sort((a, b) => b.hora.localeCompare(a.hora));
   
-  // PUNTO 3: Función de exportación
   const generarTextoExport = () => {
     return `📦 HISTORIAL DE TURNOS - SOFÍA LAVADOS\nFecha de consulta: ${fechaAR(hoy())}\nFiltros: ${filtroFecha || "Todos"} | ${filtroCliente || "Todos los clientes"} | ${filtroLavador || "Todos los lavadores"}\n\nTotal: ${turnosFiltrados.length} turnos\n\n${turnosFiltrados.map(t => {
       const cliente = clientes.find(c => c.id === t.clienteId);
@@ -609,7 +586,7 @@ function TabHistorial({ turnosArchivados, clientes, staff, onRestaurar }) {
           <input type="date" value={filtroFecha} onChange={e => setFiltroFecha(e.target.value)} style={{ background: "#f9fafb", border: "1.5px solid #e5e7eb", borderRadius: 10, padding: "8px 12px", fontSize: 13 }} />
           <input type="text" placeholder="Filtrar por cliente..." value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} style={{ background: "#f9fafb", border: "1.5px solid #e5e7eb", borderRadius: 10, padding: "8px 12px", fontSize: 13, minWidth: 150 }} />
           <input type="text" placeholder="Filtrar por lavador..." value={filtroLavador} onChange={e => setFiltroLavador(e.target.value)} style={{ background: "#f9fafb", border: "1.5px solid #e5e7eb", borderRadius: 10, padding: "8px 12px", fontSize: 13, minWidth: 150 }} />
-          <Btn sm color="primary" onClick={() => { /* PUNTO 3: Exportar */ }}>🖨️ Exportar</Btn>
+          <Btn sm color="primary" onClick={() => setMostrarExportar(true)}>🖨️ Exportar</Btn>
         </div>
       </div>
       {turnosFiltrados.length === 0 ? (<div style={{ textAlign: "center", color: "#9ca3af", padding: 40, fontSize: 13 }}>No hay turnos archivados con estos filtros</div>) : (
@@ -632,7 +609,6 @@ function TabHistorial({ turnosArchivados, clientes, staff, onRestaurar }) {
         </div>
       )}
       
-      {/* Modal de exportación */}
       {mostrarExportar && (<Modal titulo="🖨️ Exportar Historial" onClose={() => setMostrarExportar(false)}><div style={{ display: "flex", flexDirection: "column", gap: 16 }}><div style={{ fontSize: 14, color: "#475569" }}>Se exportarán <strong>{turnosFiltrados.length}</strong> turnos con los filtros actuales.</div><pre style={{ background: "#f9fafb", padding: 12, borderRadius: 10, fontSize: 11, fontFamily: "monospace", maxHeight: 200, overflow: "auto" }}>{generarTextoExport()}</pre><div style={{ display: "flex", gap: 10 }}><Btn ghost onClick={() => setMostrarExportar(false)} full>Cancelar</Btn><Btn color="primary" full onClick={copiarExport}>📋 Copiar Texto</Btn><Btn color="success" full onClick={imprimirExport}>🖨️ Imprimir</Btn></div></div></Modal>)}
     </div>
   );
@@ -640,13 +616,17 @@ function TabHistorial({ turnosArchivados, clientes, staff, onRestaurar }) {
 
 // ═══════════════════════════════════════════════════════════════
 //  PESTAÑA SEGUIMIENTO (3 COLUMNAS)
+// ✅ CORRECCIÓN 1.1: Agregado useState para mostrarExportar
 // ═══════════════════════════════════════════════════════════════
-function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onArchivar }) {
+function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onArchivar, mostrarToast }) {
+  const [mostrarExportar, setMostrarExportar] = useState(false);
+  
   const estadosConfig = { pendiente: { color: "#dc2626", bg: "#fef2f2", border: "#fecaca", label: "🔴 Pendientes", headerBg: "#fee2e2" }, en_progreso: { color: "#d97706", bg: "#fffbeb", border: "#fde68a", label: "🟡 En Progreso", headerBg: "#fef3c7" }, terminado: { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", label: "🟢 Terminados", headerBg: "#d1fae5" }, lluvia: { color: "#6b7280", bg: "#f3f4f6", border: "#e5e7eb", label: "🌧️ Lluvia", headerBg: "#f3f4f6" } };
-  const pendientes = turnos.filter(t => t.estado === "pendiente").sort((a, b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora));
-  const enProgreso = turnos.filter(t => t.estado === "en_progreso").sort((a, b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora));
-  const terminados = turnos.filter(t => t.estado === "terminado").sort((a, b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora));
-  const lluvia = turnos.filter(t => t.estado === "lluvia").sort((a, b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora));
+  const pendientes = turnos.filter(t => t.estado === "pendiente").sort((a, b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+  const enProgreso = turnos.filter(t => t.estado === "en_progreso").sort((a, b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+  const terminados = turnos.filter(t => t.estado === "terminado").sort((a, b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+  const lluvia = turnos.filter(t => t.estado === "lluvia").sort((a, b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+  
   const renderTarjeta = (t) => {
     const config = estadosConfig[t.estado] || estadosConfig.pendiente;
     const cliente = clientes.find(c => c.id === t.clienteId);
@@ -665,9 +645,9 @@ function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onAr
       </div>
     );
   };
+  
   const renderColumna = (titulo, items, config) => (<div style={{ flex: 1, minWidth: 260, display: "flex", flexDirection: "column", background: config.headerBg, borderRadius: 16, padding: 12, border: `1px solid ${config.border}` }}><div style={{ fontSize: 14, fontWeight: 800, color: config.color, marginBottom: 12, padding: "6px 12px", borderRadius: 10, background: "rgba(255,255,255,.7)", display: "flex", justifyContent: "space-between", alignItems: "center" }}><span>{titulo}</span><span style={{ fontSize: 12, fontWeight: 800, background: config.bg, border: `1px solid ${config.border}`, borderRadius: 8, padding: "2px 8px" }}>{items.length}</span></div><div style={{ flex: 1, overflowY: "auto" }}>{items.length === 0 ? (<div style={{ textAlign: "center", color: "#9ca3af", fontSize: 12, padding: 20, fontStyle: "italic" }}>Sin turnos</div>) : (items.map(renderTarjeta))}</div></div>);
   
-  // PUNTO 3: Función de exportación
   const generarTextoExport = () => {
     return `📊 SEGUIMIENTO DE TURNOS - SOFÍA LAVADOS\nFecha: ${fechaAR(hoy())}\n\n🔴 PENDIENTES (${pendientes.length}):\n${pendientes.map(t => `${t.hora} • ${t.clienteNombre} • ${t.auto}`).join("\n")}\n\n🟡 EN PROGRESO (${enProgreso.length}):\n${enProgreso.map(t => `${t.hora} • ${t.clienteNombre} • ${t.auto}`).join("\n")}\n\n🟢 TERMINADOS (${terminados.length}):\n${terminados.map(t => `${t.hora} • ${t.clienteNombre} • ${t.auto} • ${formatP(t.precio)}`).join("\n")}`;
   };
@@ -697,16 +677,50 @@ function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onAr
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  PESTAÑA AGENDA - MATRIZ (PUNTO 5: Estilo Calendario + PUNTO 7: Dinámica)
+//  PESTAÑA AGENDA - MATRIZ
+// ✅ CORRECCIÓN 1.1: Agregado useState para mostrarExportar
+// ✅ CORRECCIÓN 1.2: Corregido FRANJAS_BASE (era franjAS_BASE)
 // ═══════════════════════════════════════════════════════════════
-function TabAgendaMatriz({ turnos, clientes, staff, asistencias, onMarcarLlego, onMarcarTerminado, onArchivar }) {
+const FRANJAS_BASE = FRANJAS;
+
+function generarFranjasDinamicas(turnos) {
+  let franjas = [...FRANJAS_BASE];
+  if (turnos.length === 0) return franjas;
+  
+  let maxHoraFin = 0;
+  turnos.forEach(t => {
+    if (t.estado === "terminado") return;
+    const [hr, mn] = t.hora.split(":").map(Number);
+    const duracionBase = TIEMPOS_LAVADO_BASE[t.auto] || 45;
+    const cant = t.cantidadAutos || 1;
+    const duracionTotal = duracionBase * cant;
+    const minutosFin = hr * 60 + mn + duracionTotal;
+    if (minutosFin > maxHoraFin) maxHoraFin = minutosFin;
+  });
+  
+  const ultimaFranjaBase = franjas[FRANJAS_BASE.length - 1];
+  const [hrUltima, mnUltima] = ultimaFranjaBase.split(":").map(Number);
+  const minutosUltima = hrUltima * 60 + mnUltima;
+  
+  if (maxHoraFin > minutosUltima) {
+    let minutosSiguiente = minutosUltima + 90;
+    while (minutosSiguiente <= maxHoraFin + 30) {
+      const hr = Math.floor(minutosSiguiente / 60);
+      const mn = minutosSiguiente % 60;
+      franjas.push(`${String(hr).padStart(2, "0")}:${String(mn).padStart(2, "0")}`);
+      minutosSiguiente += 90;
+    }
+  }
+  
+  return franjas;
+}
+
+function TabAgendaMatriz({ turnos, clientes, staff, asistencias, onMarcarLlego, onMarcarTerminado, onArchivar, mostrarToast }) {
+  const [mostrarExportar, setMostrarExportar] = useState(false);
   const presentes = staff.filter(s => asistencias[s.id]);
   const terminados = turnos.filter(t => t.estado === "terminado");
-  
-  // PUNTO 7: Generar franjas dinámicas
   const franjas = generarFranjasDinamicas(turnos);
   
-  // PUNTO 3: Función de exportación
   const generarTextoExport = () => {
     let texto = `📋 AGENDA - SOFÍA LAVADOS\nFecha: ${fechaAR(hoy())}\n\n`;
     franjas.forEach(franja => {
@@ -742,9 +756,7 @@ function TabAgendaMatriz({ turnos, clientes, staff, asistencias, onMarcarLlego, 
           <span style={{ fontWeight: 600, color: "#6b7280" }}>Andá a Presentismo para marcar quién vino.</span>
         </div>
       ) : (
-        // PUNTO 5: Diseño estilo calendario/bloc
         <div style={{ overflowX: "auto", background: "#f8fafc", borderRadius: 20, border: "2px solid #e2e8f0", boxShadow: "0 4px 20px rgba(0,0,0,.08)", padding: "20px" }}>
-          {/* Efecto de espiral/perforación */}
           <div style={{ display: "flex", gap: "8px", marginBottom: "16px", paddingLeft: "12px" }}>
             {Array.from({ length: Math.min(presentes.length + 1, 10) }).map((_, i) => (
               <div key={i} style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#cbd5e1", boxShadow: "inset 0 2px 4px rgba(0,0,0,.2)" }} />
@@ -795,7 +807,7 @@ function TabAgendaMatriz({ turnos, clientes, staff, asistencias, onMarcarLlego, 
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  PESTAÑA CLIENTES CON EXPORTACIÓN
+//  PESTAÑA CLIENTES CON EXPORTACIÓN Y FILTROS
 // ═══════════════════════════════════════════════════════════════
 function TabClientes({ clientes, onAsignarTurno, onEditar, onNuevo, mostrarToast }) {
   const [busqueda, setBusqueda] = useState("");
@@ -869,8 +881,6 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, db,
       mostrarToast("Error al guardar asistencia", "error");
     }
   };
-  
-  // PUNTO 4: Reemplazar Previsualizar por Exportar
   const generarTextoExport = () => {
     return `📋 PRESENTISMO - SOFÍA LAVADOS\nFecha: ${fechaAR(hoyStr)}\n\n${staff.map(s => {
       const presente = asistencias[s.id];
@@ -878,10 +888,8 @@ function TabPresentismo({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, db,
       return `${s.nombre}\n${presente ? "✅ PRESENTE" : "❌ AUSENTE"}\n🚚 ${s.transporte}\n📞 ${s.telefono || "Sin teléfono"}\n📋 Turnos asignados: ${turnosHoy}\n---`;
     }).join("\n")}`;
   };
-  
   const copiarExport = async () => { try { await navigator.clipboard.writeText(generarTextoExport()); mostrarToast("📋 Presentismo copiado", "ok"); } catch { mostrarToast("Error al copiar", "error"); } };
   const imprimirExport = () => { const ventana = window.open("", "_blank"); ventana.document.write(`<html><head><title>Presentismo - Sofía Lavados</title><style>body{font-family:system-ui,sans-serif;padding:20px;line-height:1.6}pre{white-space:pre-wrap}</style></head><body><pre>${generarTextoExport()}</pre></body></html>`); ventana.document.close(); ventana.print(); };
-  
   if (cargandoAsistencia) return <div style={{ textAlign: "center", color: "#9ca3af", padding: 40, fontSize: 13 }}>Cargando presentismo...</div>;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeInUp .4s ease-out" }}>
@@ -955,7 +963,6 @@ export default function App() {
   const [keyDesbloqueada, setKeyDesbloqueada] = useState(false);
   const [inputClave, setInputClave] = useState("");
   const [mostrarApiKey, setMostrarApiKey] = useState(false);
-  const [mostrarExportar, setMostrarExportar] = useState(false); // PUNTO 3: Estado para modales de exportación
   const mostrarToast = (msg, tipo = "ok") => setToast({ msg, tipo });
   const handleLogoTap = () => {
     tapCountRef.current += 1;
@@ -968,15 +975,11 @@ export default function App() {
       mostrarToast(!modoPrueba ? "🧪 Modo OCULTO activado" : "🔒 Modo producción restaurado", !modoPrueba ? "warn" : "ok");
     }
   };
-  
-  // PUNTO 1: Modo Oculto - checkbox sincronizado
   useEffect(() => {
     if (modoOculto !== modoPrueba) {
       setModoPrueba(modoOculto);
     }
   }, [modoOculto]);
-  
-  // PUNTO 3: Archivado automático al cambiar de día
   useEffect(() => {
     const verificarCambioDeDia = async () => {
       const ultimaFecha = localStorage.getItem("sofia_ultima_fecha");
@@ -1000,8 +1003,6 @@ export default function App() {
     };
     verificarCambioDeDia();
   }, [turnos, modoPrueba]);
-  
-  // Seed + Migración
   useEffect(() => {
     const seedAndMigrate = async () => {
       try {
@@ -1019,29 +1020,24 @@ export default function App() {
     };
     seedAndMigrate();
   }, [modoPrueba]);
-  
-  // Suscripciones en tiempo real
   useEffect(() => {
     const fechaHoy = hoy();
     setCargando(true);
     const unsubDia = onSnapshot(doc(db, COL_DIAS, fechaHoy), (snap) => { if (snap.exists()) setDiaActual({ id: snap.id, ...snap.data() }); else { const nuevoDia = { fecha: fechaHoy, estado: "cerrado", apertura: null, cierre: null, lluvia: false }; setDiaActual(nuevoDia); if (!modoPrueba) fsSave(COL_DIAS, fechaHoy, nuevoDia); } setCargando(false); }, () => { setCargando(false); mostrarToast("Sin conexión a base de datos", "error"); });
-    const unsubTurnos = onSnapshot(collection(db, COL_TURNOS), (snap) => { setTurnos(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => t.fecha === fechaHoy).sort((a, b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora))); });
+    const unsubTurnos = onSnapshot(collection(db, COL_TURNOS), (snap) => { setTurnos(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => t.fecha === fechaHoy).sort((a, b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora))); });
     const unsubArchivo = onSnapshot(collection(db, COL_ARCHIVO), (snap) => { setTurnosArchivados(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b._ts?.toDate?.() - a._ts?.toDate?.())); });
     const unsubClientes = onSnapshot(collection(db, COL_CLIENTES), (snap) => { if (!snap.empty) setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() }))); });
     const unsubStaff = onSnapshot(collection(db, COL_STAFF), (snap) => { if (!snap.empty) setStaff(snap.docs.map(d => ({ id: d.id, ...d.data() }))); });
     return () => { unsubDia(); unsubTurnos(); unsubArchivo(); unsubClientes(); unsubStaff(); };
   }, [modoPrueba]);
-  
   useEffect(() => { const fechaHoy = hoy(); const docRef = doc(db, COL_ASISTENCIAS, fechaHoy); const unsub = onSnapshot(docRef, (snap) => { setAsistencias(snap.exists() ? (snap.data().registros || {}) : {}); }); return () => unsub(); }, [modoPrueba]);
-  
   const cerrarTurno = async (turno, montoRecibido, metodoPago) => { const total = Number(turno.precio || 0); const recibido = Math.max(0, Number(montoRecibido || 0)); const diferencia = total - recibido; await fsUpdate(COL_TURNOS, turno.id, { estado: "terminado", pagado: recibido, deudaGenerada: diferencia > 0 ? diferencia : 0, metodoPago, rendidoEn: serverTimestamp(), editadoPostRendicion: false }); if (diferencia > 0 && turno.clienteId) { const cli = clientes.find(c => c.id === turno.clienteId); if (cli) { await fsUpdate(COL_CLIENTES, cli.id, { deuda: Number(cli.deuda || 0) + diferencia }); mostrarToast(`Deuda registrada: ${formatP(diferencia)}`, "warn"); } } else { mostrarToast("Turno terminado correctamente", "ok"); } };
   const cambiarEstadoTurno = async (turnoId, nuevoEstado) => { try { await fsUpdate(COL_TURNOS, turnoId, { estado: nuevoEstado }); const labels = { en_progreso: "En Progreso", terminado: "Terminado" }; mostrarToast(`Turno marcado como ${labels[nuevoEstado] || nuevoEstado}`, "ok"); } catch (err) { mostrarToast("Error al actualizar estado", "error"); } };
   const activarLluvia = async () => { if (!diaActual?.id) return; await fsUpdate(COL_DIAS, diaActual.id, { lluvia: true, lluviaInicio: serverTimestamp() }); const pendientes = turnos.filter(t => t.estado === "pendiente" && t.hora >= horaAR()); await Promise.all(pendientes.map(t => fsUpdate(COL_TURNOS, t.id, { estado: "lluvia" }))); mostrarToast("Modo lluvia activado", "warn"); };
-  const reanudarTrasLluvia = async () => { if (!diaActual?.id) return; const minutosActuales = new Date().getHours() * 60 + new Date().getMinutes(); let franjaInicio = FRANJAS_BASE.find(h => { const [hr, mn] = h.split(":").map(Number); return hr * 60 + mn >= minutosActuales; }) || FRANJAS_BASE[FRANJAS_BASE.length - 1]; await fsUpdate(COL_DIAS, diaActual.id, { lluvia: false, lluviaFin: serverTimestamp() }); const pendientes = turnos.filter(t => t.estado === "lluvia"); let idx = FRANJAS_BASE.indexOf(franjaInicio); for (const t of pendientes) { if (idx >= FRANJAS_BASE.length) break; await fsUpdate(COL_TURNOS, t.id, { hora: FRANJAS_BASE[idx], estado: "pendiente", reasignadoPorLluvia: true }); idx++; } mostrarToast(`Reanudado desde ${franjaInicio}`, "ok"); };
+  const reanudarTrasLluvia = async () => { if (!diaActual?.id) return; const minutosActuales = new Date().getHours() * 60 + new Date().getMinutes(); let franjaInicio = FRANJAS.find(h => { const [hr, mn] = h.split(":").map(Number); return hr * 60 + mn >= minutosActuales; }) || FRANJAS[FRANJAS.length - 1]; await fsUpdate(COL_DIAS, diaActual.id, { lluvia: false, lluviaFin: serverTimestamp() }); const pendientes = turnos.filter(t => t.estado === "lluvia"); let idx = FRANJAS.indexOf(franjaInicio); for (const t of pendientes) { if (idx >= FRANJAS.length) break; await fsUpdate(COL_TURNOS, t.id, { hora: FRANJAS[idx], estado: "pendiente", reasignadoPorLluvia: true }); idx++; } mostrarToast(`Reanudado desde ${franjaInicio}`, "ok"); };
   const verificarClaveAcceso = () => { if (inputClave === CLAVE_MAESTRA) { setKeyDesbloqueada(true); setInputClave(""); mostrarToast("Acceso concedido", "ok"); } else { setInputClave(""); mostrarToast("Clave incorrecta", "error"); } };
   const toggleDia = async () => { if (!diaActual?.id) return; const nuevoEstado = diaActual?.estado === "abierto" ? "cerrado" : "abierto"; await fsUpdate(COL_DIAS, diaActual.id, { estado: nuevoEstado, apertura: nuevoEstado === "abierto" ? serverTimestamp() : diaActual.apertura, cierre: nuevoEstado === "cerrado" ? serverTimestamp() : null }); mostrarToast(nuevoEstado === "abierto" ? "☀️ Día ABIERTO" : "🌙 Día CERRADO", "ok"); };
   const handleTabClick = (tabId) => { if (tabId === "nuevoTurno") { setClienteParaTurno(null); setModalOpen("nuevoTurno"); } else { setTab(tabId); } };
-  
   const archivarTurnos = async (ids) => {
     try {
       const batch = writeBatch(db);
@@ -1057,11 +1053,8 @@ export default function App() {
       mostrarToast(`📦 ${ids.length} turnos archivados`, "ok");
     } catch (err) { mostrarToast("Error al archivar", "error"); }
   };
-  
   const codigosExistentes = clientes.map(c => c.codigo || "").filter(Boolean);
-  
   if (cargando) return (<div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f9fafb", color: "#6b7280", fontFamily: "'Inter',system-ui,sans-serif", fontWeight: 600, fontSize: 14 }}>⟳ Sincronizando Sofia Lavados...</div>);
-  
   if (diaActual?.estado !== "abierto") {
     return (
       <div style={{ minHeight: "100vh", background: "#f9fafb", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "'Inter',system-ui,sans-serif" }}>
@@ -1072,15 +1065,12 @@ export default function App() {
           <button onClick={toggleDia} style={{ background: "linear-gradient(135deg,#bbf7d0,#a7f3d0)", color: "#14532d", border: "1px solid #86efac", borderRadius: 20, padding: "22px 56px", fontSize: 20, fontWeight: 800, cursor: "pointer", boxShadow: "0 8px 30px rgba(167,243,208,.3)", transition: "all .3s ease", width: "100%", maxWidth: 380 }} onMouseOver={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(167,243,208,.4)" }} onMouseOut={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 8px 30px rgba(167,243,208,.3)" }}>🟢 ABRIR DÍA</button>
           {modoOculto && (<div style={{ marginTop: 20, padding: "8px 20px", borderRadius: 12, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 12, fontWeight: 700, display: "inline-block" }}>🧪 MODO OCULTO ACTIVO</div>)}
           {modoOculto && (<Btn sm color="danger" style={{ marginTop: 12 }} onClick={() => { setModoOculto(false); setModoPrueba(false); }}>🔒 Salir del Modo Oculto</Btn>)}
-          {/* PUNTO 1: Botón Caja visible solo en modo oculto */}
           {modoOculto && (<Btn sm color="primary" style={{ marginTop: 8 }} onClick={() => { mostrarToast("💰 Sistema Contable - Próximamente", "warn"); }}>💰 Caja</Btn>)}
         </div>
         {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
       </div>
     );
   }
-  
-  // Pestañas principales (sin Config)
   const tabsVisibles = [
     { id: "nuevoTurno", label: "➕ Nuevo Turno", color: "#059669", bg: "#d1fae5", border: "#a7f3d0" },
     { id: "agenda", label: "📋 Agenda", color: "#3b82f6", bg: "#dbeafe", border: "#bfdbfe" },
@@ -1089,7 +1079,6 @@ export default function App() {
     { id: "seguimiento", label: "📊 Seguimiento", color: "#0891b2", bg: "#cffafe", border: "#a5f3fc" },
     { id: "historial", label: "📦 Historial", color: "#6b7280", bg: "#f3f4f6", border: "#e5e7eb" },
   ];
-  
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb", color: "#1e293b", fontFamily: "'Inter',system-ui,sans-serif", paddingBottom: 90 }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap'); @keyframes fadeInUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} } @keyframes fadeIn { from{opacity:0} to{opacity:1} } @keyframes scaleIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} } @media (max-width:768px) { .reloj-desktop { display:none !important; } .nav-tabs { overflow-x:auto !important; scrollbar-width:none; -webkit-overflow-scrolling:touch; } .nav-tabs::-webkit-scrollbar { display:none; } }`}</style>
@@ -1102,7 +1091,6 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {diaActual?.lluvia ? (<Btn sm color="success" onClick={reanudarTrasLluvia}>☀️ Reanudar</Btn>) : (<Btn sm color="warning" onClick={activarLluvia}>🌧️ Lluvia</Btn>)}
           <div className="reloj-desktop" style={{ fontSize: 13, color: "#6b7280", fontWeight: 700, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", gap: 6 }}>{fechaAR(hoy())} • {horaAR()} hs</div>
-          {/* PUNTO 2: Config fuera de la nav principal */}
           <button onClick={() => setTab("config")} style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 10, padding: "6px 12px", cursor: "pointer", fontSize: 16, transition: "all .15s" }} onMouseOver={e => e.target.style.background = "#e2e8f0"} onMouseOut={e => e.target.style.background = "#f1f5f9"} title="Configuración">⚙️</button>
         </div>
       </header>
@@ -1128,6 +1116,7 @@ export default function App() {
             onMarcarLlego={(id) => cambiarEstadoTurno(id, "en_progreso")}
             onMarcarTerminado={(id) => { setEditando(turnos.find(t => t.id === id)); setModalOpen("cerrarTurno"); }}
             onArchivar={(turnosLista) => setMostrarArchivar(turnosLista)}
+            mostrarToast={mostrarToast}
           />
         )}
         {tab === "clientes" && (
@@ -1139,11 +1128,9 @@ export default function App() {
             mostrarToast={mostrarToast}
           />
         )}
-        {tab === "presentismo" && (
-          <TabPresentismo staff={staff} turnos={turnos} hoyStr={hoy()} COL_ASISTENCIAS={COL_ASISTENCIAS} COL_STAFF={COL_STAFF} db={db} doc={doc} setDoc={setDoc} onSnapshot={onSnapshot} useEffect={useEffect} useState={useState} mostrarToast={mostrarToast} />
-        )}
-        {tab === "seguimiento" && (<TabSeguimientoTurnos turnos={turnos} clientes={clientes} staff={staff} onMarcarTerminado={cambiarEstadoTurno} onArchivar={(turnosLista) => setMostrarArchivar(turnosLista)} />)}
-        {tab === "historial" && (<TabHistorial turnosArchivados={turnosArchivados} clientes={clientes} staff={staff} />)}
+        {tab === "presentismo" && (<TabPresentismo staff={staff} turnos={turnos} hoyStr={hoy()} COL_ASISTENCIAS={COL_ASISTENCIAS} COL_STAFF={COL_STAFF} db={db} doc={doc} setDoc={setDoc} onSnapshot={onSnapshot} useEffect={useEffect} useState={useState} mostrarToast={mostrarToast} />)}
+        {tab === "seguimiento" && (<TabSeguimientoTurnos turnos={turnos} clientes={clientes} staff={staff} onMarcarTerminado={cambiarEstadoTurno} onArchivar={(turnosLista) => setMostrarArchivar(turnosLista)} mostrarToast={mostrarToast} />)}
+        {tab === "historial" && (<TabHistorial turnosArchivados={turnosArchivados} clientes={clientes} staff={staff} mostrarToast={mostrarToast} />)}
         {tab === "config" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ background: "#ffffff", padding: 20, borderRadius: 20, border: "1px solid #e5e7eb", boxShadow: "0 4px 20px rgba(0,0,0,.03)" }}>
@@ -1190,6 +1177,7 @@ export default function App() {
       {mostrarNuevoClienteDirecto && (<ModalNuevoCliente nombreInicial="" COL_CLIENTES={COL_CLIENTES} mostrarToast={mostrarToast} codigosExistentes={codigosExistentes} onClienteCreated={(nc) => { setClientes(prev => [...prev, nc]); mostrarToast(`Cliente ${nc.nombre} creado`, "ok"); }} onClose={() => setMostrarNuevoClienteDirecto(false)} />)}
       {turnoCreadoData && (<ModalTurnoCreado turno={turnoCreadoData.turno} cliente={turnoCreadoData.cliente} lavador={turnoCreadoData.lavador} mostrarToast={mostrarToast} onClose={() => setTurnoCreadoData(null)} />)}
       {mostrarArchivar && (<ModalArchivarTurnos turnos={mostrarArchivar} onConfirm={archivarTurnos} onClose={() => setMostrarArchivar(null)} mostrarToast={mostrarToast} />)}
+      {previewData && <PreviewTabla {...previewData} onImprimir={() => window.print()} onCerrar={() => setPreviewData(null)} />}
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
     </div>
   );
