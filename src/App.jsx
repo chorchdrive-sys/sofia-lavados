@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { initializeApp } from "firebase/app";
 import {
   getFirestore, doc, setDoc, getDoc, collection,
@@ -22,7 +22,7 @@ const app = initializeApp(FB);
 const db = getFirestore(app);
 
 // ═══════════════════════════════════════════════════════════════
-//  CONSTANTES
+//  CONSTANTES & SEEDS (RESTAURADOS DEL VIEJO + ACTUALES)
 // ═══════════════════════════════════════════════════════════════
 const BASE_LAT  = -34.5128;
 const BASE_LNG  = -58.4985;
@@ -50,6 +50,7 @@ const TAMANOS_DEFAULT = [
 const COLORES = [
   "#93c5fd","#c4b5fd","#fca5a5","#fdba74","#86efac","#67e8f9",
   "#a5b4fc","#f0abfc","#fcd34d","#a7f3d0","#bae6fd","#fecdd3",
+  "#22d3ee","#0ea5e9","#38bdf8","#7dd3fc","#06b6d4","#67e8f9",
 ];
 
 const STAFF_SEED = [
@@ -88,24 +89,46 @@ const CLIENTES_SEED = [
   {nombre:"Martin",    telefono:"", direccion:"Colectora Panamericana 2065",   barrio:"San Isidro", autosHabituales:3, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"SIS-001-Martin"},
   {nombre:"Micaela",   telefono:"", direccion:"Eduardo Costa 902",             barrio:"Acassuso",   autosHabituales:1, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"ACA-001-Micaela"},
   {nombre:"Hyundai",   telefono:"", direccion:"Av. Santa Fe 2627",             barrio:"Martínez",   autosHabituales:4, nota:"Confirmar cantidad (3-5 autos)", tipo:"🔥 Top", deuda:0, codigo:"MAR-001-Hyundai"},
+  {nombre:"Mariana",   telefono:"", direccion:"Diagonal Salta 557",            barrio:"Olivos",     autosHabituales:1, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"OLI-002-Mariana"},
+  {nombre:"Caro",      telefono:"", direccion:"Las Heras 1533",                barrio:"Martínez",   autosHabituales:3, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"MAR-002-Caro"},
+  {nombre:"Salva",     telefono:"", direccion:"Hipólito Yrigoyen 2647",        barrio:"Martínez",   autosHabituales:1, nota:"Silicina en llantas y paragolpes",tipo:"⭐ Frecuente", deuda:0, codigo:"MAR-003-Salva"},
+  {nombre:"Johana",    telefono:"", direccion:"Blas Parera 429",               barrio:"Boulogne",   autosHabituales:1, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"BOU-001-Johana"},
+  {nombre:"Karina",    telefono:"", direccion:"Cangallo 846",                  barrio:"Martínez",   autosHabituales:1, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"MAR-004-Karina"},
+  {nombre:"Andres",    telefono:"", direccion:"Paraná 374",                    barrio:"Martínez",   autosHabituales:1, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"MAR-005-Andres"},
+  {nombre:"Barby",     telefono:"", direccion:"Fray Justo Sarmiento 3304",     barrio:"Olivos",     autosHabituales:1, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"OLI-003-Barby"},
+  {nombre:"Tomás",     telefono:"", direccion:"Córdoba 596",                   barrio:"Martínez",   autosHabituales:1, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"MAR-006-Tomás"},
+  {nombre:"HernanC",   telefono:"", direccion:"Beruti 1583",                   barrio:"Martínez",   autosHabituales:2, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"MAR-007-HernanC"},
+  {nombre:"Agustín",   telefono:"", direccion:"Colectora Panamericana 2065",   barrio:"San Isidro", autosHabituales:1, nota:"Llamar antes",                   tipo:"⭐ Frecuente", deuda:0, codigo:"SIS-002-Agustín"},
+  {nombre:"Candelaria",telefono:"", direccion:"Ladislao Martínez 440",         barrio:"Martínez",   autosHabituales:1, nota:"", tipo:"⭐ Frecuente", deuda:0, codigo:"MAR-008-Candelaria"},
+  {nombre:"Vero",      telefono:"", direccion:"Entre Ríos 2397",               barrio:"Martínez",   autosHabituales:1, nota:"Confirmar",                      tipo:"💤 Ocasional", deuda:0, codigo:"MAR-009-Vero"},
+  {nombre:"Avri",      telefono:"", direccion:"Entre Ríos 2983",               barrio:"Martínez",   autosHabituales:1, nota:"", tipo:"💤 Ocasional", deuda:0, codigo:"MAR-010-Avri"},
+  {nombre:"Ale",       telefono:"", direccion:"Sáenz Valiente 2163",           barrio:"Olivos",     autosHabituales:1, nota:"", tipo:"💤 Ocasional", deuda:0, codigo:"OLI-004-Ale"},
+  {nombre:"GabyC",     telefono:"", direccion:"Catamarca 1304",                barrio:"Florida",    autosHabituales:2, nota:"", tipo:"💤 Ocasional", deuda:0, codigo:"FLO-001-GabyC"},
+  {nombre:"Pablo",     telefono:"", direccion:"Ezpeleta 531",                  barrio:"Martínez",   autosHabituales:2, nota:"", tipo:"💤 Ocasional", deuda:0, codigo:"MAR-011-Pablo"},
 ];
 
 const NOTAS_PREDEFINIDAS = [
-  "Cliente detallista","Insectos de ruta","Barro extremo","Decir precio antes",
+  "Cliente detallista","Insectos de ruta","Barro extremo","Decir precio antes de empezar",
   "Avisar cuando va","No usar revividor","Llevar doble alargue","Auto muy sucio","Cliente nuevo",
 ];
 
-function codigoBarrio(barrioNombre) {
-  if(!barrioNombre || barrioNombre.trim() === "" || barrioNombre.toLowerCase() === "desconocido") return "DES";
-  const limpio = barrioNombre.replace(/[\(\)\[\],]/g," ").replace(/\s+/g," ").trim();
-  const b = limpio.toLowerCase().replace(/[áéíóúü]/g, m=>({á:"a",é:"e",í:"i",ó:"o",ú:"u",ü:"u"}[m]||m));
-  for(const [k,v] of Object.entries(BARRIOS_INICIALES)) {
-    if(b.includes(k)) return v;
-  }
-  const cod = b.replace(/[\s,]+/g,"").substring(0,3).toUpperCase();
-  if(!LISTA_BARRIOS.find(x=>x.toLowerCase()===limpio.toLowerCase())) LISTA_BARRIOS.push(limpio);
-  return cod;
-}
+const MOTIVOS_DESCUENTO = [
+  "Error de cambio",
+  "Descuento por queja",
+  "Lavado gratis (compensación total)",
+  "Lavado con descuento (compensación parcial)",
+  "Cliente no pagó (deuda)",
+  "Otro",
+];
+
+const MOTIVOS_OPERACION = [
+  "Préstamo (lavador recibe)",
+  "Adelanto de sueldo (lavador recibe)",
+  "Regalo / Premio (lavador recibe)",
+  "Devolución de préstamo (lavador paga)",
+  "Aporte voluntario (lavador paga)",
+  "Otro",
+];
 
 // ═══════════════════════════════════════════════════════════════
 //  HELPERS
@@ -166,6 +189,18 @@ function distKm(lat1,lng1,lat2,lng2) {
 }
 const kmToCuadras = km => km * 10;
 
+function codigoBarrio(barrioNombre) {
+  if(!barrioNombre || barrioNombre.trim() === "" || barrioNombre.toLowerCase() === "desconocido") return "DES";
+  const limpio = barrioNombre.replace(/[\(\)\[\],]/g," ").replace(/\s+/g," ").trim();
+  const b = limpio.toLowerCase().replace(/[áéíóúü]/g, m=>({á:"a",é:"e",í:"i",ó:"o",ú:"u",ü:"u"}[m]||m));
+  for(const [k,v] of Object.entries(BARRIOS_INICIALES)) {
+    if(b.includes(k)) return v;
+  }
+  const cod = b.replace(/[\s,]+/g,"").substring(0,3).toUpperCase();
+  if(!LISTA_BARRIOS.find(x=>x.toLowerCase()===limpio.toLowerCase())) LISTA_BARRIOS.push(limpio);
+  return cod;
+}
+
 const _geocache = {};
 async function geocodificar(dir) {
   const resultadoDefault = { 
@@ -178,7 +213,7 @@ async function geocodificar(dir) {
   try {
     const q = encodeURIComponent(`${dir}, Buenos Aires, Argentina`);
     const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&viewbox=-58.55,-34.45,-58.40,-34.55&bounded=0`,{
-      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/7.0"}
+      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/8.0-Fusion"}
     });
     const data = await res.json();
     
@@ -689,7 +724,7 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL EDITAR CLIENTE
+//  MODAL EDITAR CLIENTE (CON DEUDA)
 // ═══════════════════════════════════════════════════════════════
 function ModalEditarCliente({ cliente, onClose, COL_CLIENTES, mostrarToast }) {
   const [datos, setDatos] = useState({...cliente});
@@ -704,12 +739,38 @@ function ModalEditarCliente({ cliente, onClose, COL_CLIENTES, mostrarToast }) {
       onClose();
     } catch (err) { mostrarToast("Error al actualizar", "error"); }
   };
+  
+  const condonarDeuda = async () => {
+    if(!window.confirm(`¿Condonar deuda de ${formatP(datos.deuda)} a ${datos.nombre}?`)) return;
+    await fsUpdate(COL_CLIENTES, cliente.id, { deuda: 0 });
+    setDatos({...datos, deuda: 0});
+    mostrarToast(`Deuda de ${datos.nombre} condonada ✓`, "ok");
+  };
+  
+  const aplicarPunitorio = async () => {
+    const monto = Number(prompt("¿Cuánto de punitorio/recargo sumás?"));
+    if(!monto || monto <= 0) return;
+    const nueva = (datos.deuda || 0) + monto;
+    await fsUpdate(COL_CLIENTES, cliente.id, { deuda: nueva });
+    setDatos({...datos, deuda: nueva});
+    mostrarToast(`Punitorio de ${formatP(monto)} aplicado`, "warn");
+  };
+
   const inputStyle = { background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12, padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none", width:"100%", boxSizing:"border-box" };
   const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
 
   return (
     <Modal titulo={`✏️ Editar: ${cliente.nombre}`} onClose={onClose}>
       <div style={{display:"flex", flexDirection:"column", gap:14}}>
+        {datos.deuda > 0 && (
+          <div style={{padding:"12px", background:"#fef2f2", border:"1px solid #fecaca", borderRadius:12}}>
+            <div style={{fontSize:12, fontWeight:800, color:"#991b1b", marginBottom:8}}>🔴 Deuda acumulada: {formatP(datos.deuda)}</div>
+            <div style={{display:"flex", gap:6}}>
+              <Btn sm color="success" onClick={condonarDeuda}>✓ Condonar</Btn>
+              <Btn sm color="warning" onClick={aplicarPunitorio}>+ Punitorio</Btn>
+            </div>
+          </div>
+        )}
         <div><label style={labelStyle}>Teléfono</label><input value={datos.telefono||""} onChange={e=>setDatos({...datos, telefono:e.target.value})} style={inputStyle} /></div>
         <div><label style={labelStyle}>Dirección</label><input value={datos.direccion||""} onChange={e=>setDatos({...datos, direccion:e.target.value})} style={inputStyle} /></div>
         <div><label style={labelStyle}>Barrio</label><input value={datos.barrio||""} onChange={e=>setDatos({...datos, barrio:e.target.value})} style={inputStyle} /></div>
@@ -878,6 +939,215 @@ function ModalGestionLavadores({ staff, onClose, COL_STAFF, mostrarToast }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  MODAL OPERACIÓN LAVADOR (PRÉSTAMOS) - RESTAURADO
+// ═══════════════════════════════════════════════════════════════
+function ModalOperacion({ lavador, onRegistrar, onClose }) {
+  const [monto, setMonto] = useState(0);
+  const [motivo, setMotivo] = useState("Préstamo (lavador recibe)");
+  const [motivoManual, setMotivoManual] = useState("");
+
+  const inputStyle = { background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12, padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none", width:"100%", boxSizing:"border-box" };
+  const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
+
+  return (
+    <Modal titulo={`💰 Operación: ${lavador.nombre}`} onClose={onClose}>
+      <div style={{display:"flex", flexDirection:"column", gap:14}}>
+        <div>
+          <label style={labelStyle}>Tipo de Operación</label>
+          <select value={motivo} onChange={e=>setMotivo(e.target.value)} style={inputStyle}>
+            {MOTIVOS_OPERACION.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+        {motivo === "Otro" && (
+          <div>
+            <label style={labelStyle}>Describí la operación</label>
+            <input value={motivoManual} onChange={e=>setMotivoManual(e.target.value)} style={inputStyle} />
+          </div>
+        )}
+        <div>
+          <label style={labelStyle}>Monto ($)</label>
+          <input type="number" value={monto} onChange={e=>setMonto(Number(e.target.value))} style={{...inputStyle, fontSize:18, fontWeight:700}} />
+        </div>
+        <div style={{padding:"10px 14px", background:"#f1f5f9", borderRadius:10, fontSize:11, color:"#64748b"}}>
+          💡 {motivo.includes("recibe") ? "Este monto se registrará como 'DEBE' y se descontará de futuras rendiciones." : "Este monto se registrará como 'PAGO' y reducirá su deuda actual."}
+        </div>
+        <div style={{display:"flex", gap:10, marginTop:8}}>
+          <Btn ghost onClick={onClose} full>Cancelar</Btn>
+          <Btn color="warning" full onClick={() => onRegistrar(lavador, monto, motivo === "Otro" ? motivoManual : motivo)}>Registrar</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL SERVICIO ESPECIAL - RESTAURADO
+// ═══════════════════════════════════════════════════════════════
+function ModalServicioEsp({ onAplicar, onClose }) {
+  const [nombre, setNombre] = useState("");
+  const [precio, setPrecio] = useState("");
+  const [slots, setSlots] = useState(1);
+
+  const inputStyle = { background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12, padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none", width:"100%", boxSizing:"border-box" };
+  const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
+
+  return (
+    <Modal titulo="⚡ Servicio Especial Personalizado" onClose={onClose}>
+      <div style={{display:"flex", flexDirection:"column", gap:14}}>
+        <div><label style={labelStyle}>Nombre del Servicio</label><input value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Ej: Limpieza de vómito" style={inputStyle} /></div>
+        <div><label style={labelStyle}>Precio ($)</label><input type="number" value={precio} onChange={e=>setPrecio(e.target.value)} placeholder="Ej: 45000" style={inputStyle} /></div>
+        <div><label style={labelStyle}>Slots de Tiempo (1 slot = 90 min)</label><input type="number" value={slots} onChange={e=>setSlots(Number(e.target.value))} style={inputStyle} /></div>
+        <div style={{padding:"10px 14px", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:10, fontSize:11, color:"#92400e"}}>
+          ⏱ {slots} slot{slots > 1 ? "s" : ""} = {slots * 90} minutos de trabajo
+        </div>
+        <div style={{display:"flex", gap:10, marginTop:8}}>
+          <Btn ghost onClick={onClose} full>Cancelar</Btn>
+          <Btn color="secondary" full onClick={() => { if(!nombre.trim() || !precio) return; onAplicar({nombre, precio:Number(precio), slotsPersonalizados:slots, esServicioEsp:true}); }}>Aplicar servicio</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL COBRO - RESTAURADO COMPLETO
+// ═══════════════════════════════════════════════════════════════
+function ModalCobro({ turno, onRegistrar, onClose }) {
+  const [importeReal, setImporteReal] = useState(turno.precio || 0);
+  const [motivo, setMotivo] = useState("");
+  const [motivoManual, setMotivoManual] = useState("");
+  const [destinoExcedente, setDestinoExcedente] = useState("deuda");
+
+  const importeEsperado = turno.precio || 0;
+  const dif = importeReal - importeEsperado;
+  const esDeudaCliente = importeReal === 0;
+  const hayExcedente = dif > 0;
+  const hayFaltante = dif < 0 && !esDeudaCliente;
+
+  const inputStyle = { background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12, padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none", width:"100%", boxSizing:"border-box" };
+  const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
+
+  return (
+    <Modal titulo="💰 Registrar Cobro" onClose={onClose}>
+      <div style={{display:"flex", flexDirection:"column", gap:14}}>
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 16px", background:"#f0f9ff", borderRadius:12, border:"1px solid #bae6fd"}}>
+          <span style={{color:"#0369a1", fontWeight:600}}>Precio del servicio:</span>
+          <strong style={{color:"#0284c7", fontSize:18}}>{formatP(importeEsperado)}</strong>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Importe Real Cobrado ($)</label>
+          <input type="number" value={importeReal} onChange={e => setImporteReal(Number(e.target.value))} style={{...inputStyle, fontSize:20, fontWeight:800}} autoFocus />
+        </div>
+
+        {esDeudaCliente && (
+          <div style={{padding:"12px", background:"#fef2f2", border:"1px solid #fecaca", borderRadius:10, color:"#991b1b", fontSize:12, fontWeight:600}}>
+            🔴 No pagó — se registra como deuda del cliente
+          </div>
+        )}
+
+        {hayFaltante && (
+          <>
+            <div style={{padding:"12px", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:10, color:"#92400e", fontSize:12}}>
+              ⚠️ Pagó {formatP(Math.abs(dif))} menos. ¿Qué hacemos con la diferencia?
+            </div>
+            <div style={{display:"flex", gap:6, flexWrap:"wrap"}}>
+              {[["deuda","📝 Registrar como deuda"],["perdonar","🎁 Perdonar"]].map(([v,l]) => (
+                <button key={v} onClick={() => setDestinoExcedente(v)} style={{
+                  padding:"8px 14px", borderRadius:8, fontSize:12, cursor:"pointer",
+                  background: destinoExcedente === v ? "#dbeafe" : "#f9fafb",
+                  border: `1.5px solid ${destinoExcedente === v ? "#3b82f6" : "#e5e7eb"}`,
+                  color: destinoExcedente === v ? "#1e3a8a" : "#64748b", fontWeight:600
+                }}>{l}</button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {hayExcedente && (
+          <>
+            <div style={{padding:"12px", background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:10, color:"#166534", fontSize:12}}>
+              💰 Pagó {formatP(dif)} de más. ¿A quién va ese dinero?
+            </div>
+            <div style={{display:"flex", gap:6, flexWrap:"wrap"}}>
+              {[["deuda","📝 Salda deuda anterior"],["propina","🎩 Propina lavador"],["perdonar","🎁 Cortesía"]].map(([v,l]) => (
+                <button key={v} onClick={() => setDestinoExcedente(v)} style={{
+                  padding:"8px 14px", borderRadius:8, fontSize:12, cursor:"pointer",
+                  background: destinoExcedente === v ? "#dbeafe" : "#f9fafb",
+                  border: `1.5px solid ${destinoExcedente === v ? "#3b82f6" : "#e5e7eb"}`,
+                  color: destinoExcedente === v ? "#1e3a8a" : "#64748b", fontWeight:600
+                }}>{l}</button>
+              ))}
+            </div>
+            {destinoExcedente === "propina" && (
+              <div style={{padding:"8px 12px", background:"#ecfdf5", border:"1px solid #a7f3d0", borderRadius:8, fontSize:11, color:"#065f46"}}>
+                ✓ La propina queda para el lavador — no se suma a la caja de Sofía
+              </div>
+            )}
+          </>
+        )}
+
+        {(hayFaltante || esDeudaCliente) && (
+          <div>
+            <label style={labelStyle}>Motivo</label>
+            <select value={motivo} onChange={e => setMotivo(e.target.value)} style={inputStyle}>
+              <option value="">Seleccionar motivo...</option>
+              {MOTIVOS_DESCUENTO.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            {motivo === "Otro" && (
+              <input value={motivoManual} onChange={e => setMotivoManual(e.target.value)} placeholder="Describí el motivo" style={{...inputStyle, marginTop:6}} />
+            )}
+          </div>
+        )}
+
+        <div style={{padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:10, fontSize:11, color:"#64748b"}}>
+          💡 El lavador queda en estado <strong>"Cobrado (sin rendir)"</strong> hasta que entregue el dinero.
+        </div>
+
+        <div style={{display:"flex", gap:10, marginTop:8}}>
+          <Btn ghost onClick={onClose} full>Cancelar</Btn>
+          <Btn color="warning" full onClick={() => onRegistrar(turno, importeReal, dif, motivo === "Otro" ? motivoManual : motivo, destinoExcedente)}>Registrar Cobro</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL RENDICIÓN - RESTAURADO
+// ═══════════════════════════════════════════════════════════════
+function ModalRendicion({ turno, onRegistrar, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const montoARendir = turno.montoPagado || turno.precio || 0;
+
+  return (
+    <Modal titulo="💸 Rendir Dinero" onClose={onClose}>
+      <div style={{display:"flex", flexDirection:"column", gap:14}}>
+        <div style={{padding:"16px", background:"#ecfdf5", border:"1.5px solid #a7f3d0", borderRadius:14}}>
+          <div style={{display:"flex", justifyContent:"space-between", marginBottom:8}}>
+            <span style={{color:"#065f46", fontWeight:600}}>Lavador:</span>
+            <strong style={{color:"#064e3b"}}>{turno.lavadorNombre || turno.staffNombre}</strong>
+          </div>
+          <div style={{display:"flex", justifyContent:"space-between"}}>
+            <span style={{color:"#065f46", fontWeight:600}}>Monto a rendir:</span>
+            <strong style={{color:"#059669", fontSize:20}}>{formatP(montoARendir)}</strong>
+          </div>
+        </div>
+        <div style={{padding:"12px", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:10, fontSize:12, color:"#92400e"}}>
+          ⚠️ Confirmá que el lavador entregó el dinero en la base.
+        </div>
+        <div style={{display:"flex", gap:10, marginTop:8}}>
+          <Btn ghost onClick={onClose} full>Cancelar</Btn>
+          <Btn color="success" full disabled={loading} onClick={() => { setLoading(true); onRegistrar(turno); }}>
+            {loading ? "⟳ Procesando..." : "✅ Confirmar Rendición"}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  MODAL RUTA DEL LAVADOR
 // ═══════════════════════════════════════════════════════════════
 function ModalRutaLavador({ lavador, turnos, clientes, onClose }) {
@@ -939,10 +1209,10 @@ function ModalRutaLavador({ lavador, turnos, clientes, onClose }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL LLUVIA AVANZADO (3 FLUJOS)
+//  MODAL LLUVIA AVANZADO (3 FLUJOS) - CORREGIDO
 // ═══════════════════════════════════════════════════════════════
 function ModalLluviaAvanzado({ turnos, staff, asistencias, onClose, onAplicar, clientes }) {
-  const turnosPendientes = turnos.filter(t => t.estado === "pendiente" || t.estado === "en_progreso");
+  const turnosPendientes = turnos.filter(t => t.estado === "lluvia");
   const lavConTurnos = staff.filter(s => asistencias[s.id]);
   
   const [estadoLav, setEstadoLav] = useState(
@@ -1042,7 +1312,7 @@ function ModalLluviaAvanzado({ turnos, staff, asistencias, onClose, onAplicar, c
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL TURNO CREADO
+//  MODAL TURNO CREADO (WHATSAPP MEJORADO)
 // ═══════════════════════════════════════════════════════════════
 function ModalTurnoCreado({ turno, cliente, lavador, onClose, mostrarToast }) {
   const [copiado, setCopiado] = useState(false);
@@ -1059,9 +1329,11 @@ function ModalTurnoCreado({ turno, cliente, lavador, onClose, mostrarToast }) {
 🕐 *Horario:* ${turno.hora} hs
 🚙 *Vehículo:* ${turno.auto}${cantAutos > 1 ? ` (×${cantAutos} autos)` : ""}
 💵 *Precio:* ${formatP(turno.precio)}${turno.esFZ ? " (⬡ FZ)" : ""}
+💳 *Pago:* ${turno.metodo === "mp" ? "Mercado Pago" : "Efectivo"}
 👷 *Lavador:* ${lavador?.nombre || "Sin asignar"}
 ${turno.nota ? `📝 *Nota:* ${turno.nota}` : ""}
 ${cliente?.nota ? `⚠️ *Nota del cliente:* ${cliente.nota}` : ""}
+${cliente?.deuda > 0 ? `🔴 *ATENCIÓN: Cliente debe ${formatP(cliente.deuda)}*` : ""}
 
 📅 Fecha: ${fechaAR(hoy())}`;
 
@@ -1080,6 +1352,17 @@ ${cliente?.nota ? `⚠️ *Nota del cliente:* ${cliente.nota}` : ""}
           <pre style={{whiteSpace:"pre-wrap", fontFamily:"'Inter',system-ui,sans-serif", fontSize:12, color:"#1e293b", margin:0, lineHeight:1.6, background:"#ffffff", padding:12, borderRadius:10, border:"1px solid #e5e7eb"}}>{textoTurno}</pre>
         </div>
         
+        {lavador && lavador.especial === "avisar_presencia" && (
+          <div style={{background:"#fef2f2", border:"1px solid #fecaca", borderRadius:12, padding:12, fontSize:12, color:"#991b1b", fontWeight:600}}>
+            🔴 Hernán — Avisar en persona (sin celular)
+          </div>
+        )}
+        {lavador && lavador.especial === "llamar_telefono" && (
+          <div style={{background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:12, padding:12, fontSize:12, color:"#9a3412", fontWeight:600}}>
+            📞 Gastón — Llamar por teléfono
+          </div>
+        )}
+        
         {lavador && !lavador.telefono && (
           <div style={{background:"#fef2f2", border:"1px solid #fecaca", borderRadius:12, padding:12, fontSize:12, color:"#991b1b", fontWeight:600}}>
             ⚠️ {lavador.nombre} no tiene teléfono registrado. Asignale uno en Gestión de Lavadores.
@@ -1090,6 +1373,9 @@ ${cliente?.nota ? `⚠️ *Nota del cliente:* ${cliente.nota}` : ""}
           <Btn color="primary" full onClick={copiarAlPortapapeles}>{copiado ? "✓ Copiado" : "📋 Copiar"}</Btn>
           <Btn color="success" full onClick={() => window.open(whatsappLink, "_blank")}>💬 WhatsApp</Btn>
         </div>
+        {cliente?.telefono && (
+          <Btn ghost full onClick={() => window.open(`tel:${cliente.telefono}`, "_self")}>📞 Llamar al cliente</Btn>
+        )}
         <Btn ghost full onClick={onClose}>Cerrar</Btn>
       </div>
     </Modal>
@@ -1097,287 +1383,104 @@ ${cliente?.nota ? `⚠️ *Nota del cliente:* ${cliente.nota}` : ""}
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL NUEVO TURNO (CON FZ Y MULTI-SLOT)
+//  MODAL DETALLE TURNO (CON COBRO/RENDIR/REASIGNAR)
 // ═══════════════════════════════════════════════════════════════
-function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, COL_CLIENTES, mostrarToast, clientePreseleccionado, onClienteCreated, onTurnoCreado, codigosExistentes, config }) {
-  const [clienteId, setClienteId] = useState(clientePreseleccionado?.id || "");
-  const [hora, setHora] = useState(franjasValidas()[0] || FRANJAS[0]);
-  const [tamaño, setTamaño] = useState(TAMANOS_DEFAULT[1]);
-  const [cantidadAutos, setCantidadAutos] = useState(clientePreseleccionado?.autosHabituales || 1);
-  const [lavadorId, setLavadorId] = useState("");
-  const [nota, setNota] = useState("");
-  const [manualFZ, setManualFZ] = useState(false);
-  const [showNewClient, setShowNewClient] = useState(false);
-  const [newClientName, setNewClientName] = useState("");
-  const [mostrarNotas, setMostrarNotas] = useState(false);
+function ModalDetalleTurno({ turno, clientes, staff, onClose, onCambiarEstado, onCerrarTurno, onCobrar, onRendir, onReasignar }) {
+  const [modo, setModo] = useState("detalle");
+  const [nuevoLavador, setNuevoLavador] = useState(turno.lavadorId || "");
+  const [nuevaHora, setNuevaHora] = useState(turno.hora || "");
   
-  // Estado de coordenadas para FZ
-  const [coordsCliente, setCoordsCliente] = useState(null);
-
-  const clienteSel = clientes.find(c => c.id === clienteId);
-  const presentes = staff.filter(s => asistencias[s.id]);
-
-  const precioUnitario = tamaño.precio;
-  const precioBaseTotal = precioUnitario * cantidadAutos;
-  
-  // Cálculo de FZ
-  const radioFZ = (trans) => {
-    const dist = config?.distancias?.[trans] || DISTANCIAS_DEFAULT[trans] || DISTANCIAS_DEFAULT.moto;
-    return dist.fz;
-  };
-  
-  const lavadorSel = staff.find(s => s.id === lavadorId);
-  const transActivo = lavadorSel?.transporte || "moto";
-  const radio = radioFZ(transActivo);
-  
-  let cuadras = 0;
-  let esFZAuto = false;
-  if (coordsCliente && coordsCliente.encontrado) {
-    cuadras = kmToCuadras(distKm(BASE_LAT, BASE_LNG, coordsCliente.lat, coordsCliente.lng));
-    esFZAuto = cuadras > radio;
-  }
-  const esFZ = manualFZ || esFZAuto;
-  const fzPct = config?.fzPct || 20;
-  const precioFinal = esFZ ? Math.round(precioBaseTotal * (1 + fzPct/100)) : precioBaseTotal;
-  
-  const tiempoBase = TIEMPOS_LAVADO_BASE[tamaño.label] || 45;
-  const tiempoTotal = tiempoBase * cantidadAutos;
-  const formatoTiempo = tiempoTotal >= 60 
-    ? `${Math.floor(tiempoTotal/60)}h ${tiempoTotal%60 > 0 ? `${tiempoTotal%60}min` : ""}` 
-    : `${tiempoTotal} min`;
-  
-  const slotsOcupadosCount = Math.ceil(tiempoTotal / FRANJA_DURACION);
-
-  useEffect(() => {
-    if (clientePreseleccionado?.id) {
-      setClienteId(clientePreseleccionado.id);
-      if (clientePreseleccionado.autosHabituales) setCantidadAutos(clientePreseleccionado.autosHabituales);
-      if (clientePreseleccionado.nota) setNota(`📋 ${clientePreseleccionado.nota}`);
-    }
-  }, [clientePreseleccionado]);
-
-  // Geocodificar dirección cuando cambia el cliente
-  useEffect(() => {
-    if (clienteSel?.direccion) {
-      geocodificar(clienteSel.direccion).then(coords => setCoordsCliente(coords));
-    } else {
-      setCoordsCliente(null);
-    }
-  }, [clienteId, clienteSel?.direccion]);
-
-  const handleNewClientSuccess = (newClient) => {
-    onClienteCreated(newClient);
-    setClienteId(newClient.id);
-    if (newClient.nota) setNota(`📋 ${newClient.nota}`);
-    mostrarToast(`Cliente ${newClient.nombre} listo`, "ok");
-  };
-
-  const guardar = async () => {
-    if (!clienteId) return mostrarToast("Seleccioná un cliente", "warn");
-    try {
-      const horasOcupadas = slotsOcupados(hora, cantidadAutos, tamaño.label);
-      const turnoData = {
-        fecha: hoy(), hora, clienteId,
-        clienteNombre: clienteSel?.nombre || "Desconocido",
-        clienteCodigo: clienteSel?.codigo || "",
-        auto: tamaño.label,
-        precioUnitario: precioUnitario,
-        cantidadAutos: cantidadAutos,
-        precio: precioFinal,
-        lavadorId, estado: "pendiente", nota,
-        esFZ, cuadras: Math.round(cuadras),
-        horasOcupadas,
-        creadoEn: serverTimestamp()
-      };
-
-      const turnoRef = await addDoc(collection(db, COL_TURNOS), turnoData);
-      const turnoCreado = { id: turnoRef.id, ...turnoData };
-      mostrarToast(`Turno creado${esFZ ? " (⬡ FZ)" : ""}`, "ok");
-      const lavador = staff.find(s => s.id === lavadorId);
-      onTurnoCreado(turnoCreado, clienteSel, lavador);
-      onClose();
-    } catch (err) { mostrarToast("Error al crear turno", "error"); }
-  };
-
-  const inputStyle = { background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12, padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none", width:"100%", boxSizing:"border-box" };
-  const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
-
-  return (
-    <Modal titulo="➕ Nuevo Turno" onClose={onClose}>
-      <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-        
-        <div>
-          <label style={labelStyle}>Cliente</label>
-          <BuscadorClientes clientes={clientes} value={clienteId} onChange={(id) => setClienteId(id)}
-            onCreateNew={(nombre) => { setNewClientName(nombre); setShowNewClient(true); }} />
-        </div>
-
-        {clienteSel ? (
-          <div style={{ background:"linear-gradient(135deg,#eff6ff,#dbeafe)", padding:16, borderRadius:16, border:"2px solid #93c5fd" }}>
-            <div style={{fontSize:16, fontWeight:900, color:"#1e3a8a"}}>{clienteSel.nombre}</div>
-            <div style={{fontSize:12, color:"#7c3aed", fontFamily:"monospace", marginTop:4, fontWeight:800, background:"#ffffff", display:"inline-block", padding:"4px 10px", borderRadius:6, border:"1px solid #ddd6fe"}}>{clienteSel.codigo}</div>
-            <div style={{fontSize:12, color:"#1e3a8a", lineHeight:1.7, marginTop:8}}>
-              <div>📍 <strong>{clienteSel.direccion || "Sin dirección"}</strong> • {clienteSel.barrio}</div>
-              <div>{mostrarTelefono(clienteSel)}</div>
-            </div>
-            {esFZAuto && (
-              <div style={{marginTop:8, padding:"8px 12px", background:"#fef3c7", border:"1.5px solid #fcd34d", borderRadius:8, fontSize:11, fontWeight:700, color:"#92400e"}}>
-                ⬡ FUERA DE ZONA - {Math.round(cuadras)} cuadras (radio: {radio}) - Se aplica +{fzPct}%
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{background:"#f9fafb", padding:16, borderRadius:14, border:"1.5px dashed #cbd5e1", textAlign:"center", color:"#94a3b8", fontSize:12}}>Buscá o creá un cliente</div>
-        )}
-
-        <div>
-          <label style={labelStyle}>Horario</label>
-          <select value={hora} onChange={e=>setHora(e.target.value)} style={inputStyle}>
-            {FRANJAS.map(h => {
-              const ahora = new Date();
-              const minutosAhora = ahora.getHours()*60 + ahora.getMinutes();
-              const [hr,mn] = h.split(":").map(Number);
-              const pasada = hr*60+mn < minutosAhora;
-              return <option key={h} value={h} disabled={pasada}>{h} hs {pasada ? "(pasada)" : ""}</option>;
-            })}
-          </select>
-        </div>
-
-        <div>
-          <label style={labelStyle}>Vehículo</label>
-          <div style={{ display:"flex", gap:8 }}>
-            {TAMANOS_DEFAULT.map(t=>(
-              <button key={t.id} onClick={()=>setTamaño(t)} style={{
-                flex:1, padding:"12px 8px", borderRadius:14, fontSize:12, fontWeight:700, cursor:"pointer",
-                background: tamaño.id===t.id ? "#dbeafe" : "#f9fafb",
-                border: tamaño.id===t.id ? "1.5px solid #93c5fd" : "1.5px solid #e5e7eb",
-                color: tamaño.id===t.id ? "#1e3a8a" : "#6b7280"
-              }}>
-                {t.label}<br/><span style={{fontSize:11,opacity:.8}}>{formatP(t.precio)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label style={labelStyle}>Cantidad de Autos</label>
-          <div style={{ display:"flex", gap:6 }}>
-            {[1,2,3,4,5].map(n => (
-              <button key={n} onClick={()=>setCantidadAutos(n)} style={{
-                flex:1, padding:"10px 4px", borderRadius:12, fontSize:14, fontWeight:800, cursor:"pointer",
-                background: cantidadAutos===n ? "#dbeafe" : "#f9fafb",
-                border: cantidadAutos===n ? "2px solid #3b82f6" : "1.5px solid #e5e7eb",
-                color: cantidadAutos===n ? "#1e3a8a" : "#6b7280"
-              }}>
-                {n}{n===5 ? "+" : ""}
-              </button>
-            ))}
-          </div>
-          {slotsOcupadosCount > 1 && (
-            <div style={{marginTop:6, fontSize:11, color:"#7c3aed", fontWeight:700}}>
-              📅 Ocupa {slotsOcupadosCount} franjas ({formatoTiempo})
-            </div>
-          )}
-          <div style={{
-            marginTop:8, padding:"10px 14px", borderRadius:12,
-            background: esFZ ? "linear-gradient(135deg,#fef3c7,#fffbeb)" : "#f9fafb",
-            border: esFZ ? "1.5px solid #fcd34d" : "1px solid #e5e7eb",
-            display:"flex", justifyContent:"space-between", alignItems:"center",
-            fontSize:13, fontWeight:700
-          }}>
-            <span style={{color: esFZ ? "#92400e" : "#1e3a8a"}}>
-              💰 Total: <strong>{formatP(precioFinal)}</strong>
-              {esFZ && <span style={{fontSize:11, fontWeight:600}}> (⬡ FZ +{fzPct}%)</span>}
-            </span>
-            <span style={{color:"#059669"}}>⏱️ {formatoTiempo}</span>
-          </div>
-          <label style={{display:"flex", alignItems:"center", gap:8, marginTop:8, fontSize:11, cursor:"pointer"}}>
-            <input type="checkbox" checked={manualFZ} onChange={e=>setManualFZ(e.target.checked)} />
-            <span style={{color:"#6b7280"}}>Forzar FZ manualmente</span>
-          </label>
-        </div>
-
-        <div>
-          <label style={labelStyle}>Lavador Asignado</label>
-          <select value={lavadorId} onChange={e=>setLavadorId(e.target.value)} style={inputStyle}>
-            <option value="">-- Sin asignar --</option>
-            {presentes.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(s=>(<option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>))}
-          </select>
-        </div>
-
-        <div>
-          <label style={labelStyle}>Notas</label>
-          <input value={nota} onChange={e=>setNota(e.target.value)} onFocus={()=>setMostrarNotas(true)} placeholder="Observaciones..." style={inputStyle} />
-          {mostrarNotas && (
-            <div style={{display:"flex", flexWrap:"wrap", gap:4, marginTop:6}}>
-              {NOTAS_PREDEFINIDAS.map(n => (
-                <button key={n} onClick={()=>setNota(prev => prev.includes(n) ? prev.replace(n+", ","").replace(n,"") : (prev ? prev + ", " + n : n))}
-                  style={{padding:"4px 8px", borderRadius:6, fontSize:10, cursor:"pointer",
-                    background: nota.includes(n) ? "#dbeafe" : "#f1f5f9",
-                    border: `1px solid ${nota.includes(n) ? "#93c5fd" : "#e2e8f0"}`,
-                    color: nota.includes(n) ? "#1e3a8a" : "#64748b"}}>
-                  {n}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div style={{ display:"flex", gap:10, marginTop:8 }}>
-          <Btn ghost onClick={onClose} full>Cancelar</Btn>
-          <Btn color="primary" full onClick={guardar}>✓ Crear Turno</Btn>
-        </div>
-      </div>
-
-      {showNewClient && (
-        <ModalNuevoCliente nombreInicial={newClientName} COL_CLIENTES={COL_CLIENTES} mostrarToast={mostrarToast} codigosExistentes={codigosExistentes} onClienteCreated={handleNewClientSuccess} onClose={() => setShowNewClient(false)} />
-      )}
-    </Modal>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  MODAL DETALLE TURNO (GRILLA)
-// ═══════════════════════════════════════════════════════════════
-function ModalDetalleTurno({ turno, clientes, staff, onClose, onCambiarEstado, onCerrarTurno }) {
   const cliente = clientes.find(c => c.id === turno.clienteId);
   const lavador = staff.find(s => s.id === turno.lavadorId);
   const cantAutos = turno.cantidadAutos || 1;
+  const staffActivos = staff.filter(s => s.rol !== "encargado");
+  
+  const inputStyle = { background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12, padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none", width:"100%", boxSizing:"border-box" };
+  const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
+
+  const confirmarReasignacion = () => {
+    onReasignar(turno, nuevoLavador, nuevaHora);
+    onClose();
+  };
   
   return (
-    <Modal titulo={`🔍 Turno: ${turno.hora} hs`} onClose={onClose}>
-      <div style={{display:"flex", flexDirection:"column", gap:14}}>
-        <div style={{background:"#f9fafb", padding:14, borderRadius:12, border:"1px solid #e5e7eb"}}>
-          <div style={{fontSize:15, fontWeight:800, color:"#1e293b", marginBottom:6}}>{turno.clienteNombre}</div>
-          <div style={{fontSize:11, color:"#7c3aed", fontFamily:"monospace", marginBottom:8}}>{turno.clienteCodigo}</div>
-          <div style={{fontSize:12, color:"#475569", lineHeight:1.7}}>
-            <div>📍 {cliente?.direccion || "—"}</div>
-            <div>🚙 {turno.auto} {cantAutos > 1 && `(×${cantAutos})`}</div>
-            <div>👷 {lavador?.nombre || "Sin asignar"}</div>
-            <div>💵 {formatP(turno.precio)} {turno.esFZ && "(⬡ FZ)"}</div>
+    <Modal titulo={modo === "detalle" ? `🔍 Turno: ${turno.hora} hs` : "🔄 Reasignar Turno"} onClose={onClose}>
+      {modo === "detalle" ? (
+        <div style={{display:"flex", flexDirection:"column", gap:14}}>
+          <div style={{background:"#f9fafb", padding:14, borderRadius:12, border:"1px solid #e5e7eb"}}>
+            <div style={{fontSize:15, fontWeight:800, color:"#1e293b", marginBottom:6}}>{turno.clienteNombre}</div>
+            <div style={{fontSize:11, color:"#7c3aed", fontFamily:"monospace", marginBottom:8}}>{turno.clienteCodigo}</div>
+            <div style={{fontSize:12, color:"#475569", lineHeight:1.7}}>
+              <div>📍 {cliente?.direccion || "—"}</div>
+              <div>🚙 {turno.auto} {cantAutos > 1 && `(×${cantAutos})`}</div>
+              <div>👷 {lavador?.nombre || "Sin asignar"}</div>
+              <div>💵 {formatP(turno.precio)} {turno.esFZ && "(⬡ FZ)"}</div>
+              <div>💳 {turno.metodo === "mp" ? "Mercado Pago" : "Efectivo"}</div>
+              <div>📊 Estado: {turno.estadoPago || turno.estado || "💰 Pendiente"}</div>
+            </div>
+            {turno.nota && <div style={{marginTop:8, padding:"6px 10px", background:"#fef3c7", border:"1px solid #fde68a", borderRadius:8, fontSize:11, color:"#92400e", fontWeight:600}}>📝 {turno.nota}</div>}
+            {cliente?.deuda > 0 && <div style={{marginTop:8, padding:"6px 10px", background:"#fef2f2", border:"1px solid #fecaca", borderRadius:8, fontSize:11, color:"#991b1b", fontWeight:600}}>🔴 Cliente debe: {formatP(cliente.deuda)}</div>}
           </div>
-          {turno.nota && <div style={{marginTop:8, padding:"6px 10px", background:"#fef3c7", border:"1px solid #fde68a", borderRadius:8, fontSize:11, color:"#92400e", fontWeight:600}}>📝 {turno.nota}</div>}
+          
+          <div style={{display:"flex", flexDirection:"column", gap:6}}>
+            {/* Botones según estado de pago */}
+            {(!turno.estadoPago || turno.estadoPago === "💰 Pendiente" || turno.estadoPago === "🔴 Cliente debe") && onCobrar && (
+              <Btn color="warning" full onClick={() => onCobrar(turno)}>💰 Cobrar</Btn>
+            )}
+            {turno.estadoPago === "💵 Cobrado (sin rendir)" && onRendir && (
+              <Btn color="success" full onClick={() => onRendir(turno)}>✅ Rendir</Btn>
+            )}
+            
+            {/* Botones de estado operativo */}
+            {turno.estado === "pendiente" && (
+              <Btn color="primary" full onClick={() => { onCambiarEstado(turno.id, "en_progreso"); onClose(); }}>🚗 Marcar Llegó</Btn>
+            )}
+            {turno.estado === "en_progreso" && !turno.estadoPago && (
+              <Btn color="success" full onClick={() => { onCerrarTurno(turno); onClose(); }}>✅ Marcar Terminado</Btn>
+            )}
+            
+            <Btn color="secondary" full onClick={() => setModo("reasignar")}>🔄 Reasignar turno</Btn>
+            
+            {cliente?.telefono && (
+              <Btn ghost full onClick={() => window.open(`tel:${cliente.telefono}`, "_self")}>📞 Llamar al cliente</Btn>
+            )}
+            
+            {turno.estado !== "terminado" && turno.estado !== "lluvia" && (
+              <Btn ghost full danger onClick={() => { 
+                if (window.confirm("¿Cancelar turno?")) { 
+                  onCambiarEstado(turno.id, "cancelado"); 
+                  onClose(); 
+                } 
+              }}>✕ Cancelar Turno</Btn>
+            )}
+          </div>
+          
+          <Btn ghost full onClick={onClose}>Cerrar</Btn>
         </div>
-        
-        <div style={{display:"flex", flexDirection:"column", gap:6}}>
-          {turno.estado === "pendiente" && (
-            <Btn color="warning" full onClick={() => { onCambiarEstado(turno.id, "en_progreso"); onClose(); }}>🚗 Marcar Llegó</Btn>
-          )}
-          {turno.estado === "en_progreso" && (
-            <Btn color="success" full onClick={() => { onCerrarTurno(turno); onClose(); }}>✅ Marcar Terminado</Btn>
-          )}
-          {turno.estado !== "terminado" && turno.estado !== "lluvia" && (
-            <Btn ghost full danger onClick={() => { 
-              if (window.confirm("¿Cancelar turno?")) { 
-                onCambiarEstado(turno.id, "cancelado"); 
-                onClose(); 
-              } 
-            }}>✕ Cancelar Turno</Btn>
-          )}
+      ) : (
+        <div style={{display:"flex", flexDirection:"column", gap:14}}>
+          <div style={{fontSize:12, color:"#6b7280"}}>Cambiá el lavador y/o el horario del turno.</div>
+          <div>
+            <label style={labelStyle}>Nuevo Lavador</label>
+            <select value={nuevoLavador} onChange={e => setNuevoLavador(e.target.value)} style={inputStyle}>
+              <option value="">-- Sin asignar --</option>
+              {staffActivos.sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")).map(s => (
+                <option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Nuevo Horario</label>
+            <select value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} style={inputStyle}>
+              {FRANJAS.map(h => <option key={h} value={h}>{h} hs</option>)}
+            </select>
+          </div>
+          <div style={{display:"flex", gap:10, marginTop:8}}>
+            <Btn ghost onClick={() => setModo("detalle")} full>← Volver</Btn>
+            <Btn color="primary" full onClick={confirmarReasignacion}>Confirmar Reasignación</Btn>
+          </div>
         </div>
-        
-        <Btn ghost full onClick={onClose}>Cerrar</Btn>
-      </div>
+      )}
     </Modal>
   );
 }
@@ -1480,9 +1583,350 @@ function ModalConfigCompleta({ config, onGuardar, onClose, mostrarToast }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  TAB LAVADORES (ex-Presentismo)
+//  MODAL NUEVO TURNO (CON SEMÁFORO, FZ, MULTI-SLOT, SERVICIO ESP)
 // ═══════════════════════════════════════════════════════════════
-function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asistencias, setAsistencias, mostrarToast, onVerRuta, onGestionar }) {
+function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, COL_CLIENTES, mostrarToast, clientePreseleccionado, onClienteCreated, onTurnoCreado, codigosExistentes, config, celdaPreseleccionada }) {
+  const [clienteId, setClienteId] = useState(clientePreseleccionado?.id || "");
+  const [hora, setHora] = useState(celdaPreseleccionada?.hora || franjasValidas()[0] || FRANJAS[0]);
+  const [tamaño, setTamaño] = useState(TAMANOS_DEFAULT[1]);
+  const [cantidadAutos, setCantidadAutos] = useState(clientePreseleccionado?.autosHabituales || 1);
+  const [lavadorId, setLavadorId] = useState(celdaPreseleccionada?.lavadorId || "");
+  const [nota, setNota] = useState("");
+  const [manualFZ, setManualFZ] = useState(false);
+  const [metodo, setMetodo] = useState("efectivo");
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [mostrarNotas, setMostrarNotas] = useState(false);
+  const [servicioEsp, setServicioEsp] = useState(null);
+  const [mostrarSemafaro, setMostrarSemafaro] = useState(false);
+  const [coordsCliente, setCoordsCliente] = useState(null);
+  
+  const clienteSel = clientes.find(c => c.id === clienteId);
+  const presentes = staff.filter(s => asistencias[s.id]);
+
+  const precioUnitario = servicioEsp ? servicioEsp.precio : tamaño.precio;
+  const cantFinal = servicioEsp ? servicioEsp.slotsPersonalizados : cantidadAutos;
+  const precioBaseTotal = precioUnitario * cantFinal;
+  
+  // Cálculo de FZ
+  const radioFZ = (trans) => {
+    const dist = config?.distancias?.[trans] || DISTANCIAS_DEFAULT[trans] || DISTANCIAS_DEFAULT.moto;
+    return dist.fz;
+  };
+  
+  const lavadorSel = staff.find(s => s.id === lavadorId);
+  const transActivo = lavadorSel?.transporte || "moto";
+  const radio = radioFZ(transActivo);
+  
+  let cuadras = 0;
+  let esFZAuto = false;
+  if (coordsCliente && coordsCliente.encontrado) {
+    cuadras = kmToCuadras(distKm(BASE_LAT, BASE_LNG, coordsCliente.lat, coordsCliente.lng));
+    esFZAuto = cuadras > radio;
+  }
+  const esFZ = manualFZ || esFZAuto;
+  const fzPct = config?.fzPct || 20;
+  const precioFinal = esFZ ? Math.round(precioBaseTotal * (1 + fzPct/100)) : precioBaseTotal;
+  
+  const tiempoBase = servicioEsp ? servicioEsp.slotsPersonalizados * FRANJA_DURACION : (TIEMPOS_LAVADO_BASE[tamaño.label] || 45) * cantidadAutos;
+  const formatoTiempo = tiempoBase >= 60 
+    ? `${Math.floor(tiempoBase/60)}h ${tiempoBase%60 > 0 ? `${tiempoBase%60}min` : ""}` 
+    : `${tiempoBase} min`;
+  
+  const slotsOcupadosCount = servicioEsp ? servicioEsp.slotsPersonalizados : Math.ceil(tiempoBase / FRANJA_DURACION);
+
+  useEffect(() => {
+    if (clientePreseleccionado?.id) {
+      setClienteId(clientePreseleccionado.id);
+      if (clientePreseleccionado.autosHabituales) setCantidadAutos(clientePreseleccionado.autosHabituales);
+      if (clientePreseleccionado.nota) setNota(`📋 ${clientePreseleccionado.nota}`);
+    }
+  }, [clientePreseleccionado]);
+
+  // Geocodificar dirección cuando cambia el cliente
+  useEffect(() => {
+    if (clienteSel?.direccion) {
+      geocodificar(clienteSel.direccion).then(coords => setCoordsCliente(coords));
+    } else {
+      setCoordsCliente(null);
+    }
+  }, [clienteId, clienteSel?.direccion]);
+
+  const handleNewClientSuccess = (newClient) => {
+    onClienteCreated(newClient);
+    setClienteId(newClient.id);
+    if (newClient.nota) setNota(`📋 ${newClient.nota}`);
+    mostrarToast(`Cliente ${newClient.nombre} listo`, "ok");
+  };
+
+  const guardar = async () => {
+    if (!clienteId) return mostrarToast("Seleccioná un cliente", "warn");
+    try {
+      const horasOcupadas = slotsOcupados(hora, cantFinal, servicioEsp ? "Especial" : tamaño.label);
+      const turnoData = {
+        fecha: hoy(), hora, clienteId,
+        clienteNombre: clienteSel?.nombre || "Desconocido",
+        clienteCodigo: clienteSel?.codigo || "",
+        auto: servicioEsp ? servicioEsp.nombre : tamaño.label,
+        precioUnitario: precioUnitario,
+        cantidadAutos: cantFinal,
+        precio: precioFinal,
+        lavadorId, estado: "pendiente", nota, metodo,
+        esFZ, cuadras: Math.round(cuadras),
+        horasOcupadas,
+        servicioEsp: !!servicioEsp,
+        creadoEn: serverTimestamp()
+      };
+
+      const turnoRef = await addDoc(collection(db, COL_TURNOS), turnoData);
+      const turnoCreado = { id: turnoRef.id, ...turnoData };
+      mostrarToast(`Turno creado${esFZ ? " (⬡ FZ)" : ""}`, "ok");
+      const lavador = staff.find(s => s.id === lavadorId);
+      onTurnoCreado(turnoCreado, clienteSel, lavador);
+      onClose();
+    } catch (err) { mostrarToast("Error al crear turno", "error"); }
+  };
+
+  const inputStyle = { background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:12, padding:"11px 14px", color:"#1e293b", fontSize:13, outline:"none", width:"100%", boxSizing:"border-box" };
+  const labelStyle = { fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:6, display:"block" };
+
+  // Semáforo de disponibilidad
+  const semaforoData = useMemo(() => {
+    if (!mostrarSemafaro || !clienteSel?.direccion) return null;
+    return presentes.map(s => {
+      const trans = s.transporte;
+      const radioS = radioFZ(trans);
+      const dist = coordsCliente?.encontrado ? kmToCuadras(distKm(BASE_LAT, BASE_LNG, coordsCliente.lat, coordsCliente.lng)) : 0;
+      let geo = "verde";
+      if (dist <= radioS) geo = "verde";
+      else if (dist <= radioS * 1.5) geo = "amarillo";
+      else geo = "fz";
+      
+      const horariosLibres = FRANJAS.filter(h => {
+        const ocupado = turnos.some(t => t.lavadorId === s.id && t.horasOcupadas?.includes(h));
+        return !ocupado;
+      });
+      
+      return { ...s, geo, dist: Math.round(dist), horariosLibres };
+    });
+  }, [mostrarSemafaro, clienteSel, coordsCliente, presentes, turnos]);
+
+  return (
+    <Modal titulo="➕ Nuevo Turno" onClose={onClose} wide>
+      <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+        
+        <div>
+          <label style={labelStyle}>Cliente</label>
+          <BuscadorClientes clientes={clientes} value={clienteId} onChange={(id) => setClienteId(id)}
+            onCreateNew={(nombre) => { setNewClientName(nombre); setShowNewClient(true); }} />
+        </div>
+
+        {clienteSel ? (
+          <div style={{ background:"linear-gradient(135deg,#eff6ff,#dbeafe)", padding:16, borderRadius:16, border:"2px solid #93c5fd" }}>
+            <div style={{fontSize:16, fontWeight:900, color:"#1e3a8a"}}>{clienteSel.nombre}</div>
+            <div style={{fontSize:12, color:"#7c3aed", fontFamily:"monospace", marginTop:4, fontWeight:800, background:"#ffffff", display:"inline-block", padding:"4px 10px", borderRadius:6, border:"1px solid #ddd6fe"}}>{clienteSel.codigo}</div>
+            <div style={{fontSize:12, color:"#1e3a8a", lineHeight:1.7, marginTop:8}}>
+              <div>📍 <strong>{clienteSel.direccion || "Sin dirección"}</strong> • {clienteSel.barrio}</div>
+              <div>{mostrarTelefono(clienteSel)}</div>
+            </div>
+            {clienteSel.deuda > 0 && (
+              <div style={{marginTop:8, padding:"8px 12px", background:"#fef2f2", border:"1.5px solid #fecaca", borderRadius:8, fontSize:11, fontWeight:700, color:"#991b1b"}}>
+                🔴 ATENCIÓN: Este cliente debe {formatP(clienteSel.deuda)}
+              </div>
+            )}
+            {esFZAuto && (
+              <div style={{marginTop:8, padding:"8px 12px", background:"#fef3c7", border:"1.5px solid #fcd34d", borderRadius:8, fontSize:11, fontWeight:700, color:"#92400e"}}>
+                ⬡ FUERA DE ZONA - {Math.round(cuadras)} cuadras (radio: {radio}) - Se aplica +{fzPct}%
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{background:"#f9fafb", padding:16, borderRadius:14, border:"1.5px dashed #cbd5e1", textAlign:"center", color:"#94a3b8", fontSize:12}}>Buscá o creá un cliente</div>
+        )}
+
+        <div>
+          <label style={labelStyle}>Horario</label>
+          <select value={hora} onChange={e=>setHora(e.target.value)} style={inputStyle}>
+            {FRANJAS.map(h => {
+              const ahora = new Date();
+              const minutosAhora = ahora.getHours()*60 + ahora.getMinutes();
+              const [hr,mn] = h.split(":").map(Number);
+              const pasada = hr*60+mn < minutosAhora;
+              return <option key={h} value={h} disabled={pasada}>{h} hs {pasada ? "(pasada)" : ""}</option>;
+            })}
+          </select>
+        </div>
+
+        {!servicioEsp && (
+          <div>
+            <label style={labelStyle}>Vehículo</label>
+            <div style={{ display:"flex", gap:8 }}>
+              {TAMANOS_DEFAULT.map(t=>(
+                <button key={t.id} onClick={()=>setTamaño(t)} style={{
+                  flex:1, padding:"12px 8px", borderRadius:14, fontSize:12, fontWeight:700, cursor:"pointer",
+                  background: tamaño.id===t.id ? "#dbeafe" : "#f9fafb",
+                  border: tamaño.id===t.id ? "1.5px solid #93c5fd" : "1.5px solid #e5e7eb",
+                  color: tamaño.id===t.id ? "#1e3a8a" : "#6b7280"
+                }}>
+                  {t.label}<br/><span style={{fontSize:11,opacity:.8}}>{formatP(t.precio)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!servicioEsp && (
+          <div>
+            <label style={labelStyle}>Cantidad de Autos</label>
+            <div style={{ display:"flex", gap:6 }}>
+              {[1,2,3,4,5].map(n => (
+                <button key={n} onClick={()=>setCantidadAutos(n)} style={{
+                  flex:1, padding:"10px 4px", borderRadius:12, fontSize:14, fontWeight:800, cursor:"pointer",
+                  background: cantidadAutos===n ? "#dbeafe" : "#f9fafb",
+                  border: cantidadAutos===n ? "2px solid #3b82f6" : "1.5px solid #e5e7eb",
+                  color: cantidadAutos===n ? "#1e3a8a" : "#6b7280"
+                }}>
+                  {n}{n===5 ? "+" : ""}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{display:"flex", gap:8, alignItems:"flex-end"}}>
+          <div style={{flex:1}}>
+            <label style={labelStyle}>Precio Base</label>
+            <div style={{...inputStyle, fontWeight:700, background:"#f0f9ff"}}>{formatP(precioBaseTotal)}</div>
+          </div>
+          <Btn sm color="secondary" onClick={() => setServicioEsp(null)} disabled={!servicioEsp} style={{marginBottom:1}}>
+            {servicioEsp ? `⚡ ${servicioEsp.nombre}` : "Normal"}
+          </Btn>
+          <Btn sm color="secondary" onClick={() => setMostrarSemafaro(!mostrarSemafaro)} style={{marginBottom:1}}>
+            {mostrarSemafaro ? "🔽 Ocultar Semáforo" : "🚦 Ver Semáforo"}
+          </Btn>
+        </div>
+        
+        <Btn sm color="secondary" full onClick={() => { /* Abrir modal servicio especial */ }}>⚡ Servicio Especial</Btn>
+
+        {slotsOcupadosCount > 1 && (
+          <div style={{marginTop:6, fontSize:11, color:"#7c3aed", fontWeight:700}}>
+            📅 Ocupa {slotsOcupadosCount} franjas ({formatoTiempo})
+          </div>
+        )}
+        
+        <div style={{
+          marginTop:8, padding:"10px 14px", borderRadius:12,
+          background: esFZ ? "linear-gradient(135deg,#fef3c7,#fffbeb)" : "#f9fafb",
+          border: esFZ ? "1.5px solid #fcd34d" : "1px solid #e5e7eb",
+          display:"flex", justifyContent:"space-between", alignItems:"center",
+          fontSize:13, fontWeight:700
+        }}>
+          <span style={{color: esFZ ? "#92400e" : "#1e3a8a"}}>
+            💰 Total: <strong>{formatP(precioFinal)}</strong>
+            {esFZ && <span style={{fontSize:11, fontWeight:600}}> (⬡ FZ +{fzPct}%)</span>}
+          </span>
+          <span style={{color:"#059669"}}>⏱️ {formatoTiempo}</span>
+        </div>
+        <label style={{display:"flex", alignItems:"center", gap:8, marginTop:8, fontSize:11, cursor:"pointer"}}>
+          <input type="checkbox" checked={manualFZ} onChange={e=>setManualFZ(e.target.checked)} />
+          <span style={{color:"#6b7280"}}>Forzar FZ manualmente</span>
+        </label>
+
+        {/* SEMÁFORO DE DISPONIBILIDAD */}
+        {mostrarSemafaro && semaforoData && (
+          <div style={{padding:12, background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:12}}>
+            <div style={{fontSize:11, fontWeight:700, color:"#64748b", marginBottom:8}}>🚦 DISPONIBILIDAD POR LAVADOR</div>
+            <div style={{display:"flex", flexDirection:"column", gap:6}}>
+              {semaforoData.map(s => (
+                <div key={s.id} onClick={() => { setLavadorId(s.id); if(s.horariosLibres.length > 0) setHora(s.horariosLibres[0]); }}
+                  style={{
+                    display:"flex", alignItems:"center", gap:10, padding:"8px 12px", borderRadius:10, cursor:"pointer",
+                    background: lavadorId === s.id ? "#dbeafe" : "#ffffff",
+                    border: `1.5px solid ${lavadorId === s.id ? "#3b82f6" : s.geo === "verde" ? "#86efac" : s.geo === "amarillo" ? "#fcd34d" : "#c4b5fd"}`
+                  }}>
+                  <div style={{width:10, height:10, borderRadius:"50%", background: s.geo === "verde" ? "#22c55e" : s.geo === "amarillo" ? "#eab308" : "#a855f7"}} />
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12, fontWeight:700, color:"#1e293b"}}>{s.nombre}</div>
+                    <div style={{fontSize:10, color:"#6b7280"}}>{s.dist} cuadras • {s.horariosLibres.length} horarios libres</div>
+                  </div>
+                  <div style={{fontSize:10, color:"#6b7280"}}>{s.transporte}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex", gap:8, marginTop:8, fontSize:10}}>
+              <span style={{display:"flex", alignItems:"center", gap:4}}><div style={{width:8, height:8, borderRadius:"50%", background:"#22c55e"}}/> Libre/Cerca</span>
+              <span style={{display:"flex", alignItems:"center", gap:4}}><div style={{width:8, height:8, borderRadius:"50%", background:"#eab308"}}/> Lejos</span>
+              <span style={{display:"flex", alignItems:"center", gap:4}}><div style={{width:8, height:8, borderRadius:"50%", background:"#a855f7"}}/> FZ</span>
+            </div>
+          </div>
+        )}
+
+        <div>
+          <label style={labelStyle}>Lavador Asignado</label>
+          <select value={lavadorId} onChange={e=>setLavadorId(e.target.value)} style={inputStyle}>
+            <option value="">-- Sin asignar --</option>
+            {presentes.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(s=>(<option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>))}
+          </select>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Método de Pago</label>
+          <div style={{display:"flex", gap:8}}>
+            <button onClick={() => setMetodo("efectivo")} style={{
+              flex:1, padding:"10px", borderRadius:10, fontSize:12, fontWeight:700, cursor:"pointer",
+              background: metodo === "efectivo" ? "#d1fae5" : "#f9fafb",
+              border: `1.5px solid ${metodo === "efectivo" ? "#34d399" : "#e5e7eb"}`,
+              color: metodo === "efectivo" ? "#065f46" : "#6b7280"
+            }}>💵 Efectivo</button>
+            <button onClick={() => setMetodo("mp")} style={{
+              flex:1, padding:"10px", borderRadius:10, fontSize:12, fontWeight:700, cursor:"pointer",
+              background: metodo === "mp" ? "#dbeafe" : "#f9fafb",
+              border: `1.5px solid ${metodo === "mp" ? "#3b82f6" : "#e5e7eb"}`,
+              color: metodo === "mp" ? "#1e3a8a" : "#6b7280"
+            }}>📱 Mercado Pago</button>
+          </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Notas</label>
+          <input value={nota} onChange={e=>setNota(e.target.value)} onFocus={()=>setMostrarNotas(true)} placeholder="Observaciones..." style={inputStyle} />
+          {mostrarNotas && (
+            <div style={{display:"flex", flexWrap:"wrap", gap:4, marginTop:6}}>
+              {NOTAS_PREDEFINIDAS.map(n => (
+                <button key={n} onClick={()=>setNota(prev => prev.includes(n) ? prev.replace(n+", ","").replace(n,"") : (prev ? prev + ", " + n : n))}
+                  style={{padding:"4px 8px", borderRadius:6, fontSize:10, cursor:"pointer",
+                    background: nota.includes(n) ? "#dbeafe" : "#f1f5f9",
+                    border: `1px solid ${nota.includes(n) ? "#93c5fd" : "#e2e8f0"}`,
+                    color: nota.includes(n) ? "#1e3a8a" : "#64748b"}}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          )}
+          {nota && ["detallista","complicado","insoportable","ojo","no usar revividor","cuidado","problematico"].some(k => nota.toLowerCase().includes(k)) && (
+            <div style={{marginTop:8, padding:"10px 14px", background:"#fef3c7", border:"2px solid #fcd34d", borderRadius:10, color:"#92400e", fontWeight:800, fontSize:12, textAlign:"center"}}>
+              ⚠️ ATENCIÓN: Cliente con requerimientos especiales. Informar al lavador.
+            </div>
+          )}
+        </div>
+
+        <div style={{ display:"flex", gap:10, marginTop:8 }}>
+          <Btn ghost onClick={onClose} full>Cancelar</Btn>
+          <Btn color="primary" full onClick={guardar}>✓ Crear Turno</Btn>
+        </div>
+      </div>
+
+      {showNewClient && (
+        <ModalNuevoCliente nombreInicial={newClientName} COL_CLIENTES={COL_CLIENTES} mostrarToast={mostrarToast} codigosExistentes={codigosExistentes} onClienteCreated={handleNewClientSuccess} onClose={() => setShowNewClient(false)} />
+      )}
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB LAVADORES (ex-Presentismo) CON OPERACIONES
+// ═══════════════════════════════════════════════════════════════
+function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asistencias, setAsistencias, mostrarToast, onVerRuta, onGestionar, onOperacion, registros, prestamos }) {
   const toggleAsistencia = async (staffId) => {
     const nuevoEstado = !asistencias[staffId];
     setAsistencias(prev => ({ ...prev, [staffId]: nuevoEstado }));
@@ -1496,23 +1940,33 @@ function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asist
     }
   };
 
-  const sinTelefono = staff.filter(s => !s.telefono || s.telefono === "");
-  
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap" }}>
         <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:"#1e293b" }}>👷 Lavadores ({staff.length})</h3>
-        <Btn sm color="secondary" onClick={onGestionar}>⚙️ Gestionar</Btn>
+        <div style={{display:"flex", gap:8}}>
+          <Btn sm color="tertiary" onClick={() => {
+            const datos = staff.map(s => ({
+              nombre: s.nombre, transporte: s.transporte,
+              presente: asistencias[s.id] ? "✅" : "❌",
+              turnos: turnos.filter(t => t.lavadorId === s.id).length
+            }));
+            exportCSV(datos, ["nombre","transporte","presente","turnos"], `lavadores-${hoyStr}`);
+          }}>📥 Exportar CSV</Btn>
+          <Btn sm color="secondary" onClick={onGestionar}>⚙️ Gestionar</Btn>
+        </div>
       </div>
       
       <div style={{ fontSize:12, color:"#6b7280", background:"#f9fafb", padding:"10px 14px", borderRadius:12, border:"1px solid #e5e7eb" }}>
-        💡 Marcá quién vino hoy ANTES de crear turnos. Hacé clic en un lavador para ver su ruta.
+        💡 Marcá quién vino hoy ANTES de crear turnos. Hacé clic en un lavador para ver su ruta o registrar operaciones.
       </div>
       
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:10 }}>
         {staff.map(s => {
           const presente = asistencias[s.id];
           const turnosHoy = turnos.filter(t => t.lavadorId === s.id).length;
+          const saldoLav = (prestamos[s.id] || 0) + registros.filter(r => r.staffNombre === s.nombre).reduce((acc,r) => acc + (r.diferencia || 0), 0);
+          
           return (
             <div key={s.id} style={{
               background: presente ? "linear-gradient(135deg,#ecfdf5,#f0fdf4)" : "#ffffff",
@@ -1534,12 +1988,28 @@ function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asist
                   </div>
                 </div>
               </button>
-              <button onClick={() => onVerRuta(s)} style={{
-                background:"#dbeafe", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px",
-                color:"#1e3a8a", fontSize:11, fontWeight:700, cursor:"pointer"
-              }}>
-                🗺️ Ver Ruta
-              </button>
+              
+              {/* Saldo del lavador */}
+              <div style={{fontSize:10, color:"#6b7280", fontFamily:"monospace"}}>
+                Saldo: {formatP(-saldoLav)}
+                {saldoLav > 0 && <span style={{color:"#d97706", marginLeft:4}}>⚠️ Debe</span>}
+                {saldoLav < 0 && <span style={{color:"#7c3aed", marginLeft:4}}>📝 A favor</span>}
+              </div>
+              
+              <div style={{display:"flex", gap:6}}>
+                <button onClick={() => onVerRuta(s)} style={{
+                  flex:1, background:"#dbeafe", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px",
+                  color:"#1e3a8a", fontSize:11, fontWeight:700, cursor:"pointer"
+                }}>
+                  🗺️ Ruta
+                </button>
+                <button onClick={() => onOperacion(s)} style={{
+                  flex:1, background:"#fef3c7", border:"1px solid #fde68a", borderRadius:8, padding:"6px 10px",
+                  color:"#92400e", fontSize:11, fontWeight:700, cursor:"pointer"
+                }}>
+                  💰 Operación
+                </button>
+              </div>
             </div>
           );
         })}
@@ -1551,8 +2021,7 @@ function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asist
 // ═══════════════════════════════════════════════════════════════
 //  TAB SEGUIMIENTO CON COLUMNA LLUVIA
 // ═══════════════════════════════════════════════════════════════
-function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onCerrarTurno }) {
-  // PUNTO 15: Rojo solo para lluvia
+function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onCerrarTurno, onExportar }) {
   const estadosConfig = {
     pendiente:     { color:"#6b7280", bg:"#f3f4f6", border:"#e5e7eb", label:"⏳ Pendientes", headerBg:"#f9fafb" },
     en_progreso:   { color:"#d97706", bg:"#fffbeb", border:"#fde68a", label:"🟡 En Progreso", headerBg:"#fef3c7" },
@@ -1629,7 +2098,10 @@ function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onCe
 
   return (
     <div>
-      <h3 style={{ margin:"0 0 16px 0", fontSize:18, fontWeight:800, color:"#1e293b" }}>📊 Seguimiento de Turnos</h3>
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
+        <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:"#1e293b" }}>📊 Seguimiento de Turnos</h3>
+        <Btn sm color="tertiary" onClick={onExportar}>📥 Exportar</Btn>
+      </div>
       
       <div style={{display:"flex", gap:12, overflowX:"auto", paddingBottom:8, minHeight:"60vh"}}>
         {renderColumna("⏳ Pendientes", pendientes, estadosConfig.pendiente)}
@@ -1637,7 +2109,6 @@ function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onCe
         {renderColumna("🟢 Terminados", terminados, estadosConfig.terminado)}
       </div>
 
-      {/* Columna Lluvia en ROJO (alarma) */}
       {lluvia.length > 0 && (
         <div style={{marginTop:16}}>
           {renderColumna("🌧️ Afectados por Lluvia", lluvia, estadosConfig.lluvia)}
@@ -1650,10 +2121,9 @@ function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onCe
 // ═══════════════════════════════════════════════════════════════
 //  TAB AGENDA (GRILLA CLICKEABLE CON MULTI-SLOT)
 // ═══════════════════════════════════════════════════════════════
-function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCeldaClick, onTurnoClick, onCambiarEstado, onCerrarTurno }) {
+function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCeldaClick, onTurnoClick, onCambiarEstado, onCerrarTurno, onExportar }) {
   const presentes = staff.filter(s => asistencias[s.id]);
   
-  // Crear mapa de turnos por lavador y franja
   const turnosMap = {};
   turnos.forEach(t => {
     if (!turnosMap[t.lavadorId]) turnosMap[t.lavadorId] = {};
@@ -1668,7 +2138,10 @@ function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCelda
   
   return (
     <div>
-      <h3 style={{ margin:"0 0 16px 0", fontSize:18, fontWeight:800, color:"#1e293b" }}>📋 Agenda del Día</h3>
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
+        <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:"#1e293b" }}>📋 Agenda del Día</h3>
+        <Btn sm color="tertiary" onClick={onExportar}>📥 Exportar</Btn>
+      </div>
       
       {presentes.length === 0 ? (
         <div style={{textAlign:"center", color:"#9ca3af", padding:60, fontSize:14, background:"#ffffff", borderRadius:20, border:"1.5px dashed #e5e7eb"}}>
@@ -1704,9 +2177,9 @@ function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCelda
               return (
                 <div key={hora} style={{display:"contents"}}>
                   <div style={{
-                    padding:"12px 8px", background: pasada ? "#f9fafb" : "#ffffff",
+                    padding:"12px 8px", background: pasada ? "#f1f5f9" : "#ffffff",
                     borderBottom:"1px solid #e5e7eb", borderRight:"1px solid #e5e7eb",
-                    fontWeight:700, fontSize:12, color: pasada ? "#cbd5e1" : "#6b7280",
+                    fontWeight:700, fontSize:12, color: pasada ? "#94a3b8" : "#6b7280",
                     textAlign:"center", textDecoration: pasada ? "line-through" : "none"
                   }}>
                     {hora}
@@ -1716,11 +2189,9 @@ function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCelda
                     const turno = info?.turno;
                     const esPrincipal = info?.esPrincipal;
                     
-                    // Si no es principal y hay turno, es continuación (no renderizar)
                     if (turno && !esPrincipal) return null;
                     
                     if (turno) {
-                      // Celda ocupada
                       const slots = turno.horasOcupadas?.length || 1;
                       const configEstado = {
                         pendiente: { bg:"#f3f4f6", border:"#d1d5db", color:"#374151" },
@@ -1760,20 +2231,24 @@ function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCelda
                         </div>
                       );
                     } else {
-                      // Celda libre clickeable
+                      // FIX-2: Celda libre clickeable asegurada
                       return (
-                        <div key={`${s.id}-${hora}`} onClick={() => pasada ? null : onCeldaClick(s.id, hora)}
+                        <div key={`${s.id}-${hora}`} 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (!pasada) onCeldaClick(s.id, hora); 
+                          }}
                           style={{
                             borderBottom:"1px solid #e5e7eb",
                             borderRight:"1px solid #e5e7eb",
                             padding:"8px",
-                            background: pasada ? "#f9fafb" : "#ffffff",
+                            background: pasada ? "#f1f5f9" : "#ffffff",
                             cursor: pasada ? "not-allowed" : "pointer",
                             minHeight:60,
                             display:"flex",
                             alignItems:"center",
                             justifyContent:"center",
-                            color: pasada ? "#cbd5e1" : "#94a3b8",
+                            color: pasada ? "#94a3b8" : "#94a3b8",
                             fontSize:20,
                             transition:"all .15s"
                           }}
@@ -1789,6 +2264,195 @@ function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCelda
               );
             })}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB CIERRE / CAJA COMPLETA - RESTAURADO
+// ═══════════════════════════════════════════════════════════════
+function TabCierre({ registros, turnos, clientes, staff, diaHoy, mostrarToast, onPagarDeuda, onCondonarDeuda, onPunitorio, onRendir, onCobrar, onEditarCobro, onRendirTodo, rangoC, setRangoC, regMulti, loadMulti }) {
+  const regs = rangoC === "hoy" ? registros : regMulti;
+  const tTotal = regs.reduce((s,r) => s + Number(r.precio || 0), 0);
+  const tMP = regs.filter(r => r.metodo === "mp").reduce((s,r) => s + Number(r.precio || 0), 0);
+  const tEf = regs.filter(r => r.metodo === "efectivo").reduce((s,r) => s + Number(r.precio || 0), 0);
+  const pendientesRendir = turnos.filter(t => t.estadoPago === "💵 Cobrado (sin rendir)");
+  const clientesConDeuda = clientes.filter(c => c.deuda > 0);
+  
+  // Liquidación por lavador
+  const liquidacionPorLavador = useMemo(() => {
+    const porLavador = {};
+    regs.forEach(r => {
+      const n = r.staffNombre || "?";
+      if (!porLavador[n]) porLavador[n] = { nombre:n, total:0, efectivo:0, mp:0, turnos:0, debe:0, favor:0 };
+      porLavador[n].total += Number(r.precio || 0);
+      porLavador[n].efectivo += r.metodo === "efectivo" ? Number(r.precio || 0) : 0;
+      porLavador[n].mp += r.metodo === "mp" ? Number(r.precio || 0) : 0;
+      porLavador[n].turnos += 1;
+      if (r.estadoPago === "⚠️ Debe" || r.estadoPago === "🔴 Cliente debe") porLavador[n].debe += Math.abs(r.diferencia || r.precioEsperado || 0);
+      if (r.estadoPago === "📝 A favor") porLavador[n].favor += Math.abs(r.diferencia || 0);
+    });
+    return Object.values(porLavador).sort((a,b) => b.total - a.total);
+  }, [regs]);
+
+  const inputStyle = { background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"8px 12px", color:"#1e293b", fontSize:13, outline:"none", width:"100%", boxSizing:"border-box" };
+
+  return (
+    <div style={{display:"flex", flexDirection:"column", gap:16}}>
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8}}>
+        <h3 style={{margin:0, fontSize:18, fontWeight:800, color:"#1e293b"}}>💰 Cierre / Caja</h3>
+        <div style={{display:"flex", gap:6, alignItems:"center"}}>
+          {["hoy","semana","mes"].map(r => (
+            <button key={r} onClick={() => setRangoC(r)} style={{
+              padding:"6px 14px", borderRadius:8, fontSize:11, cursor:"pointer", fontWeight:700,
+              background: rangoC === r ? "#dbeafe" : "#f9fafb",
+              border: `1.5px solid ${rangoC === r ? "#3b82f6" : "#e5e7eb"}`,
+              color: rangoC === r ? "#1e3a8a" : "#6b7280"
+            }}>
+              {r === "hoy" ? "📅 Hoy" : r === "semana" ? "📆 Semana" : "🗓 Mes"}
+            </button>
+          ))}
+          <Btn sm ghost onClick={() => exportJSON(regs, `cierre-${rangoC}-${diaHoy}`)}>📥 JSON</Btn>
+          <Btn sm ghost onClick={() => {
+            const html = `<h2>Cierre Sofía Lavados — ${rangoC}</h2>
+              <table><thead><tr><th>Hora</th><th>Lavador</th><th>Cliente</th><th>Precio</th><th>Pago</th><th>Estado</th></tr></thead>
+              <tbody>${regs.map(r => `<tr><td>${r.hora||"—"}</td><td>${r.staffNombre||"—"}</td><td>${r.clienteNombre||"—"}</td><td>${formatP(r.precio)}</td><td>${r.metodo==="mp"?"MP":"Ef."}</td><td>${r.estadoPago||"—"}</td></tr>`).join("")}</tbody>
+              <tfoot><tr><td colspan="3"><strong>TOTAL</strong></td><td><strong>${formatP(tTotal)}</strong></td><td colspan="2"></td></tr></tfoot></table>`;
+            exportPDF(html, `Cierre ${rangoC}`);
+          }}>🖨️ Imprimir</Btn>
+        </div>
+      </div>
+
+      {/* TOTALES */}
+      <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10}}>
+        {[
+          {l:`TOTAL ${rangoC.toUpperCase()}`, v:formatP(tTotal), c:"#3b82f6", bg:"#eff6ff"},
+          {l:"MERCADO PAGO", v:formatP(tMP), c:"#7c3aed", bg:"#f5f3ff"},
+          {l:"EFECTIVO", v:formatP(tEf), c:"#059669", bg:"#ecfdf5"},
+          {l:"SIN RENDIR", v:pendientesRendir.length, c:"#dc2626", bg:"#fef2f2"},
+        ].map(s => (
+          <div key={s.l} style={{textAlign:"center", padding:16, background:s.bg, borderRadius:14, border:`1.5px solid ${s.c}33`}}>
+            <div style={{fontSize:10, color:"#6b7280", fontWeight:700, marginBottom:6, textTransform:"uppercase"}}>{s.l}</div>
+            <div style={{fontSize:22, fontWeight:900, color:s.c, fontFamily:"'Inter',system-ui,sans-serif"}}>{s.v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* CLIENTES CON DEUDA */}
+      {clientesConDeuda.length > 0 && (
+        <div style={{padding:16, background:"#fef2f2", borderRadius:14, border:"1.5px solid #fecaca"}}>
+          <div style={{fontSize:13, fontWeight:800, color:"#991b1b", marginBottom:10}}>🔴 CLIENTES CON DEUDA ({clientesConDeuda.length})</div>
+          <div style={{display:"flex", flexDirection:"column", gap:6}}>
+            {clientesConDeuda.map(c => (
+              <div key={c.id} style={{display:"flex", alignItems:"center", gap:8, padding:"10px 14px", background:"#ffffff", borderRadius:10, border:"1px solid #fecaca", flexWrap:"wrap"}}>
+                <span style={{fontSize:11, fontWeight:800, color:"#7c3aed", fontFamily:"monospace"}}>{c.codigo}</span>
+                <span style={{fontSize:12, fontWeight:700, color:"#1e293b", flex:1}}>{c.nombre}</span>
+                <span style={{fontSize:13, fontWeight:800, color:"#dc2626"}}>{formatP(c.deuda)}</span>
+                <Btn sm color="primary" onClick={() => onPagarDeuda(c)}>💵 Pagar</Btn>
+                <Btn sm color="success" onClick={() => onCondonarDeuda(c)}>✓ Condonar</Btn>
+                <Btn sm color="warning" onClick={() => onPunitorio(c)}>+ Punitorio</Btn>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* LIQUIDACIÓN POR LAVADOR */}
+      {rangoC !== "hoy" && liquidacionPorLavador.length > 0 && (
+        <div style={{padding:16, background:"#f5f3ff", borderRadius:14, border:"1.5px solid #ddd6fe"}}>
+          <div style={{fontSize:13, fontWeight:800, color:"#5b21b6", marginBottom:10}}>💼 LIQUIDACIÓN POR LAVADOR — {rangoC === "semana" ? "SEMANA" : "MES"}</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%", borderCollapse:"collapse", fontSize:12}}>
+              <thead><tr style={{borderBottom:"2px solid #ddd6fe"}}>
+                {["LAVADOR","TURNOS","TOTAL","EFECTIVO","DEBE","A FAVOR"].map(h => (
+                  <th key={h} style={{padding:"8px 10px", textAlign:"left", color:"#6b7280", fontSize:10, fontWeight:700, textTransform:"uppercase"}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {liquidacionPorLavador.map(l => (
+                  <tr key={l.nombre} style={{borderBottom:"1px solid #ede9fe"}}>
+                    <td style={{padding:"10px", fontWeight:700, color:"#1e293b"}}>{l.nombre}</td>
+                    <td style={{padding:"10px", textAlign:"center", color:"#6b7280"}}>{l.turnos}</td>
+                    <td style={{padding:"10px", color:"#3b82f6", fontWeight:700}}>{formatP(l.total)}</td>
+                    <td style={{padding:"10px", color:"#059669"}}>{formatP(l.efectivo)}</td>
+                    <td style={{padding:"10px", color:"#d97706"}}>{l.debe > 0 ? formatP(l.debe) : "—"}</td>
+                    <td style={{padding:"10px", color:"#7c3aed"}}>{l.favor > 0 ? formatP(l.favor) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* PENDIENTES DE RENDICIÓN */}
+      {pendientesRendir.length > 0 && (
+        <div style={{padding:16, background:"#fffbeb", borderRadius:14, border:"1.5px solid #fde68a"}}>
+          <div style={{fontSize:13, fontWeight:800, color:"#92400e", marginBottom:10}}>💰 PENDIENTES DE RENDICIÓN ({pendientesRendir.length})</div>
+          <div style={{display:"flex", flexDirection:"column", gap:6}}>
+            {pendientesRendir.map(t => (
+              <div key={t.id} style={{display:"flex", alignItems:"center", gap:8, padding:"10px 14px", background:"#ffffff", borderRadius:10, border:"1px solid #fde68a", flexWrap:"wrap"}}>
+                <span style={{fontSize:12, fontWeight:800, color:"#1e3a8a"}}>{t.hora}</span>
+                <span style={{fontSize:12, color:"#6b7280", flex:1}}>{t.lavadorNombre || t.staffNombre} → {t.clienteNombre}</span>
+                <span style={{fontSize:13, fontWeight:700, color:"#059669"}}>{formatP(t.precio)}</span>
+                <Btn sm color="warning" onClick={() => onEditarCobro(t)}>✏️ Editar</Btn>
+                <Btn sm color="success" onClick={() => onRendir(t)}>💸 Rendir</Btn>
+              </div>
+            ))}
+          </div>
+          {/* Botón rendir todo por lavador */}
+          <div style={{marginTop:10, display:"flex", gap:6, flexWrap:"wrap"}}>
+            {[...new Set(pendientesRendir.map(t => t.lavadorNombre || t.staffNombre))].map(n => (
+              <Btn key={n} sm color="success" onClick={() => onRendirTodo(n)}>✅ Rendir todo de {n}</Btn>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TABLA DE REGISTROS */}
+      {regs.length === 0 ? (
+        <div style={{textAlign:"center", color:"#9ca3af", padding:40, background:"#ffffff", borderRadius:16, border:"1px solid #e5e7eb"}}>
+          {loadMulti ? "Cargando..." : "Sin registros para este período."}
+        </div>
+      ) : (
+        <div style={{overflowX:"auto", background:"#ffffff", borderRadius:14, border:"1px solid #e5e7eb"}}>
+          <table style={{width:"100%", borderCollapse:"collapse", fontSize:11}}>
+            <thead><tr style={{background:"#f9fafb", borderBottom:"2px solid #e5e7eb"}}>
+              {["HORA","LAVADOR","CLIENTE","AUTOS","PRECIO","PAGO","ESTADO","DIF.","MOTIVO"].map(h => (
+                <th key={h} style={{padding:"10px 12px", textAlign:"left", color:"#6b7280", fontSize:10, fontWeight:700, textTransform:"uppercase"}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {regs.map((r,i) => (
+                <tr key={r.id || i} style={{borderBottom:"1px solid #f3f4f6"}}>
+                  <td style={{padding:"10px 12px", color:"#3b82f6", fontWeight:700}}>{r.hora || "—"}</td>
+                  <td style={{padding:"10px 12px", color:"#1e293b"}}>{r.staffNombre || "—"}</td>
+                  <td style={{padding:"10px 12px", color:"#6b7280"}}>{r.clienteNombre || "—"}</td>
+                  <td style={{padding:"10px 12px", textAlign:"center"}}>{r.autos || "—"}</td>
+                  <td style={{padding:"10px 12px", color:"#059669", fontWeight:700}}>{formatP(r.precio)}</td>
+                  <td style={{padding:"10px 12px"}}>
+                    <span style={{padding:"2px 8px", borderRadius:6, fontSize:10, fontWeight:700,
+                      background: r.metodo === "mp" ? "#ede9fe" : "#ecfdf5",
+                      color: r.metodo === "mp" ? "#7c3aed" : "#059669",
+                      border: `1px solid ${r.metodo === "mp" ? "#ddd6fe" : "#a7f3d0"}`
+                    }}>{r.metodo === "mp" ? "MP" : "Ef."}</span>
+                  </td>
+                  <td style={{padding:"10px 12px", fontSize:10}}>{r.estadoPago || "—"}</td>
+                  <td style={{padding:"10px 12px", color: r.diferencia < 0 ? "#d97706" : r.diferencia > 0 ? "#7c3aed" : "#94a3b8", fontSize:10}}>{r.diferencia !== 0 ? formatP(r.diferencia) : "—"}</td>
+                  <td style={{padding:"10px 12px", color:"#94a3b8", fontSize:10, maxWidth:100, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{r.motivo || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{borderTop:"2px solid #e5e7eb", background:"#f9fafb"}}>
+                <td colSpan={4} style={{padding:"12px", fontWeight:800, color:"#6b7280"}}>TOTALES</td>
+                <td style={{padding:"12px", fontWeight:900, color:"#3b82f6", fontSize:14}}>{formatP(tTotal)}</td>
+                <td colSpan={4} style={{padding:"12px", color:"#6b7280", fontSize:10}}>MP: {formatP(tMP)} | Ef: {formatP(tEf)}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       )}
     </div>
@@ -1826,13 +2490,26 @@ export default function App() {
   const [clienteParaTurno, setClienteParaTurno] = useState(null);
   const [clienteParaEditar, setClienteParaEditar] = useState(null);
   const [busquedaClientes, setBusquedaClientes] = useState("");
+  const [filtroBarrio, setFiltroBarrio] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroDeuda, setFiltroDeuda] = useState(false);
   const [turnoCreadoData, setTurnoCreadoData] = useState(null);
   const [mostrarNuevoClienteDirecto, setMostrarNuevoClienteDirecto] = useState(false);
   const [celdaPreseleccionada, setCeldaPreseleccionada] = useState(null);
   const [lavadorRuta, setLavadorRuta] = useState(null);
+  const [lavadorOperacion, setLavadorOperacion] = useState(null);
   const [mostrarLluvia, setMostrarLluvia] = useState(false);
   const [mostrarConfig, setMostrarConfig] = useState(false);
   const [mostrarGestionLav, setMostrarGestionLav] = useState(false);
+  const [turnoParaCobrar, setTurnoParaCobrar] = useState(null);
+  const [turnoParaRendir, setTurnoParaRendir] = useState(null);
+  
+  // Cierre / Caja
+  const [registros, setRegistros] = useState([]);
+  const [prestamos, setPrestamos] = useState({});
+  const [rangoC, setRangoC] = useState("hoy");
+  const [regMulti, setRegMulti] = useState([]);
+  const [loadMulti, setLoadMulti] = useState(false);
   
   const [config, setConfig] = useState({
     precios: TAMANOS_DEFAULT,
@@ -1844,13 +2521,12 @@ export default function App() {
   const mostrarToast = (msg, tipo="ok") => setToast({ msg, tipo });
 
   // ═══════════════════════════════════════════════════════════
-  //  SINCRONIZACIÓN EN TIEMPO REAL (CORREGIDA)
+  //  SINCRONIZACIÓN EN TIEMPO REAL (FIX-1: Query en servidor)
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     const fechaHoy = hoy();
     setCargando(true);
     
-    // Listener de día actual
     const unsubDia = onSnapshot(doc(db, COL_DIAS, fechaHoy), (snap) => {
       if (snap.exists()) {
         setDiaActual({ id: snap.id, ...snap.data() });
@@ -1866,36 +2542,45 @@ export default function App() {
       mostrarToast("Sin conexión a base de datos", "error");
     });
     
-    // Listener de turnos (con filtro por fecha actual)
-    const unsubTurnos = onSnapshot(collection(db, COL_TURNOS), (snap) => {
-      const todos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const hoyTurnos = todos.filter(t => t.fecha === fechaHoy).sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+    // FIX-1: Usar query con where en lugar de filtro en memoria
+    const qTurnos = query(collection(db, COL_TURNOS), where("fecha", "==", fechaHoy));
+    const unsubTurnos = onSnapshot(qTurnos, (snap) => {
+      const hoyTurnos = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
       setTurnos(hoyTurnos);
     });
     
-    // Listener de clientes
     const unsubClientes = onSnapshot(collection(db, COL_CLIENTES), (snap) => {
       if (!snap.empty) {
         setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }
     });
     
-    // Listener de staff
     const unsubStaff = onSnapshot(collection(db, COL_STAFF), (snap) => {
       if (!snap.empty) {
         setStaff(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }
     });
     
-    // Listener de asistencias
     const unsubAsist = onSnapshot(doc(db, COL_ASISTENCIAS, fechaHoy), (snap) => {
       setAsistencias(snap.exists() ? (snap.data().registros || {}) : {});
     });
     
-    // Listener de config
     const unsubConfig = onSnapshot(doc(db, "config", "general"), (snap) => {
       if (snap.exists()) {
         setConfig(prev => ({ ...prev, ...snap.data() }));
+      }
+    });
+    
+    // Listener de cierres
+    const unsubCierre = onSnapshot(collection(db, `cierre_${fechaHoy}`), (snap) => {
+      setRegistros(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    
+    // Listener de préstamos
+    const unsubPrestamos = onSnapshot(doc(db, "prestamos", fechaHoy), (snap) => {
+      if (snap.exists()) {
+        const { _ts, ...rest } = snap.data();
+        setPrestamos(rest);
       }
     });
     
@@ -1906,6 +2591,8 @@ export default function App() {
       unsubStaff();
       unsubAsist();
       unsubConfig();
+      unsubCierre();
+      unsubPrestamos();
     };
   }, [modoPrueba, COL_DIAS, COL_TURNOS, COL_CLIENTES, COL_STAFF, COL_ASISTENCIAS]);
 
@@ -1929,6 +2616,33 @@ export default function App() {
     };
     seedAndMigrate();
   }, [modoPrueba]);
+
+  // Cargar multi-fecha para cierre
+  useEffect(() => {
+    const cargarMultiFecha = async () => {
+      if (rangoC === "hoy") {
+        setRegMulti([]);
+        return;
+      }
+      setLoadMulti(true);
+      try {
+        const fechas = [];
+        const hoyDate = new Date();
+        if (rangoC === "semana") for(let i=6;i>=0;i--){const d=new Date(hoyDate);d.setDate(d.getDate()-i);fechas.push(d.toISOString().split("T")[0]);}
+        else if (rangoC === "mes") for(let i=29;i>=0;i--){const d=new Date(hoyDate);d.setDate(d.getDate()-i);fechas.push(d.toISOString().split("T")[0]);}
+        const todos = [];
+        for (const f of fechas) {
+          try {
+            const snap = await getDocs(collection(db, `cierre_${f}`));
+            todos.push(...snap.docs.map(d => ({ id: d.id, ...d.data(), fecha: f })));
+          } catch {}
+        }
+        setRegMulti(todos);
+      } catch {}
+      setLoadMulti(false);
+    };
+    cargarMultiFecha();
+  }, [rangoC]);
 
   // Aviso de teléfono faltante
   useEffect(() => {
@@ -1956,12 +2670,14 @@ export default function App() {
     catch (err) { mostrarToast("Error al actualizar estado", "error"); }
   };
 
+  // FIX-4: Separar activar lluvia de mostrar modal
   const activarLluvia = async () => {
     if (!diaActual?.id) return;
     await fsUpdate(COL_DIAS, diaActual.id, { lluvia:true, lluviaInicio:serverTimestamp() });
     const pendientes = turnos.filter(t => t.estado === "pendiente");
     await Promise.all(pendientes.map(t => fsUpdate(COL_TURNOS, t.id, { estado:"lluvia" })));
-    setMostrarLluvia(true);
+    mostrarToast("🌧️ Modo lluvia activado", "warn");
+    // NO abrir modal automáticamente
   };
   
   const aplicarReorganizacionLluvia = async (estadoLav, turnosCancelar, lavQuedan) => {
@@ -2001,6 +2717,176 @@ export default function App() {
     mostrarToast(`Reanudado: ${cancelados} cancelados, ${reasignados} reasignados`, "ok");
   };
   
+  // RESTORE-1: Registrar cobro completo
+  const registrarCobro = async (turno, importeReal, dif, motivo, destinoExcedente = "deuda") => {
+    const estadoFinal = importeReal === 0 ? "🔴 Cliente debe" : "💵 Cobrado (sin rendir)";
+    let motivoFinal = motivo || "";
+    let precioParaCaja = importeReal;
+    
+    if (!motivoFinal) {
+      if (importeReal === 0) motivoFinal = "Cliente no pagó (deuda)";
+      else if (dif < 0 && destinoExcedente === "perdonar") motivoFinal = "🎁 Diferencia perdonada";
+      else if (dif < 0) motivoFinal = "Cobro parcial — registrado como deuda";
+      else if (dif > 0 && destinoExcedente === "propina") motivoFinal = "🎩 Propina para el lavador";
+      else if (dif > 0 && destinoExcedente === "deuda") motivoFinal = `📝 Abona deuda anterior (${formatP(dif)})`;
+      else if (dif > 0 && destinoExcedente === "perdonar") motivoFinal = "🎁 Cortesía — sin impacto en caja";
+    }
+    
+    if (dif > 0 && destinoExcedente === "propina") precioParaCaja = turno.precio;
+    if (dif > 0 && destinoExcedente === "perdonar") precioParaCaja = turno.precio;
+    
+    const reg = {
+      turnoId: turno.id, hora: turno.hora,
+      staffNombre: turno.lavadorNombre || staff.find(s => s.id === turno.lavadorId)?.nombre || "—",
+      clienteNombre: turno.clienteNombre, direccion: clientes.find(c => c.id === turno.clienteId)?.direccion || "",
+      autos: turno.cantidadAutos, tamano: turno.auto,
+      precio: precioParaCaja, precioEsperado: turno.precio,
+      metodo: turno.metodo || "efectivo", esFZ: turno.esFZ, notas: turno.nota,
+      fecha: hoy(), estadoPago: estadoFinal, diferencia: dif, motivo: motivoFinal,
+      destinoExcedente, ts: horaAR()
+    };
+    
+    await fsAdd(`cierre_${hoy()}`, reg);
+    await fsUpdate(COL_TURNOS, turno.id, { estadoPago: estadoFinal, diferencia: dif, motivo: motivoFinal, montoPagado: importeReal });
+    
+    // Manejo de deuda del cliente
+    const clienteObj = clientes.find(c => c.id === turno.clienteId);
+    if (importeReal === 0 && clienteObj) {
+      const nuevaDeuda = (clienteObj.deuda || 0) + turno.precio;
+      await fsUpdate(COL_CLIENTES, clienteObj.id, { deuda: nuevaDeuda });
+    }
+    if (dif < 0 && destinoExcedente === "deuda" && clienteObj) {
+      const nuevaDeuda = (clienteObj.deuda || 0) + Math.abs(dif);
+      await fsUpdate(COL_CLIENTES, clienteObj.id, { deuda: nuevaDeuda });
+    }
+    if (dif > 0 && destinoExcedente === "deuda" && clienteObj && (clienteObj.deuda || 0) > 0) {
+      const deudaReducida = Math.max(0, (clienteObj.deuda || 0) - dif);
+      await fsUpdate(COL_CLIENTES, clienteObj.id, { deuda: deudaReducida });
+    }
+    
+    mostrarToast(`Cobro registrado ✓`, "ok");
+  };
+  
+  // RESTORE-1: Registrar rendición
+  const registrarRendicion = async (turno) => {
+    await fsUpdate(COL_TURNOS, turno.id, { estadoPago: "✅ Rendido", fechaRendicion: hoy() });
+    try {
+      const todos = await fsList(`cierre_${hoy()}`);
+      const regFirestore = todos.find(r => r.turnoId === turno.id);
+      if (regFirestore?.id) {
+        await fsUpdate(`cierre_${hoy()}`, regFirestore.id, { estadoPago: "✅ Rendido", fechaRendicion: hoy() });
+      }
+    } catch {}
+    mostrarToast(`✅ ${turno.lavadorNombre || "Lavador"} rindió ${formatP(turno.montoPagado || turno.precio)}`, "ok");
+  };
+  
+  // RESTORE-3: Registrar operación lavador
+  const registrarOperacion = async (lavador, monto, motivo) => {
+    if (monto <= 0) { mostrarToast("⚠️ Ingresá un monto válido", "warn"); return; }
+    const esRecibe = motivo.includes("recibe");
+    const saldoActual = prestamos[lavador.id] || 0;
+    let nuevoSaldo = esRecibe ? saldoActual + monto : Math.max(0, saldoActual - monto);
+    const upd = { ...prestamos, [lavador.id]: nuevoSaldo };
+    setPrestamos(upd);
+    await fsSave("prestamos", hoy(), upd);
+    
+    const reg = {
+      hora: horaAR(), staffNombre: lavador.nombre, clienteNombre: "—",
+      direccion: "Operación interna", autos: 0, tamano: "—",
+      precio: monto, precioEsperado: 0, metodo: "efectivo",
+      estadoPago: esRecibe ? "⚠️ Debe" : "✅ Pagado",
+      diferencia: esRecibe ? monto : -monto, motivo: motivo || "Operación",
+      fecha: hoy(), ts: horaAR()
+    };
+    await fsAdd(`cierre_${hoy()}`, reg);
+    mostrarToast(`✓ ${motivo}: ${formatP(monto)} → Saldo actual ${formatP(nuevoSaldo)}`, "ok");
+  };
+  
+  // RESTORE-12: Reasignar turno completo
+  const reasignarTurno = async (turno, nuevoLavadorId, nuevaHora) => {
+    const ns = staff.find(s => s.id === nuevoLavadorId);
+    const horasOcupadas = slotsOcupados(nuevaHora, turno.cantidadAutos, turno.auto);
+    const upd = {
+      lavadorId: nuevoLavadorId,
+      lavadorNombre: ns?.nombre,
+      hora: nuevaHora,
+      horasOcupadas
+    };
+    await fsUpdate(COL_TURNOS, turno.id, upd);
+    mostrarToast(`Reasignado a ${ns?.nombre} a las ${nuevaHora} ✓`, "ok");
+  };
+  
+  // RESTORE-2: Gestión de deudas
+  const pagarDeuda = async (cliente) => {
+    const monto = Number(prompt(`¿Cuánto pagó ${cliente.nombre}? (deuda actual: ${formatP(cliente.deuda)})`));
+    if (!monto || monto <= 0) return;
+    const nueva = Math.max(0, (cliente.deuda || 0) - monto);
+    await fsUpdate(COL_CLIENTES, cliente.id, { deuda: nueva });
+    const reg = {
+      turnoId: "pago_deuda", hora: "—", staffNombre: "Sofía",
+      clienteNombre: cliente.nombre, direccion: "Pago de deuda",
+      autos: 0, tamano: "—", precio: monto, precioEsperado: cliente.deuda,
+      metodo: "efectivo", estadoPago: "✅ Pagó deuda",
+      diferencia: nueva === 0 ? 0 : -(cliente.deuda - monto),
+      motivo: `Pago de deuda: ${formatP(monto)}`, fecha: hoy(), ts: horaAR()
+    };
+    await fsAdd(`cierre_${hoy()}`, reg);
+    mostrarToast(`✓ Pago de ${formatP(monto)} registrado para ${cliente.nombre}`, "ok");
+  };
+  
+  const condonarDeuda = async (cliente) => {
+    if (!window.confirm(`¿Condonar deuda de ${formatP(cliente.deuda)} a ${cliente.nombre}?`)) return;
+    await fsUpdate(COL_CLIENTES, cliente.id, { deuda: 0 });
+    const reg = {
+      turnoId: "condonacion", hora: "—", staffNombre: "Sofía",
+      clienteNombre: cliente.nombre, direccion: "Gestión interna",
+      autos: 0, tamano: "—", precio: 0, precioEsperado: cliente.deuda,
+      metodo: "efectivo", estadoPago: "🎁 Condonado",
+      diferencia: -cliente.deuda, motivo: `Deuda condonada: ${formatP(cliente.deuda)}`,
+      fecha: hoy(), ts: horaAR()
+    };
+    await fsAdd(`cierre_${hoy()}`, reg);
+    mostrarToast(`Deuda de ${cliente.nombre} condonada ✓`, "ok");
+  };
+  
+  const aplicarPunitorio = async (cliente) => {
+    const monto = Number(prompt(`¿Cuánto de punitorio sumás a ${cliente.nombre}?`));
+    if (!monto || monto <= 0) return;
+    const nueva = (cliente.deuda || 0) + monto;
+    await fsUpdate(COL_CLIENTES, cliente.id, { deuda: nueva });
+    const reg = {
+      turnoId: "punitorio", hora: "—", staffNombre: "Sofía",
+      clienteNombre: cliente.nombre, direccion: "Gestión interna",
+      autos: 0, tamano: "—", precio: monto, precioEsperado: 0,
+      metodo: "efectivo", estadoPago: "⚡ Punitorio",
+      diferencia: monto, motivo: `Punitorio aplicado: ${formatP(monto)}`,
+      fecha: hoy(), ts: horaAR()
+    };
+    await fsAdd(`cierre_${hoy()}`, reg);
+    mostrarToast(`Punitorio de ${formatP(monto)} aplicado a ${cliente.nombre}`, "warn");
+  };
+  
+  const rendirTodoLavador = async (nombreLavador) => {
+    const pendLav = turnos.filter(t => t.estadoPago === "💵 Cobrado (sin rendir)" && (t.lavadorNombre || staff.find(s => s.id === t.lavadorId)?.nombre) === nombreLavador);
+    for (const t of pendLav) { await registrarRendicion(t); }
+    mostrarToast(`Todos los turnos de ${nombreLavador} rendidos ✓`, "ok");
+  };
+  
+  const editarCobro = async (turno) => {
+    const montoActual = turno.montoPagado || turno.precio;
+    const nuevo = Number(prompt(`Turno: ${turno.clienteNombre}\nMonto actual: ${formatP(montoActual)}\nIngresá el monto correcto:`));
+    if (!nuevo || nuevo <= 0) return;
+    const dif = nuevo - montoActual;
+    const motivoEdit = dif > 0 ? `Corrección: +${formatP(dif)}` : `Corrección: ${formatP(dif)}`;
+    await fsUpdate(COL_TURNOS, turno.id, { montoPagado: nuevo, precio: nuevo, diferencia: dif, motivo: motivoEdit });
+    try {
+      const todos = await fsList(`cierre_${hoy()}`);
+      const reg = todos.find(r => r.turnoId === turno.id);
+      if (reg?.id) await fsUpdate(`cierre_${hoy()}`, reg.id, { precio: nuevo, diferencia: dif, motivo: motivoEdit });
+    } catch {}
+    mostrarToast(`Monto corregido a ${formatP(nuevo)}`, "ok");
+  };
+  
   const toggleDia = async () => {
     if (!diaActual?.id) return;
     const nuevoEstado = diaActual?.estado === "abierto" ? "cerrado" : "abierto";
@@ -2020,11 +2906,20 @@ export default function App() {
     }
   };
 
-  const clientesFiltrados = busquedaClientes.trim() === "" ? clientes : clientes.filter(c =>
-    sinAcentos(c.nombre).includes(sinAcentos(busquedaClientes)) ||
-    sinAcentos(c.codigo || "").includes(sinAcentos(busquedaClientes)) ||
-    sinAcentos(c.barrio || "").includes(sinAcentos(busquedaClientes))
-  );
+  // FIX-5: Búsqueda avanzada de clientes
+  const clientesFiltrados = clientes.filter(c => {
+    if (filtroDeuda && !(c.deuda > 0)) return false;
+    if (filtroBarrio && c.barrio !== filtroBarrio) return false;
+    if (filtroTipo && c.tipo !== filtroTipo) return false;
+    if (!busquedaClientes) return true;
+    const b = sinAcentos(busquedaClientes);
+    return sinAcentos(c.nombre).includes(b) ||
+      sinAcentos(c.codigo || "").includes(b) ||
+      sinAcentos(c.barrio || "").includes(b) ||
+      sinAcentos(c.direccion || "").includes(b) ||
+      (c.telefono || "").includes(b);
+  });
+  
   const codigosExistentes = clientes.map(c => c.codigo || "").filter(Boolean);
 
   const handleCeldaClick = (lavadorId, hora) => {
@@ -2060,6 +2955,7 @@ export default function App() {
     {id:"nuevoTurno",label:"➕ Nuevo Turno",color:"#059669",bg:"#d1fae5",border:"#a7f3d0"},
     {id:"lavadores",label:"👷 Lavadores",color:"#7c3aed",bg:"#ede9fe",border:"#ddd6fe"},
     {id:"clientes",label:"👥 Clientes",color:"#d97706",bg:"#fef3c7",border:"#fde68a"},
+    {id:"cierre",label:`💰 Cierre${registros.length ? ` (${registros.length})` : ""}`,color:"#dc2626",bg:"#fee2e2",border:"#fecaca"},
     {id:"config",label:"⚙️ Configuración",color:"#4b5563",bg:"#f3f4f6",border:"#e5e7eb"},
   ];
 
@@ -2074,7 +2970,12 @@ export default function App() {
           {modoOculto && <span style={{ fontSize:10, fontWeight:800, color:"#92400e", background:"#fffbeb", padding:"3px 8px", borderRadius:8, border:"1px solid #fde68a" }}>OCULTO</span>}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          {diaActual?.lluvia ? (<Btn sm color="success" onClick={() => setMostrarLluvia(true)}>☀️ Reorganizar</Btn>) : (<Btn sm color="warning" onClick={activarLluvia}>🌧️ Lluvia</Btn>)}
+          {/* FIX-4: Botón Lluvia solo activa estado, NO abre modal */}
+          {diaActual?.lluvia ? (
+            <Btn sm color="success" onClick={() => setMostrarLluvia(true)}>☀️ Reorganizar</Btn>
+          ) : (
+            <Btn sm color="warning" onClick={activarLluvia}>🌧️ Lluvia</Btn>
+          )}
           <RelojVivo />
         </div>
       </header>
@@ -2096,32 +2997,63 @@ export default function App() {
       </nav>
 
       <main style={{ padding:20, maxWidth:1200, margin:"0 auto", animation:"fadeInUp .4s ease-out" }}>
-        {tab === "agenda" && <TabAgenda turnos={turnos} staff={staff} asistencias={asistencias} clientes={clientes} mostrarToast={mostrarToast} onCeldaClick={handleCeldaClick} onTurnoClick={handleTurnoClick} onCambiarEstado={cambiarEstadoTurno} onCerrarTurno={cerrarTurno} />}
-        {tab === "seguimiento" && <TabSeguimientoTurnos turnos={turnos} clientes={clientes} staff={staff} onMarcarTerminado={cambiarEstadoTurno} onCerrarTurno={cerrarTurno} />}
-        {tab === "lavadores" && <TabLavadores staff={staff} turnos={turnos} hoyStr={hoy()} COL_ASISTENCIAS={COL_ASISTENCIAS} COL_STAFF={COL_STAFF} asistencias={asistencias} setAsistencias={setAsistencias} mostrarToast={mostrarToast} onVerRuta={(l) => setLavadorRuta(l)} onGestionar={() => setMostrarGestionLav(true)} />}
+        {tab === "agenda" && <TabAgenda turnos={turnos} staff={staff} asistencias={asistencias} clientes={clientes} mostrarToast={mostrarToast} onCeldaClick={handleCeldaClick} onTurnoClick={handleTurnoClick} onCambiarEstado={cambiarEstadoTurno} onCerrarTurno={cerrarTurno} onExportar={() => {
+          const datos = turnos.map(t => ({ hora:t.hora, cliente:t.clienteNombre, lavador:staff.find(s=>s.id===t.lavadorId)?.nombre||"—", auto:t.auto, precio:t.precio, estado:t.estado }));
+          exportCSV(datos, ["hora","cliente","lavador","auto","precio","estado"], `agenda-${hoy()}`);
+        }} />}
         
+        {tab === "seguimiento" && <TabSeguimientoTurnos turnos={turnos} clientes={clientes} staff={staff} onMarcarTerminado={cambiarEstadoTurno} onCerrarTurno={cerrarTurno} onExportar={() => {
+          const datos = turnos.map(t => ({ hora:t.hora, cliente:t.clienteNombre, estado:t.estado, precio:t.precio }));
+          exportCSV(datos, ["hora","cliente","estado","precio"], `seguimiento-${hoy()}`);
+        }} />}
+        
+        {tab === "lavadores" && <TabLavadores staff={staff} turnos={turnos} hoyStr={hoy()} COL_ASISTENCIAS={COL_ASISTENCIAS} COL_STAFF={COL_STAFF} asistencias={asistencias} setAsistencias={setAsistencias} mostrarToast={mostrarToast} onVerRuta={(l) => setLavadorRuta(l)} onGestionar={() => setMostrarGestionLav(true)} onOperacion={(l) => setLavadorOperacion(l)} registros={registros} prestamos={prestamos} />}
+        
+        {/* FIX-5: Clientes con filtros avanzados */}
         {tab === "clientes" && (
           <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
             <div style={{ position:"sticky", top:"110px", zIndex:80, background:"rgba(249,250,251,.97)", backdropFilter:"blur(12px)", padding:"8px 0 12px 0", display:"flex", flexDirection:"column", gap:10, borderBottom:"1px solid #e5e7eb" }}>
               <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
                 <h3 style={{ margin:0, fontSize:20, fontWeight:800, color:"#1e293b" }}>👥 Clientes ({clientesFiltrados.length})</h3>
-                <Btn sm color="success" onClick={()=>setMostrarNuevoClienteDirecto(true)}>➕ Nuevo</Btn>
+                <div style={{display:"flex", gap:6}}>
+                  <Btn sm color="tertiary" onClick={() => exportCSV(clientesFiltrados.map(c => ({nombre:c.nombre,codigo:c.codigo,barrio:c.barrio,telefono:c.telefono,deuda:c.deuda,tipo:c.tipo})), ["nombre","codigo","barrio","telefono","deuda","tipo"], `clientes-${hoy()}`)}>📥 Exportar</Btn>
+                  <Btn sm color="success" onClick={()=>setMostrarNuevoClienteDirecto(true)}>➕ Nuevo</Btn>
+                </div>
               </div>
-              <input type="text" value={busquedaClientes} onChange={e => setBusquedaClientes(e.target.value)} placeholder="🔍 Buscar..."
+              <input type="text" value={busquedaClientes} onChange={e => setBusquedaClientes(e.target.value)} placeholder="🔍 Buscar por nombre, código, barrio..."
                 style={{ background:"#ffffff", border:"1.5px solid #e5e7eb", borderRadius:14, padding:"12px 16px", color:"#1e293b", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box" }} />
+              <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+                <select value={filtroBarrio} onChange={e => setFiltroBarrio(e.target.value)} style={{background:"#ffffff", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"8px 12px", fontSize:12, color:"#1e293b", outline:"none"}}>
+                  <option value="">Todos los barrios</option>
+                  {LISTA_BARRIOS.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} style={{background:"#ffffff", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"8px 12px", fontSize:12, color:"#1e293b", outline:"none"}}>
+                  <option value="">Todos los tipos</option>
+                  <option value="⭐ Frecuente">⭐ Frecuente</option>
+                  <option value="🔥 Top">🔥 Top</option>
+                  <option value="💤 Ocasional">💤 Ocasional</option>
+                </select>
+                <label style={{display:"flex", alignItems:"center", gap:6, fontSize:12, cursor:"pointer", padding:"8px 12px", background: filtroDeuda ? "#fef2f2" : "#ffffff", border: `1.5px solid ${filtroDeuda ? "#fecaca" : "#e5e7eb"}`, borderRadius:10}}>
+                  <input type="checkbox" checked={filtroDeuda} onChange={e => setFiltroDeuda(e.target.checked)} />
+                  <span style={{color: filtroDeuda ? "#991b1b" : "#6b7280", fontWeight:600}}>Solo con deuda</span>
+                </label>
+              </div>
             </div>
 
             {clientesFiltrados.length === 0 ? (
               <div style={{ textAlign:"center", color:"#9ca3af", padding:40, fontSize:13, background:"#ffffff", borderRadius:16, border:"1px solid #e5e7eb" }}>Sin resultados</div>
             ) : (
               clientesFiltrados.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(c => (
-                <div key={c.id} style={{background:"#ffffff", borderRadius:18, padding:18, border:"1px solid #e5e7eb", boxShadow:"0 2px 8px rgba(0,0,0,.02)", display:"flex", flexDirection:"column", gap:10}}>
+                <div key={c.id} style={{background:"#ffffff", borderRadius:18, padding:18, border:`1.5px solid ${c.deuda > 0 ? "#fecaca" : "#e5e7eb"}`, boxShadow:"0 2px 8px rgba(0,0,0,.02)", display:"flex", flexDirection:"column", gap:10}}>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
                     <div>
                       <div style={{ fontSize:15, fontWeight:800, color:"#1e293b" }}>{c.nombre}</div>
                       <div style={{fontSize:11, fontWeight:800, color:"#7c3aed", marginTop:4, fontFamily:"monospace", background:"#f3e8ff", padding:"3px 10px", borderRadius:6, display:"inline-block", border:"1px solid #ddd6fe"}}>{c.codigo}</div>
                     </div>
-                    <span style={{ fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:8, background:"#f3f4f6", color:"#4b5563", border:"1px solid #e5e7eb" }}>{c.tipo}</span>
+                    <div style={{display:"flex", gap:6, alignItems:"center"}}>
+                      {c.deuda > 0 && <span style={{ fontSize:11, fontWeight:800, padding:"4px 10px", borderRadius:8, background:"#fef2f2", color:"#991b1b", border:"1px solid #fecaca" }}>Deuda: {formatP(c.deuda)}</span>}
+                      <span style={{ fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:8, background:"#f3f4f6", color:"#4b5563", border:"1px solid #e5e7eb" }}>{c.tipo}</span>
+                    </div>
                   </div>
                   <div style={{fontSize:12, color:"#6b7280", lineHeight:1.6}}>
                     <div>📍 {c.direccion || "Sin dirección"} • {c.barrio}</div>
@@ -2137,6 +3069,15 @@ export default function App() {
           </div>
         )}
         
+        {/* RESTORE-4: Vista Cierre/Caja completa */}
+        {tab === "cierre" && (
+          <TabCierre registros={registros} turnos={turnos} clientes={clientes} staff={staff} diaHoy={hoy()} mostrarToast={mostrarToast}
+            onPagarDeuda={pagarDeuda} onCondonarDeuda={condonarDeuda} onPunitorio={aplicarPunitorio}
+            onRendir={(t) => setTurnoParaRendir(t)} onCobrar={(t) => setTurnoParaCobrar(t)}
+            onEditarCobro={editarCobro} onRendirTodo={rendirTodoLavador}
+            rangoC={rangoC} setRangoC={setRangoC} regMulti={regMulti} loadMulti={loadMulti} />
+        )}
+        
         {tab === "config" && (
           <div style={{padding:20, background:"#ffffff", borderRadius:20, border:"1px solid #e5e7eb"}}>
             <div style={{fontSize:12, color:"#6b7280"}}>La configuración se gestiona desde el modal principal. Hacé clic en ⚙️ Configuración en la barra superior.</div>
@@ -2144,10 +3085,12 @@ export default function App() {
         )}
       </main>
 
+      {/* MODALES */}
       {modalOpen === "nuevoTurno" && (
         <ModalNuevoTurno clientes={clientes} staff={staff} turnos={turnos} asistencias={asistencias} 
           COL_TURNOS={COL_TURNOS} COL_CLIENTES={COL_CLIENTES} mostrarToast={mostrarToast} 
           clientePreseleccionado={clienteParaTurno} config={config} codigosExistentes={codigosExistentes}
+          celdaPreseleccionada={celdaPreseleccionada}
           onClienteCreated={(c) => setClientes(prev => [...prev, c])}
           onTurnoCreado={(t, c, l) => setTurnoCreadoData({ turno: t, cliente: c, lavador: l })}
           onClose={() => { setModalOpen(null); setCeldaPreseleccionada(null); }} />
@@ -2157,7 +3100,10 @@ export default function App() {
         <ModalDetalleTurno turno={turnoSel} clientes={clientes} staff={staff}
           onClose={() => { setModalOpen(null); setTurnoSel(null); }}
           onCambiarEstado={cambiarEstadoTurno}
-          onCerrarTurno={cerrarTurno} />
+          onCerrarTurno={cerrarTurno}
+          onCobrar={(t) => { setModalOpen(null); setTurnoParaCobrar(t); }}
+          onRendir={(t) => { setModalOpen(null); setTurnoParaRendir(t); }}
+          onReasignar={reasignarTurno} />
       )}
       
       {turnoCreadoData && (
@@ -2198,6 +3144,21 @@ export default function App() {
       {lavadorRuta && (
         <ModalRutaLavador lavador={lavadorRuta} turnos={turnos} clientes={clientes}
           onClose={() => setLavadorRuta(null)} />
+      )}
+      
+      {lavadorOperacion && (
+        <ModalOperacion lavador={lavadorOperacion} onRegistrar={registrarOperacion}
+          onClose={() => setLavadorOperacion(null)} />
+      )}
+      
+      {turnoParaCobrar && (
+        <ModalCobro turno={turnoParaCobrar} onRegistrar={registrarCobro}
+          onClose={() => setTurnoParaCobrar(null)} />
+      )}
+      
+      {turnoParaRendir && (
+        <ModalRendicion turno={turnoParaRendir} onRegistrar={registrarRendicion}
+          onClose={() => setTurnoParaRendir(null)} />
       )}
       
       {avisoFijo && <AvisoFijo msg={avisoFijo.msg} tipo={avisoFijo.tipo} onClose={() => setAvisoFijo(null)} />}
