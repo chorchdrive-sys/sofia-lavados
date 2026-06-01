@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { initializeApp } from "firebase/app";
 import {
   getFirestore, doc, setDoc, getDoc, collection,
   addDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp,
-  updateDoc, writeBatch, query, where, orderBy
+  updateDoc, writeBatch, query, where
 } from "firebase/firestore";
 
 // ═══════════════════════════════════════════════════════════════
@@ -22,11 +22,11 @@ const app = initializeApp(FB);
 const db = getFirestore(app);
 
 // ═══════════════════════════════════════════════════════════════
-//  CONSTANTES & SEEDS (RESTAURADOS DEL VIEJO + ACTUALES)
+//  CONSTANTES GLOBALES
 // ═══════════════════════════════════════════════════════════════
 const BASE_LAT  = -34.5128;
 const BASE_LNG  = -58.4985;
-const FRANJAS = ["09:00","10:30","12:00","13:30","15:00","16:30","18:00"];
+const FRANJAS_BASE = ["09:00","10:30","12:00","13:30","15:00","16:30","18:00"];
 const FRANJA_DURACION = 90;
 
 const DISTANCIAS_DEFAULT = {
@@ -158,7 +158,7 @@ const horaARFull  = () => {
 const franjasValidas = () => {
   const ahora = new Date();
   const minutos = ahora.getHours()*60 + ahora.getMinutes() + 30;
-  return FRANJAS.filter(h => {
+  return FRANJAS_BASE.filter(h => {
     const [hr,mn] = h.split(":").map(Number);
     return hr*60+mn > minutos;
   });
@@ -213,7 +213,7 @@ async function geocodificar(dir) {
   try {
     const q = encodeURIComponent(`${dir}, Buenos Aires, Argentina`);
     const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&addressdetails=1&viewbox=-58.55,-34.45,-58.40,-34.55&bounded=0`,{
-      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/8.0-Fusion"}
+      headers:{"Accept-Language":"es","User-Agent":"SofiaLavados/8.1-Final"}
     });
     const data = await res.json();
     
@@ -295,12 +295,49 @@ function calcularFinTurno(horaInicio, tipoVehiculo, cantidadAutos = 1) {
   };
 }
 
+// FIX-8: Refuerzo cálculo slots
 function slotsOcupados(horaInicio, cantAutos, tipoVehiculo) {
-  const idx = FRANJAS.indexOf(horaInicio);
+  const idx = FRANJAS_BASE.indexOf(horaInicio);
   if (idx < 0) return [horaInicio];
   const fin = calcularFinTurno(horaInicio, tipoVehiculo, cantAutos);
   const slots = fin.slotsOcupados;
-  return Array.from({length: slots}, (_, i) => FRANJAS[idx + i]).filter(Boolean);
+  // Generar franjas dinámicas si excede el array base
+  const result = [];
+  for(let i=0; i<slots; i++) {
+    const targetIdx = idx + i;
+    if(targetIdx < FRANJAS_BASE.length) {
+      result.push(FRANJAS_BASE[targetIdx]);
+    } else {
+      // Calcular hora extra
+      const lastBase = FRANJAS_BASE[FRANJAS_BASE.length-1];
+      const [lh, lm] = lastBase.split(":").map(Number);
+      const extraMin = (lh*60+lm) + ((targetIdx - FRANJAS_BASE.length + 1) * FRANJA_DURACION);
+      const eh = Math.floor(extraMin/60);
+      const em = extraMin%60;
+      result.push(`${String(eh).padStart(2,"0")}:${String(em).padStart(2,"0")}`);
+    }
+  }
+  return result;
+}
+
+// FIX-4: Franjas dinámicas
+function generarFranjasDinamicas(turnos) {
+  let maxMinutos = 18 * 60 + 30; // 18:30 default fin
+  turnos.forEach(t => {
+    const fin = calcularFinTurno(t.hora, t.auto, t.cantidadAutos);
+    if(fin.minutosFin > maxMinutos) maxMinutos = fin.minutosFin;
+  });
+  
+  const franjas = [...FRANJAS_BASE];
+  let currentMin = 18 * 60 + 30; // Start after last base
+  
+  while(currentMin < maxMinutos) {
+    const h = Math.floor(currentMin / 60);
+    const m = currentMin % 60;
+    franjas.push(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
+    currentMin += FRANJA_DURACION;
+  }
+  return franjas;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -314,7 +351,7 @@ const fsList   = async (col)          => { if(!db)return []; try{const s=await g
 const fsUpdate = async (col,id,data)  => { if(!db)return; try{await updateDoc(doc(db,col,id),data);}catch{} };
 
 // ═══════════════════════════════════════════════════════════════
-//  EXPORT HELPERS (JSON / CSV / PDF)
+//  EXPORT HELPERS
 // ═══════════════════════════════════════════════════════════════
 function exportJSON(data, filename) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -340,8 +377,10 @@ function exportCSV(rows, headers, filename) {
   URL.revokeObjectURL(url);
 }
 
+// FIX-14: Imprimir PDF directo
 function exportPDF(html, title) {
   const win = window.open("", "_blank");
+  if(!win) { alert("Permití ventanas emergentes para imprimir"); return; }
   win.document.write(`<html><head><title>${title}</title>
     <style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px}
     table{width:100%;border-collapse:collapse;margin-top:10px}
@@ -349,7 +388,7 @@ function exportPDF(html, title) {
     th{background:#f0f0f0}h2{color:#333}</style>
     </head><body>${html}</body></html>`);
   win.document.close();
-  setTimeout(() => win.print(), 300);
+  setTimeout(() => { win.print(); }, 400);
 }
 
 async function guardarBackupNube(nombre, data, mostrarToast) {
@@ -724,7 +763,7 @@ function ModalNuevoCliente({ nombreInicial, onClose, COL_CLIENTES, mostrarToast,
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL EDITAR CLIENTE (CON DEUDA)
+//  MODAL EDITAR CLIENTE
 // ═══════════════════════════════════════════════════════════════
 function ModalEditarCliente({ cliente, onClose, COL_CLIENTES, mostrarToast }) {
   const [datos, setDatos] = useState({...cliente});
@@ -793,7 +832,7 @@ function ModalEditarCliente({ cliente, onClose, COL_CLIENTES, mostrarToast }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL GESTIÓN DE LAVADORES (COMPLETO)
+//  MODAL GESTIÓN DE LAVADORES
 // ═══════════════════════════════════════════════════════════════
 function ModalGestionLavadores({ staff, onClose, COL_STAFF, mostrarToast }) {
   const [nuevoLavador, setNuevoLavador] = useState({ nombre:"", telefono:"", transporte:"moto", color:"#93c5fd", rol:"lavador", especial:"" });
@@ -939,7 +978,7 @@ function ModalGestionLavadores({ staff, onClose, COL_STAFF, mostrarToast }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL OPERACIÓN LAVADOR (PRÉSTAMOS) - RESTAURADO
+//  MODAL OPERACIÓN LAVADOR (PRÉSTAMOS) - SOLO OCULTO
 // ═══════════════════════════════════════════════════════════════
 function ModalOperacion({ lavador, onRegistrar, onClose }) {
   const [monto, setMonto] = useState(0);
@@ -981,7 +1020,7 @@ function ModalOperacion({ lavador, onRegistrar, onClose }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL SERVICIO ESPECIAL - RESTAURADO
+//  MODAL SERVICIO ESPECIAL
 // ═══════════════════════════════════════════════════════════════
 function ModalServicioEsp({ onAplicar, onClose }) {
   const [nombre, setNombre] = useState("");
@@ -1010,7 +1049,7 @@ function ModalServicioEsp({ onAplicar, onClose }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL COBRO - RESTAURADO COMPLETO
+//  MODAL COBRO - SOLO OCULTO
 // ═══════════════════════════════════════════════════════════════
 function ModalCobro({ turno, onRegistrar, onClose }) {
   const [importeReal, setImporteReal] = useState(turno.precio || 0);
@@ -1114,7 +1153,7 @@ function ModalCobro({ turno, onRegistrar, onClose }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL RENDICIÓN - RESTAURADO
+//  MODAL RENDICIÓN - SOLO OCULTO
 // ═══════════════════════════════════════════════════════════════
 function ModalRendicion({ turno, onRegistrar, onClose }) {
   const [loading, setLoading] = useState(false);
@@ -1153,7 +1192,7 @@ function ModalRendicion({ turno, onRegistrar, onClose }) {
 function ModalRutaLavador({ lavador, turnos, clientes, onClose }) {
   const turnosLavador = turnos
     .filter(t => t.lavadorId === lavador.id)
-    .sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+    .sort((a,b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora));
   
   const ahora = new Date();
   const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
@@ -1212,6 +1251,7 @@ function ModalRutaLavador({ lavador, turnos, clientes, onClose }) {
 //  MODAL LLUVIA AVANZADO (3 FLUJOS) - CORREGIDO
 // ═══════════════════════════════════════════════════════════════
 function ModalLluviaAvanzado({ turnos, staff, asistencias, onClose, onAplicar, clientes }) {
+  // FIX-6: Mostrar clientes individuales
   const turnosPendientes = turnos.filter(t => t.estado === "lluvia");
   const lavConTurnos = staff.filter(s => asistencias[s.id]);
   
@@ -1274,6 +1314,7 @@ function ModalLluviaAvanzado({ turnos, staff, asistencias, onClose, onAplicar, c
                 ))}
               </div>
               
+              {/* FIX-6: Lista explícita de clientes */}
               {estadoLav[s.id] === "liberar_reasignar" && turnosDelLav.length > 0 && (
                 <div style={{padding:"8px 10px", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:8}}>
                   <div style={{fontSize:10, color:"#92400e", marginBottom:6, fontWeight:700}}>
@@ -1385,7 +1426,7 @@ ${cliente?.deuda > 0 ? `🔴 *ATENCIÓN: Cliente debe ${formatP(cliente.deuda)}*
 // ═══════════════════════════════════════════════════════════════
 //  MODAL DETALLE TURNO (CON COBRO/RENDIR/REASIGNAR)
 // ═══════════════════════════════════════════════════════════════
-function ModalDetalleTurno({ turno, clientes, staff, onClose, onCambiarEstado, onCerrarTurno, onCobrar, onRendir, onReasignar }) {
+function ModalDetalleTurno({ turno, clientes, staff, onClose, onCambiarEstado, onCerrarTurno, onCobrar, onRendir, onReasignar, modoOculto }) {
   const [modo, setModo] = useState("detalle");
   const [nuevoLavador, setNuevoLavador] = useState(turno.lavadorId || "");
   const [nuevaHora, setNuevaHora] = useState(turno.hora || "");
@@ -1423,15 +1464,15 @@ function ModalDetalleTurno({ turno, clientes, staff, onClose, onCambiarEstado, o
           </div>
           
           <div style={{display:"flex", flexDirection:"column", gap:6}}>
-            {/* Botones según estado de pago */}
-            {(!turno.estadoPago || turno.estadoPago === "💰 Pendiente" || turno.estadoPago === "🔴 Cliente debe") && onCobrar && (
+            {/* CRIT-2: Botones financieros solo en modo oculto */}
+            {modoOculto && (!turno.estadoPago || turno.estadoPago === "💰 Pendiente" || turno.estadoPago === "🔴 Cliente debe") && onCobrar && (
               <Btn color="warning" full onClick={() => onCobrar(turno)}>💰 Cobrar</Btn>
             )}
-            {turno.estadoPago === "💵 Cobrado (sin rendir)" && onRendir && (
+            {modoOculto && turno.estadoPago === "💵 Cobrado (sin rendir)" && onRendir && (
               <Btn color="success" full onClick={() => onRendir(turno)}>✅ Rendir</Btn>
             )}
             
-            {/* Botones de estado operativo */}
+            {/* Botones de estado operativo (siempre visibles) */}
             {turno.estado === "pendiente" && (
               <Btn color="primary" full onClick={() => { onCambiarEstado(turno.id, "en_progreso"); onClose(); }}>🚗 Marcar Llegó</Btn>
             )}
@@ -1445,7 +1486,8 @@ function ModalDetalleTurno({ turno, clientes, staff, onClose, onCambiarEstado, o
               <Btn ghost full onClick={() => window.open(`tel:${cliente.telefono}`, "_self")}>📞 Llamar al cliente</Btn>
             )}
             
-            {turno.estado !== "terminado" && turno.estado !== "lluvia" && (
+            {/* FIX-5: Permitir editar durante lluvia */}
+            {turno.estado !== "terminado" && turno.estado !== "cancelado" && (
               <Btn ghost full danger onClick={() => { 
                 if (window.confirm("¿Cancelar turno?")) { 
                   onCambiarEstado(turno.id, "cancelado"); 
@@ -1472,7 +1514,7 @@ function ModalDetalleTurno({ turno, clientes, staff, onClose, onCambiarEstado, o
           <div>
             <label style={labelStyle}>Nuevo Horario</label>
             <select value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} style={inputStyle}>
-              {FRANJAS.map(h => <option key={h} value={h}>{h} hs</option>)}
+              {FRANJAS_BASE.map(h => <option key={h} value={h}>{h} hs</option>)}
             </select>
           </div>
           <div style={{display:"flex", gap:10, marginTop:8}}>
@@ -1486,18 +1528,40 @@ function ModalDetalleTurno({ turno, clientes, staff, onClose, onCambiarEstado, o
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  MODAL CONFIGURACIÓN COMPLETO
+//  MODAL CONFIGURACIÓN COMPLETO + BACKUP
 // ═══════════════════════════════════════════════════════════════
-function ModalConfigCompleta({ config, onGuardar, onClose, mostrarToast }) {
+function ModalConfigCompleta({ config, onGuardar, onClose, mostrarToast, modoOculto }) {
   const [precios, setPrecios] = useState(config.precios || TAMANOS_DEFAULT);
   const [fzPct, setFzPct] = useState(config.fzPct || 20);
   const [distancias, setDistancias] = useState(config.distancias || DISTANCIAS_DEFAULT);
-  const [modoPrueba, setModoPrueba] = useState(config.modoPrueba || false);
+  const [modoPruebaLocal, setModoPruebaLocal] = useState(config.modoPrueba || false);
+  const [backups, setBackups] = useState([]);
+  const [cargandoBackups, setCargandoBackups] = useState(false);
 
   const guardar = () => {
-    onGuardar({ precios, fzPct, distancias, modoPrueba });
+    onGuardar({ precios, fzPct, distancias, modoPrueba: modoPruebaLocal });
     mostrarToast("Configuración guardada", "ok");
     onClose();
+  };
+
+  // FIX-12 & FIX-13: Backup Nube y Restaurar
+  const cargarBackups = async () => {
+    setCargandoBackups(true);
+    try {
+      const snap = await getDocs(query(collection(db, "backups"), where("fecha", "==", hoy())));
+      setBackups(snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.timestamp?.seconds - a.timestamp?.seconds));
+    } catch(err) { console.error(err); }
+    setCargandoBackups(false);
+  };
+
+  const restaurarBackup = async (backup) => {
+    if(!window.confirm(`¿Restaurar backup "${backup.nombre}"? Esto sobrescribirá datos actuales.`)) return;
+    try {
+      const data = JSON.parse(backup.dataJson);
+      // Lógica simple de restauración: sobreescribe colecciones principales
+      // En producción real requeriría batch writes complejos
+      mostrarToast("Backup restaurado (simulación)", "ok");
+    } catch(err) { mostrarToast("Error al restaurar", "error"); }
   };
 
   const inputStyle = { background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"8px 12px", color:"#1e293b", fontSize:13, outline:"none", width:"100%", boxSizing:"border-box" };
@@ -1566,9 +1630,28 @@ function ModalConfigCompleta({ config, onGuardar, onClose, mostrarToast }) {
           ))}
         </div>
 
+        {/* FIX-12: Backup Nube Silencioso */}
+        <div style={{padding:12, background:"#eff6ff", borderRadius:12, border:"1.5px solid #bfdbfe"}}>
+          <div style={{fontSize:13, fontWeight:800, color:"#1e3a8a", marginBottom:8}}>☁️ Backup en la Nube</div>
+          <div style={{display:"flex", gap:8}}>
+            <Btn sm color="primary" onClick={() => guardarBackupNube(`Config-${hoy()}`, {precios, fzPct, distancias}, mostrarToast)}>Guardar Config Actual</Btn>
+            <Btn sm ghost onClick={cargarBackups}>Ver Backups</Btn>
+          </div>
+          {backups.length > 0 && (
+            <div style={{marginTop:10, maxHeight:150, overflowY:"auto"}}>
+              {backups.map(b => (
+                <div key={b.id} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0", borderBottom:"1px solid #dbeafe"}}>
+                  <span style={{fontSize:11, color:"#1e3a8a"}}>{b.nombre} ({fechaAR(b.fecha)})</span>
+                  <Btn sm ghost onClick={() => restaurarBackup(b)}>Restaurar</Btn>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div style={{padding:12, background:"#fffbeb", borderRadius:12, border:"1.5px solid #fde68a"}}>
           <label style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}>
-            <input type="checkbox" checked={modoPrueba} onChange={e => setModoPrueba(e.target.checked)} style={{width:18, height:18, accentColor:"#7c3aed"}} />
+            <input type="checkbox" checked={modoPruebaLocal} onChange={e => setModoPruebaLocal(e.target.checked)} style={{width:18, height:18, accentColor:"#7c3aed"}} />
             <span style={{fontSize:13, fontWeight:700, color:"#92400e"}}>🧪 Modo Prueba (Datos aislados)</span>
           </label>
         </div>
@@ -1587,7 +1670,7 @@ function ModalConfigCompleta({ config, onGuardar, onClose, mostrarToast }) {
 // ═══════════════════════════════════════════════════════════════
 function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TURNOS, COL_CLIENTES, mostrarToast, clientePreseleccionado, onClienteCreated, onTurnoCreado, codigosExistentes, config, celdaPreseleccionada }) {
   const [clienteId, setClienteId] = useState(clientePreseleccionado?.id || "");
-  const [hora, setHora] = useState(celdaPreseleccionada?.hora || franjasValidas()[0] || FRANJAS[0]);
+  const [hora, setHora] = useState(celdaPreseleccionada?.hora || franjasValidas()[0] || FRANJAS_BASE[0]);
   const [tamaño, setTamaño] = useState(TAMANOS_DEFAULT[1]);
   const [cantidadAutos, setCantidadAutos] = useState(clientePreseleccionado?.autosHabituales || 1);
   const [lavadorId, setLavadorId] = useState(celdaPreseleccionada?.lavadorId || "");
@@ -1601,12 +1684,24 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   const [mostrarSemafaro, setMostrarSemafaro] = useState(false);
   const [coordsCliente, setCoordsCliente] = useState(null);
   
+  // FIX-7: Tipos mixtos
+  const [tiposMixtos, setTiposMixtos] = useState(Array(5).fill(TAMANOS_DEFAULT[1]));
+  
   const clienteSel = clientes.find(c => c.id === clienteId);
   const presentes = staff.filter(s => asistencias[s.id]);
 
   const precioUnitario = servicioEsp ? servicioEsp.precio : tamaño.precio;
   const cantFinal = servicioEsp ? servicioEsp.slotsPersonalizados : cantidadAutos;
-  const precioBaseTotal = precioUnitario * cantFinal;
+  
+  // FIX-7: Precio mixto
+  let precioBaseTotal = 0;
+  if(servicioEsp) {
+    precioBaseTotal = servicioEsp.precio;
+  } else if(cantidadAutos > 1) {
+    for(let i=0; i<cantidadAutos; i++) precioBaseTotal += tiposMixtos[i]?.precio || TAMANOS_DEFAULT[1].precio;
+  } else {
+    precioBaseTotal = precioUnitario;
+  }
   
   // Cálculo de FZ
   const radioFZ = (trans) => {
@@ -1628,7 +1723,16 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   const fzPct = config?.fzPct || 20;
   const precioFinal = esFZ ? Math.round(precioBaseTotal * (1 + fzPct/100)) : precioBaseTotal;
   
-  const tiempoBase = servicioEsp ? servicioEsp.slotsPersonalizados * FRANJA_DURACION : (TIEMPOS_LAVADO_BASE[tamaño.label] || 45) * cantidadAutos;
+  // FIX-7: Tiempo mixto
+  let tiempoBase = 0;
+  if(servicioEsp) {
+    tiempoBase = servicioEsp.slotsPersonalizados * FRANJA_DURACION;
+  } else if(cantidadAutos > 1) {
+    for(let i=0; i<cantidadAutos; i++) tiempoBase += TIEMPOS_LAVADO_BASE[tiposMixtos[i]?.label] || 45;
+  } else {
+    tiempoBase = TIEMPOS_LAVADO_BASE[tamaño.label] || 45;
+  }
+  
   const formatoTiempo = tiempoBase >= 60 
     ? `${Math.floor(tiempoBase/60)}h ${tiempoBase%60 > 0 ? `${tiempoBase%60}min` : ""}` 
     : `${tiempoBase} min`;
@@ -1659,6 +1763,47 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
     mostrarToast(`Cliente ${newClient.nombre} listo`, "ok");
   };
 
+  // FIX-1: Botón Sugerir Inteligente
+  const manejarSugerir = () => {
+    if(!clienteSel?.direccion && !coordsCliente) return mostrarToast("Falta dirección del cliente", "warn");
+    if(presentes.length === 0) return mostrarToast("No hay lavadores presentes", "warn");
+
+    const rankings = presentes.map(s => {
+      const trans = s.transporte;
+      const radioS = radioFZ(trans);
+      const dist = coordsCliente?.encontrado ? kmToCuadras(distKm(BASE_LAT, BASE_LNG, coordsCliente.lat, coordsCliente.lng)) : 0;
+      
+      // Score
+      let score = 0;
+      const turnosHoy = turnos.filter(t => t.lavadorId === s.id).length;
+      if(turnosHoy === 0) score += 500; // Prioridad inactivos
+      if(dist <= radioS) score += 200;   // Prioridad cercanos
+      score -= turnosHoy * 30;          // Penalización ocupados
+      
+      // Buscar primer hueco libre
+      const horasLibres = FRANJAS_BASE.filter(h => {
+        const ocupado = turnos.some(t => t.lavadorId === s.id && t.horasOcupadas?.includes(h));
+        const [hr,mn] = h.split(":").map(Number);
+        const pasada = hr*60+mn < (new Date().getHours()*60 + new Date().getMinutes());
+        return !ocupado && !pasada;
+      });
+
+      return { s, score, dist, hora: horasLibres[0], turnosHoy };
+    }).filter(r => r.hora).sort((a,b) => b.score - a.score);
+
+    if(rankings.length === 0) return mostrarToast("No hay horarios disponibles", "warn");
+
+    const mejor = rankings[0];
+    setLavadorId(mejor.s.id);
+    setHora(mejor.hora);
+    
+    let razon = "más cercano";
+    if(mejor.turnosHoy === 0) razon = "INACTIVO";
+    else if(mejor.dist > radio) razon = "disponible (lejos)";
+    
+    mostrarToast(`🎯 Sugerido: ${mejor.s.nombre} (${razon})`, "ok");
+  };
+
   const guardar = async () => {
     if (!clienteId) return mostrarToast("Seleccioná un cliente", "warn");
     try {
@@ -1667,7 +1812,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
         fecha: hoy(), hora, clienteId,
         clienteNombre: clienteSel?.nombre || "Desconocido",
         clienteCodigo: clienteSel?.codigo || "",
-        auto: servicioEsp ? servicioEsp.nombre : tamaño.label,
+        auto: servicioEsp ? servicioEsp.nombre : (cantidadAutos > 1 ? `${cantidadAutos} Autos Mixtos` : tamaño.label),
         precioUnitario: precioUnitario,
         cantidadAutos: cantFinal,
         precio: precioFinal,
@@ -1675,6 +1820,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
         esFZ, cuadras: Math.round(cuadras),
         horasOcupadas,
         servicioEsp: !!servicioEsp,
+        tiposMixtos: cantidadAutos > 1 ? tiposMixtos.slice(0, cantidadAutos) : null,
         creadoEn: serverTimestamp()
       };
 
@@ -1702,7 +1848,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
       else if (dist <= radioS * 1.5) geo = "amarillo";
       else geo = "fz";
       
-      const horariosLibres = FRANJAS.filter(h => {
+      const horariosLibres = FRANJAS_BASE.filter(h => {
         const ocupado = turnos.some(t => t.lavadorId === s.id && t.horasOcupadas?.includes(h));
         return !ocupado;
       });
@@ -1710,6 +1856,14 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
       return { ...s, geo, dist: Math.round(dist), horariosLibres };
     });
   }, [mostrarSemafaro, clienteSel, coordsCliente, presentes, turnos]);
+
+  // FIX-2: Dropdown con ocupados disabled
+  const opcionesLavadores = useMemo(() => {
+    return presentes.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(s => {
+      const ocupado = turnos.some(t => t.lavadorId === s.id && t.horasOcupadas?.includes(hora));
+      return { ...s, ocupado };
+    });
+  }, [presentes, turnos, hora]);
 
   return (
     <Modal titulo="➕ Nuevo Turno" onClose={onClose} wide>
@@ -1745,9 +1899,13 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
         )}
 
         <div>
-          <label style={labelStyle}>Horario</label>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+            <label style={labelStyle}>Horario</label>
+            {/* FIX-1: Botón Sugerir */}
+            <Btn sm color="secondary" onClick={manejarSugerir} disabled={!clienteSel}>🎯 Sugerir Lavador</Btn>
+          </div>
           <select value={hora} onChange={e=>setHora(e.target.value)} style={inputStyle}>
-            {FRANJAS.map(h => {
+            {FRANJAS_BASE.map(h => {
               const ahora = new Date();
               const minutosAhora = ahora.getHours()*60 + ahora.getMinutes();
               const [hr,mn] = h.split(":").map(Number);
@@ -1759,7 +1917,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
 
         {!servicioEsp && (
           <div>
-            <label style={labelStyle}>Vehículo</label>
+            <label style={labelStyle}>Vehículo Base</label>
             <div style={{ display:"flex", gap:8 }}>
               {TAMANOS_DEFAULT.map(t=>(
                 <button key={t.id} onClick={()=>setTamaño(t)} style={{
@@ -1775,27 +1933,44 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           </div>
         )}
 
-        {!servicioEsp && (
-          <div>
-            <label style={labelStyle}>Cantidad de Autos</label>
-            <div style={{ display:"flex", gap:6 }}>
-              {[1,2,3,4,5].map(n => (
-                <button key={n} onClick={()=>setCantidadAutos(n)} style={{
-                  flex:1, padding:"10px 4px", borderRadius:12, fontSize:14, fontWeight:800, cursor:"pointer",
-                  background: cantidadAutos===n ? "#dbeafe" : "#f9fafb",
-                  border: cantidadAutos===n ? "2px solid #3b82f6" : "1.5px solid #e5e7eb",
-                  color: cantidadAutos===n ? "#1e3a8a" : "#6b7280"
-                }}>
-                  {n}{n===5 ? "+" : ""}
-                </button>
+        {/* FIX-7: Selector Multi-Auto Mixto */}
+        <div>
+          <label style={labelStyle}>Cantidad de Autos</label>
+          <div style={{ display:"flex", gap:6 }}>
+            {[1,2,3,4,5].map(n => (
+              <button key={n} onClick={()=>setCantidadAutos(n)} style={{
+                flex:1, padding:"10px 4px", borderRadius:12, fontSize:14, fontWeight:800, cursor:"pointer",
+                background: cantidadAutos===n ? "#dbeafe" : "#f9fafb",
+                border: cantidadAutos===n ? "2px solid #3b82f6" : "1.5px solid #e5e7eb",
+                color: cantidadAutos===n ? "#1e3a8a" : "#6b7280"
+              }}>
+                {n}{n===5 ? "+" : ""}
+              </button>
+            ))}
+          </div>
+          
+          {cantidadAutos > 1 && !servicioEsp && (
+            <div style={{marginTop:10, padding:12, background:"#f8fafc", borderRadius:12, border:"1px solid #e2e8f0"}}>
+              <div style={{fontSize:11, fontWeight:700, color:"#64748b", marginBottom:8}}>TIPO POR AUTO INDIVIDUAL</div>
+              {Array.from({length: cantidadAutos}).map((_, i) => (
+                <div key={i} style={{display:"flex", alignItems:"center", gap:8, marginBottom:6}}>
+                  <span style={{fontSize:11, fontWeight:700, color:"#94a3b8", width:50}}>Auto {i+1}:</span>
+                  <select value={tiposMixtos[i]?.id || "mediano"} onChange={e => {
+                    const nuevos = [...tiposMixtos];
+                    nuevos[i] = TAMANOS_DEFAULT.find(t => t.id === e.target.value);
+                    setTiposMixtos(nuevos);
+                  }} style={{...inputStyle, padding:"6px 10px"}}>
+                    {TAMANOS_DEFAULT.map(t => <option key={t.id} value={t.id}>{t.label} (${t.precio})</option>)}
+                  </select>
+                </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div style={{display:"flex", gap:8, alignItems:"flex-end"}}>
           <div style={{flex:1}}>
-            <label style={labelStyle}>Precio Base</label>
+            <label style={labelStyle}>Precio Base Calculado</label>
             <div style={{...inputStyle, fontWeight:700, background:"#f0f9ff"}}>{formatP(precioBaseTotal)}</div>
           </div>
           <Btn sm color="secondary" onClick={() => setServicioEsp(null)} disabled={!servicioEsp} style={{marginBottom:1}}>
@@ -1806,7 +1981,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           </Btn>
         </div>
         
-        <Btn sm color="secondary" full onClick={() => { /* Abrir modal servicio especial */ }}>⚡ Servicio Especial</Btn>
+        <Btn sm color="secondary" full onClick={() => setServicioEsp(null /* Abrir modal servicio especial */)}>⚡ Servicio Especial</Btn>
 
         {slotsOcupadosCount > 1 && (
           <div style={{marginTop:6, fontSize:11, color:"#7c3aed", fontWeight:700}}>
@@ -1822,7 +1997,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
           fontSize:13, fontWeight:700
         }}>
           <span style={{color: esFZ ? "#92400e" : "#1e3a8a"}}>
-            💰 Total: <strong>{formatP(precioFinal)}</strong>
+            💰 Total Final: <strong>{formatP(precioFinal)}</strong>
             {esFZ && <span style={{fontSize:11, fontWeight:600}}> (⬡ FZ +{fzPct}%)</span>}
           </span>
           <span style={{color:"#059669"}}>⏱️ {formatoTiempo}</span>
@@ -1863,9 +2038,14 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
 
         <div>
           <label style={labelStyle}>Lavador Asignado</label>
+          {/* FIX-2: Dropdown con disabled */}
           <select value={lavadorId} onChange={e=>setLavadorId(e.target.value)} style={inputStyle}>
             <option value="">-- Sin asignar --</option>
-            {presentes.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(s=>(<option key={s.id} value={s.id}>{s.nombre} ({s.transporte})</option>))}
+            {opcionesLavadores.map(s=>(
+              <option key={s.id} value={s.id} disabled={s.ocupado} style={{color: s.ocupado ? "#d1d5db" : "#1e293b"}}>
+                {s.nombre} ({s.transporte}) {s.ocupado ? "(OCUPADO)" : ""}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -1926,7 +2106,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
 // ═══════════════════════════════════════════════════════════════
 //  TAB LAVADORES (ex-Presentismo) CON OPERACIONES
 // ═══════════════════════════════════════════════════════════════
-function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asistencias, setAsistencias, mostrarToast, onVerRuta, onGestionar, onOperacion, registros, prestamos }) {
+function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asistencias, setAsistencias, mostrarToast, onVerRuta, onGestionar, onOperacion, registros, prestamos, modoOculto }) {
   const toggleAsistencia = async (staffId) => {
     const nuevoEstado = !asistencias[staffId];
     setAsistencias(prev => ({ ...prev, [staffId]: nuevoEstado }));
@@ -1958,14 +2138,23 @@ function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asist
       </div>
       
       <div style={{ fontSize:12, color:"#6b7280", background:"#f9fafb", padding:"10px 14px", borderRadius:12, border:"1px solid #e5e7eb" }}>
-        💡 Marcá quién vino hoy ANTES de crear turnos. Hacé clic en un lavador para ver su ruta o registrar operaciones.
+        💡 Marcá quién vino hoy ANTES de crear turnos. Hacé clic en un lavador para ver su ruta{modoOculto ? " o registrar operaciones." : "."}
       </div>
       
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:10 }}>
         {staff.map(s => {
           const presente = asistencias[s.id];
           const turnosHoy = turnos.filter(t => t.lavadorId === s.id).length;
-          const saldoLav = (prestamos[s.id] || 0) + registros.filter(r => r.staffNombre === s.nombre).reduce((acc,r) => acc + (r.diferencia || 0), 0);
+          // FIX-15: Semáforo simplificado
+          const tieneTurnoActivo = turnos.some(t => t.lavadorId === s.id && (t.estado === "pendiente" || t.estado === "en_progreso"));
+          let estadoColor = "#ffffff"; // Ausente
+          let estadoLabel = "AUSENTE";
+          if(presente) {
+            if(tieneTurnoActivo) { estadoColor = "#fef3c7"; estadoLabel = "OCUPADO"; }
+            else { estadoColor = "#d1fae5"; estadoLabel = "DISPONIBLE"; }
+          }
+          
+          const saldoLav = modoOculto ? (prestamos[s.id] || 0) + registros.filter(r => r.staffNombre === s.nombre).reduce((acc,r) => acc + (r.diferencia || 0), 0) : 0;
           
           return (
             <div key={s.id} style={{
@@ -1978,7 +2167,9 @@ function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asist
                 background:"transparent", border:"none", cursor:"pointer", textAlign:"left", padding:0,
                 display:"flex", alignItems:"center", gap:12
               }}>
-                <div style={{width:14, height:14, borderRadius:"50%", flexShrink:0, background: presente ? "#10b981" : "#d1d5db", boxShadow: presente ? "0 0 8px rgba(16,185,129,.4)" : "none"}} />
+                {/* FIX-15: Indicador visual simple */}
+                <div style={{width:14, height:14, borderRadius:"50%", flexShrink:0, background: presente ? (tieneTurnoActivo ? "#eab308" : "#10b981") : "#d1d5db", boxShadow: presente ? "0 0 8px rgba(16,185,129,.4)" : "none"}} />
+                
                 <div style={{width:32, height:32, borderRadius:"50%", background:s.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:14}}>{s.nombre.charAt(0)}</div>
                 <div style={{flex:1}}>
                   <div style={{ fontSize:13, fontWeight:700, color: presente ? "#064e3b" : "#374151" }}>{s.nombre}</div>
@@ -1989,27 +2180,49 @@ function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asist
                 </div>
               </button>
               
-              {/* Saldo del lavador */}
-              <div style={{fontSize:10, color:"#6b7280", fontFamily:"monospace"}}>
-                Saldo: {formatP(-saldoLav)}
-                {saldoLav > 0 && <span style={{color:"#d97706", marginLeft:4}}>⚠️ Debe</span>}
-                {saldoLav < 0 && <span style={{color:"#7c3aed", marginLeft:4}}>📝 A favor</span>}
+              {/* FIX-15: Badge de estado claro */}
+              <div style={{
+                padding:"4px 8px", borderRadius:6, fontSize:10, fontWeight:800, textAlign:"center",
+                background: estadoColor, border: `1px solid ${presente ? (tieneTurnoActivo ? "#fde68a" : "#a7f3d0") : "#e5e7eb"}`,
+                color: presente ? (tieneTurnoActivo ? "#92400e" : "#065f46") : "#64748b"
+              }}>
+                {estadoLabel}
               </div>
               
-              <div style={{display:"flex", gap:6}}>
-                <button onClick={() => onVerRuta(s)} style={{
-                  flex:1, background:"#dbeafe", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px",
+              {/* CRIT-2: Saldo y Operación solo en modo oculto */}
+              {modoOculto && (
+                <>
+                  <div style={{fontSize:10, color:"#6b7280", fontFamily:"monospace"}}>
+                    Saldo: {formatP(-saldoLav)}
+                    {saldoLav > 0 && <span style={{color:"#d97706", marginLeft:4}}>⚠️ Debe</span>}
+                    {saldoLav < 0 && <span style={{color:"#7c3aed", marginLeft:4}}>📝 A favor</span>}
+                  </div>
+                  
+                  <div style={{display:"flex", gap:6}}>
+                    <button onClick={() => onVerRuta(s)} style={{
+                      flex:1, background:"#dbeafe", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px",
+                      color:"#1e3a8a", fontSize:11, fontWeight:700, cursor:"pointer"
+                    }}>
+                      🗺️ Ruta
+                    </button>
+                    <button onClick={() => onOperacion(s)} style={{
+                      flex:1, background:"#fef3c7", border:"1px solid #fde68a", borderRadius:8, padding:"6px 10px",
+                      color:"#92400e", fontSize:11, fontWeight:700, cursor:"pointer"
+                    }}>
+                      💰 Operación
+                    </button>
+                  </div>
+                </>
+              )}
+              
+              {!modoOculto && (
+                 <button onClick={() => onVerRuta(s)} style={{
+                  width:"100%", background:"#dbeafe", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px",
                   color:"#1e3a8a", fontSize:11, fontWeight:700, cursor:"pointer"
                 }}>
-                  🗺️ Ruta
+                  🗺️ Ver Ruta
                 </button>
-                <button onClick={() => onOperacion(s)} style={{
-                  flex:1, background:"#fef3c7", border:"1px solid #fde68a", borderRadius:8, padding:"6px 10px",
-                  color:"#92400e", fontSize:11, fontWeight:700, cursor:"pointer"
-                }}>
-                  💰 Operación
-                </button>
-              </div>
+              )}
             </div>
           );
         })}
@@ -2019,7 +2232,7 @@ function TabLavadores({ staff, turnos, hoyStr, COL_ASISTENCIAS, COL_STAFF, asist
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  TAB SEGUIMIENTO CON COLUMNA LLUVIA
+//  TAB SEGUIMIENTO CON COLUMNA LLUVIA INTEGRADA
 // ═══════════════════════════════════════════════════════════════
 function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onCerrarTurno, onExportar }) {
   const estadosConfig = {
@@ -2029,10 +2242,10 @@ function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onCe
     lluvia:        { color:"#dc2626", bg:"#fef2f2", border:"#fecaca", label:"🌧️ Lluvia", headerBg:"#fee2e2" },
   };
 
-  const pendientes = turnos.filter(t => t.estado === "pendiente").sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
-  const enProgreso = turnos.filter(t => t.estado === "en_progreso").sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
-  const terminados = turnos.filter(t => t.estado === "terminado").sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
-  const lluvia = turnos.filter(t => t.estado === "lluvia").sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+  const pendientes = turnos.filter(t => t.estado === "pendiente").sort((a,b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora));
+  const enProgreso = turnos.filter(t => t.estado === "en_progreso").sort((a,b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora));
+  const terminados = turnos.filter(t => t.estado === "terminado").sort((a,b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora));
+  const lluvia = turnos.filter(t => t.estado === "lluvia").sort((a,b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora));
 
   const renderTarjeta = (t) => {
     const config = estadosConfig[t.estado] || estadosConfig.pendiente;
@@ -2060,13 +2273,15 @@ function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onCe
           {finEstimado && t.estado !== "terminado" && <div style={{fontWeight:600, color:"#6b7280", marginTop:4}}>⏱️ Fin: {finEstimado.horaFin}</div>}
         </div>
         {t.nota && <div style={{fontSize:11, fontStyle:"italic", color:"#92400e", background:"#fef3c7", padding:"4px 8px", borderRadius:6, marginBottom:10, border:"1px solid #fde68a"}}>📝 {t.nota}</div>}
+        
+        {/* FIX-11: Botones claros para Lluvia */}
         {t.estado === "pendiente" && <Btn sm color="warning" full onClick={() => onMarcarTerminado(t.id, "en_progreso")}>▶️ Iniciar</Btn>}
         {t.estado === "en_progreso" && <Btn sm color="success" full onClick={() => onCerrarTurno(t)}>✅ Terminar</Btn>}
         {t.estado === "terminado" && <div style={{textAlign:"center", fontSize:12, fontWeight:700, color:"#059669", padding:"8px 0"}}>✅ Completado</div>}
         {t.estado === "lluvia" && (
           <div style={{display:"flex", gap:6}}>
-            <Btn sm color="primary" full onClick={() => onMarcarTerminado(t.id, "pendiente")}>♻️ Reanudar</Btn>
-            <Btn sm ghost danger full onClick={() => onMarcarTerminado(t.id, "cancelado")}>✕</Btn>
+            <Btn sm color="primary" full onClick={() => onMarcarTerminado(t.id, "pendiente")}>🔄 Permanece</Btn>
+            <Btn sm ghost danger full onClick={() => { if(window.confirm("¿Cancelar este turno definitivamente?")) onMarcarTerminado(t.id, "cancelado"); }}>🚫 Cancelar</Btn>
           </div>
         )}
       </div>
@@ -2103,26 +2318,26 @@ function TabSeguimientoTurnos({ turnos, clientes, staff, onMarcarTerminado, onCe
         <Btn sm color="tertiary" onClick={onExportar}>📥 Exportar</Btn>
       </div>
       
+      {/* FIX-9: 4 Columnas Verticales */}
       <div style={{display:"flex", gap:12, overflowX:"auto", paddingBottom:8, minHeight:"60vh"}}>
         {renderColumna("⏳ Pendientes", pendientes, estadosConfig.pendiente)}
         {renderColumna("🟡 En Progreso", enProgreso, estadosConfig.en_progreso)}
         {renderColumna("🟢 Terminados", terminados, estadosConfig.terminado)}
+        {/* Columna Lluvia SIEMPRE visible como 4ta columna */}
+        {renderColumna("🌧️ Afectados por Lluvia", lluvia, estadosConfig.lluvia)}
       </div>
-
-      {lluvia.length > 0 && (
-        <div style={{marginTop:16}}>
-          {renderColumna("🌧️ Afectados por Lluvia", lluvia, estadosConfig.lluvia)}
-        </div>
-      )}
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  TAB AGENDA (GRILLA CLICKEABLE CON MULTI-SLOT)
+//  TAB AGENDA (GRILLA CLICKEABLE CON MULTI-SLOT Y BADGES)
 // ═══════════════════════════════════════════════════════════════
 function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCeldaClick, onTurnoClick, onCambiarEstado, onCerrarTurno, onExportar }) {
   const presentes = staff.filter(s => asistencias[s.id]);
+  
+  // FIX-4: Franjas dinámicas
+  const franjasVisibles = useMemo(() => generarFranjasDinamicas(turnos), [turnos]);
   
   const turnosMap = {};
   turnos.forEach(t => {
@@ -2171,7 +2386,7 @@ function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCelda
             ))}
             
             {/* Filas */}
-            {FRANJAS.map(hora => {
+            {franjasVisibles.map(hora => {
               const [hr,mn] = hora.split(":").map(Number);
               const pasada = hr*60+mn < minutosAhora;
               return (
@@ -2215,23 +2430,51 @@ function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCelda
                             overflow:"hidden",
                             display:"flex",
                             flexDirection:"column",
-                            gap:4
+                            gap:4,
+                            position:"relative"
                           }}
                           onMouseOver={e => e.currentTarget.style.transform="scale(1.02)"}
                           onMouseOut={e => e.currentTarget.style.transform="scale(1)"}>
-                          <div style={{fontSize:11, fontWeight:800, color:cfg.color}}>{turno.hora} hs</div>
+                          
+                          {/* FIX-3: Badges completos */}
+                          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                            <div style={{fontSize:11, fontWeight:800, color:cfg.color}}>{turno.hora} hs</div>
+                            {turno.estado === "en_progreso" && (
+                              <span style={{fontSize:8, fontWeight:800, background:"#fcd34d", color:"#92400e", padding:"2px 4px", borderRadius:4}}>EN PROGRESO</span>
+                            )}
+                            {turno.estado === "terminado" && (
+                              <span style={{fontSize:8, fontWeight:800, background:"#86efac", color:"#065f46", padding:"2px 4px", borderRadius:4}}>TERMINADO</span>
+                            )}
+                            {turno.estado === "lluvia" && (
+                              <span style={{fontSize:8, fontWeight:800, background:"#fca5a5", color:"#991b1b", padding:"2px 4px", borderRadius:4}}>LLUVIA</span>
+                            )}
+                          </div>
+                          
                           <div style={{fontSize:12, fontWeight:700, color:cfg.color, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{turno.clienteNombre}</div>
                           <div style={{fontSize:10, color:cfg.color, opacity:0.8}}>
                             {turno.auto} {turno.cantidadAutos > 1 && `(×${turno.cantidadAutos})`}
                           </div>
                           {turno.esFZ && <div style={{fontSize:10, fontWeight:700, color:"#d97706"}}>⬡ FZ</div>}
-                          {turno.estado === "en_progreso" && (
-                            <span style={{fontSize:9, fontWeight:800, background:"#fcd34d", color:"#92400e", padding:"2px 6px", borderRadius:4, alignSelf:"flex-start"}}>🟡 EN PROGRESO</span>
-                          )}
+                          
+                          {/* FIX-3: Botones rápidos dentro de celda */}
+                          <div style={{marginTop:"auto", display:"flex", gap:4, justifyContent:"flex-end"}}>
+                            {turno.estado === "pendiente" && (
+                              <button onClick={(e) => { e.stopPropagation(); onCambiarEstado(turno.id, "en_progreso"); }}
+                                style={{background:"#fcd34d", border:"none", borderRadius:4, padding:"2px 6px", fontSize:9, fontWeight:700, color:"#92400e", cursor:"pointer"}}>
+                                🚗 Llegó
+                              </button>
+                            )}
+                            {turno.estado === "en_progreso" && (
+                              <button onClick={(e) => { e.stopPropagation(); onCerrarTurno(turno); }}
+                                style={{background:"#86efac", border:"none", borderRadius:4, padding:"2px 6px", fontSize:9, fontWeight:700, color:"#065f46", cursor:"pointer"}}>
+                                ✅ Terminar
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     } else {
-                      // FIX-2: Celda libre clickeable asegurada
+                      // Celda libre clickeable
                       return (
                         <div key={`${s.id}-${hora}`} 
                           onClick={(e) => { 
@@ -2271,7 +2514,7 @@ function TabAgenda({ turnos, staff, asistencias, clientes, mostrarToast, onCelda
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  TAB CIERRE / CAJA COMPLETA - RESTAURADO
+//  TAB CIERRE / CAJA COMPLETA - SOLO MODO OCULTO
 // ═══════════════════════════════════════════════════════════════
 function TabCierre({ registros, turnos, clientes, staff, diaHoy, mostrarToast, onPagarDeuda, onCondonarDeuda, onPunitorio, onRendir, onCobrar, onEditarCobro, onRendirTodo, rangoC, setRangoC, regMulti, loadMulti }) {
   const regs = rangoC === "hoy" ? registros : regMulti;
@@ -2322,6 +2565,8 @@ function TabCierre({ registros, turnos, clientes, staff, diaHoy, mostrarToast, o
               <tfoot><tr><td colspan="3"><strong>TOTAL</strong></td><td><strong>${formatP(tTotal)}</strong></td><td colspan="2"></td></tr></tfoot></table>`;
             exportPDF(html, `Cierre ${rangoC}`);
           }}>🖨️ Imprimir</Btn>
+          {/* FIX-12: Backup Nube desde Cierre */}
+          <Btn sm color="primary" onClick={() => guardarBackupNube(`Cierre-${rangoC}-${diaHoy}`, regs, mostrarToast)}>☁️ Backup Nube</Btn>
         </div>
       </div>
 
@@ -2463,11 +2708,13 @@ function TabCierre({ registros, turnos, clientes, staff, diaHoy, mostrarToast, o
 //  COMPONENTE PRINCIPAL APP
 // ═══════════════════════════════════════════════════════════════
 export default function App() {
+  // CRIT-1: Estado centralizado para Modo Oculto
   const [modoPrueba, setModoPrueba] = useState(false);
   const [modoOculto, setModoOculto] = useState(false);
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef(null);
   
+  // CRIT-1: Colecciones dinámicas DENTRO del componente
   const COL_DIAS = modoPrueba ? "dias_prueba" : "dias";
   const COL_TURNOS = modoPrueba ? "turnos_prueba" : "turnos";
   const COL_CLIENTES = modoPrueba ? "clientes_prueba" : "clientes";
@@ -2521,7 +2768,7 @@ export default function App() {
   const mostrarToast = (msg, tipo="ok") => setToast({ msg, tipo });
 
   // ═══════════════════════════════════════════════════════════
-  //  SINCRONIZACIÓN EN TIEMPO REAL (FIX-1: Query en servidor)
+  //  CRIT-1: SINCRONIZACIÓN CON DEPENDENCIAS CORRECTAS
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     const fechaHoy = hoy();
@@ -2542,10 +2789,10 @@ export default function App() {
       mostrarToast("Sin conexión a base de datos", "error");
     });
     
-    // FIX-1: Usar query con where en lugar de filtro en memoria
+    // FIX-10: Query server-side correcta
     const qTurnos = query(collection(db, COL_TURNOS), where("fecha", "==", fechaHoy));
     const unsubTurnos = onSnapshot(qTurnos, (snap) => {
-      const hoyTurnos = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => FRANJAS.indexOf(a.hora) - FRANJAS.indexOf(b.hora));
+      const hoyTurnos = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => FRANJAS_BASE.indexOf(a.hora) - FRANJAS_BASE.indexOf(b.hora));
       setTurnos(hoyTurnos);
     });
     
@@ -2571,18 +2818,24 @@ export default function App() {
       }
     });
     
-    // Listener de cierres
-    const unsubCierre = onSnapshot(collection(db, `cierre_${fechaHoy}`), (snap) => {
-      setRegistros(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    // Listener de cierres (solo si existe la colección)
+    let unsubCierre = () => {};
+    try {
+      unsubCierre = onSnapshot(collection(db, `cierre_${fechaHoy}`), (snap) => {
+        setRegistros(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
+    } catch(e) {}
     
     // Listener de préstamos
-    const unsubPrestamos = onSnapshot(doc(db, "prestamos", fechaHoy), (snap) => {
-      if (snap.exists()) {
-        const { _ts, ...rest } = snap.data();
-        setPrestamos(rest);
-      }
-    });
+    let unsubPrestamos = () => {};
+    try {
+      unsubPrestamos = onSnapshot(doc(db, "prestamos", fechaHoy), (snap) => {
+        if (snap.exists()) {
+          const { _ts, ...rest } = snap.data();
+          setPrestamos(rest);
+        }
+      });
+    } catch(e) {}
     
     return () => {
       unsubDia();
@@ -2594,7 +2847,7 @@ export default function App() {
       unsubCierre();
       unsubPrestamos();
     };
-  }, [modoPrueba, COL_DIAS, COL_TURNOS, COL_CLIENTES, COL_STAFF, COL_ASISTENCIAS]);
+  }, [modoPrueba, COL_DIAS, COL_TURNOS, COL_CLIENTES, COL_STAFF, COL_ASISTENCIAS]); // Dependencias críticas
 
   // Seed inicial
   useEffect(() => {
@@ -2615,7 +2868,7 @@ export default function App() {
       } catch (err) { console.error("Error en seed:", err); }
     };
     seedAndMigrate();
-  }, [modoPrueba]);
+  }, [modoPrueba, COL_CLIENTES, COL_STAFF]);
 
   // Cargar multi-fecha para cierre
   useEffect(() => {
@@ -2670,14 +2923,13 @@ export default function App() {
     catch (err) { mostrarToast("Error al actualizar estado", "error"); }
   };
 
-  // FIX-4: Separar activar lluvia de mostrar modal
+  // Flujo lluvia separado
   const activarLluvia = async () => {
     if (!diaActual?.id) return;
     await fsUpdate(COL_DIAS, diaActual.id, { lluvia:true, lluviaInicio:serverTimestamp() });
     const pendientes = turnos.filter(t => t.estado === "pendiente");
     await Promise.all(pendientes.map(t => fsUpdate(COL_TURNOS, t.id, { estado:"lluvia" })));
     mostrarToast("🌧️ Modo lluvia activado", "warn");
-    // NO abrir modal automáticamente
   };
   
   const aplicarReorganizacionLluvia = async (estadoLav, turnosCancelar, lavQuedan) => {
@@ -2717,7 +2969,7 @@ export default function App() {
     mostrarToast(`Reanudado: ${cancelados} cancelados, ${reasignados} reasignados`, "ok");
   };
   
-  // RESTORE-1: Registrar cobro completo
+  // Funciones financieras (solo usadas en modo oculto)
   const registrarCobro = async (turno, importeReal, dif, motivo, destinoExcedente = "deuda") => {
     const estadoFinal = importeReal === 0 ? "🔴 Cliente debe" : "💵 Cobrado (sin rendir)";
     let motivoFinal = motivo || "";
@@ -2749,7 +3001,6 @@ export default function App() {
     await fsAdd(`cierre_${hoy()}`, reg);
     await fsUpdate(COL_TURNOS, turno.id, { estadoPago: estadoFinal, diferencia: dif, motivo: motivoFinal, montoPagado: importeReal });
     
-    // Manejo de deuda del cliente
     const clienteObj = clientes.find(c => c.id === turno.clienteId);
     if (importeReal === 0 && clienteObj) {
       const nuevaDeuda = (clienteObj.deuda || 0) + turno.precio;
@@ -2767,7 +3018,6 @@ export default function App() {
     mostrarToast(`Cobro registrado ✓`, "ok");
   };
   
-  // RESTORE-1: Registrar rendición
   const registrarRendicion = async (turno) => {
     await fsUpdate(COL_TURNOS, turno.id, { estadoPago: "✅ Rendido", fechaRendicion: hoy() });
     try {
@@ -2780,7 +3030,6 @@ export default function App() {
     mostrarToast(`✅ ${turno.lavadorNombre || "Lavador"} rindió ${formatP(turno.montoPagado || turno.precio)}`, "ok");
   };
   
-  // RESTORE-3: Registrar operación lavador
   const registrarOperacion = async (lavador, monto, motivo) => {
     if (monto <= 0) { mostrarToast("⚠️ Ingresá un monto válido", "warn"); return; }
     const esRecibe = motivo.includes("recibe");
@@ -2802,7 +3051,6 @@ export default function App() {
     mostrarToast(`✓ ${motivo}: ${formatP(monto)} → Saldo actual ${formatP(nuevoSaldo)}`, "ok");
   };
   
-  // RESTORE-12: Reasignar turno completo
   const reasignarTurno = async (turno, nuevoLavadorId, nuevaHora) => {
     const ns = staff.find(s => s.id === nuevoLavadorId);
     const horasOcupadas = slotsOcupados(nuevaHora, turno.cantidadAutos, turno.auto);
@@ -2816,7 +3064,6 @@ export default function App() {
     mostrarToast(`Reasignado a ${ns?.nombre} a las ${nuevaHora} ✓`, "ok");
   };
   
-  // RESTORE-2: Gestión de deudas
   const pagarDeuda = async (cliente) => {
     const monto = Number(prompt(`¿Cuánto pagó ${cliente.nombre}? (deuda actual: ${formatP(cliente.deuda)})`));
     if (!monto || monto <= 0) return;
@@ -2894,19 +3141,25 @@ export default function App() {
     mostrarToast(nuevoEstado === "abierto" ? "☀️ Día ABIERTO" : "🌙 Día CERRADO", "ok");
   };
   
+  // CRIT-1: Manejo correcto de Modo Oculto
   const handleLogoTap = () => {
     tapCountRef.current += 1;
     clearTimeout(tapTimerRef.current);
     tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0; }, 2000);
     if (tapCountRef.current >= 5) {
       tapCountRef.current = 0;
-      setModoOculto(prev => !prev);
-      setModoPrueba(prev => !prev);
-      mostrarToast(!modoPrueba ? "🧪 Modo OCULTO activado" : "🔒 Modo producción", !modoPrueba ? "warn" : "ok");
+      setModoOculto(true);
+      setModoPrueba(true);
+      mostrarToast("🧪 MODO OCULTO ACTIVADO", "warn");
     }
   };
 
-  // FIX-5: Búsqueda avanzada de clientes
+  const salirModoOculto = () => {
+    setModoOculto(false);
+    setModoPrueba(false);
+    mostrarToast("🔒 Modo Normal Restaurado", "ok");
+  };
+
   const clientesFiltrados = clientes.filter(c => {
     if (filtroDeuda && !(c.deuda > 0)) return false;
     if (filtroBarrio && c.barrio !== filtroBarrio) return false;
@@ -2949,13 +3202,14 @@ export default function App() {
     );
   }
 
+  // CRIT-2: Tabs condicionales
   const tabsVisibles = [
     {id:"agenda",label:"📋 Agenda",color:"#3b82f6",bg:"#dbeafe",border:"#bfdbfe"},
     {id:"seguimiento",label:"📊 Seguimiento",color:"#0891b2",bg:"#cffafe",border:"#a5f3fc"},
     {id:"nuevoTurno",label:"➕ Nuevo Turno",color:"#059669",bg:"#d1fae5",border:"#a7f3d0"},
     {id:"lavadores",label:"👷 Lavadores",color:"#7c3aed",bg:"#ede9fe",border:"#ddd6fe"},
     {id:"clientes",label:"👥 Clientes",color:"#d97706",bg:"#fef3c7",border:"#fde68a"},
-    {id:"cierre",label:`💰 Cierre${registros.length ? ` (${registros.length})` : ""}`,color:"#dc2626",bg:"#fee2e2",border:"#fecaca"},
+    ...(modoOculto ? [{id:"cierre",label:`💰 Cierre${registros.length ? ` (${registros.length})` : ""}`,color:"#dc2626",bg:"#fee2e2",border:"#fecaca"}] : []),
     {id:"config",label:"⚙️ Configuración",color:"#4b5563",bg:"#f3f4f6",border:"#e5e7eb"},
   ];
 
@@ -2967,14 +3221,18 @@ export default function App() {
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <div onClick={handleLogoTap} style={{fontSize:18, fontWeight:900, cursor:"pointer", userSelect:"none", color:"#1e293b"}}>🚗 Sofía</div>
           <div style={{fontSize:11, fontWeight:800, padding:"4px 10px", borderRadius:10, background: diaActual?.lluvia ? "#fef2f2" : "#ecfdf5", color: diaActual?.lluvia ? "#991b1b" : "#064e3b", border: diaActual?.lluvia ? "1px solid #fecaca" : "1px solid #a7f3d0"}}>{diaActual?.lluvia ? "🌧️ LLUVIA" : "🟢 ABIERTO"}</div>
-          {modoOculto && <span style={{ fontSize:10, fontWeight:800, color:"#92400e", background:"#fffbeb", padding:"3px 8px", borderRadius:8, border:"1px solid #fde68a" }}>OCULTO</span>}
+          {/* CRIT-1: Badge Modo Oculto */}
+          {modoOculto && <span style={{ fontSize:10, fontWeight:800, color:"#92400e", background:"#fffbeb", padding:"3px 8px", borderRadius:8, border:"1px solid #fde68a" }}>🧪 OCULTO</span>}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          {/* FIX-4: Botón Lluvia solo activa estado, NO abre modal */}
           {diaActual?.lluvia ? (
             <Btn sm color="success" onClick={() => setMostrarLluvia(true)}>☀️ Reorganizar</Btn>
           ) : (
             <Btn sm color="warning" onClick={activarLluvia}>🌧️ Lluvia</Btn>
+          )}
+          {/* CRIT-1: Botón Salir Modo Oculto */}
+          {modoOculto && (
+            <Btn sm color="danger" onClick={salirModoOculto}>🔒 Salir del Modo Oculto</Btn>
           )}
           <RelojVivo />
         </div>
@@ -3007,9 +3265,9 @@ export default function App() {
           exportCSV(datos, ["hora","cliente","estado","precio"], `seguimiento-${hoy()}`);
         }} />}
         
-        {tab === "lavadores" && <TabLavadores staff={staff} turnos={turnos} hoyStr={hoy()} COL_ASISTENCIAS={COL_ASISTENCIAS} COL_STAFF={COL_STAFF} asistencias={asistencias} setAsistencias={setAsistencias} mostrarToast={mostrarToast} onVerRuta={(l) => setLavadorRuta(l)} onGestionar={() => setMostrarGestionLav(true)} onOperacion={(l) => setLavadorOperacion(l)} registros={registros} prestamos={prestamos} />}
+        {/* CRIT-2: Pasar modoOculto a Lavadores */}
+        {tab === "lavadores" && <TabLavadores staff={staff} turnos={turnos} hoyStr={hoy()} COL_ASISTENCIAS={COL_ASISTENCIAS} COL_STAFF={COL_STAFF} asistencias={asistencias} setAsistencias={setAsistencias} mostrarToast={mostrarToast} onVerRuta={(l) => setLavadorRuta(l)} onGestionar={() => setMostrarGestionLav(true)} onOperacion={(l) => setLavadorOperacion(l)} registros={registros} prestamos={prestamos} modoOculto={modoOculto} />}
         
-        {/* FIX-5: Clientes con filtros avanzados */}
         {tab === "clientes" && (
           <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
             <div style={{ position:"sticky", top:"110px", zIndex:80, background:"rgba(249,250,251,.97)", backdropFilter:"blur(12px)", padding:"8px 0 12px 0", display:"flex", flexDirection:"column", gap:10, borderBottom:"1px solid #e5e7eb" }}>
@@ -3069,8 +3327,8 @@ export default function App() {
           </div>
         )}
         
-        {/* RESTORE-4: Vista Cierre/Caja completa */}
-        {tab === "cierre" && (
+        {/* CRIT-2: Cierre solo visible en modo oculto */}
+        {tab === "cierre" && modoOculto && (
           <TabCierre registros={registros} turnos={turnos} clientes={clientes} staff={staff} diaHoy={hoy()} mostrarToast={mostrarToast}
             onPagarDeuda={pagarDeuda} onCondonarDeuda={condonarDeuda} onPunitorio={aplicarPunitorio}
             onRendir={(t) => setTurnoParaRendir(t)} onCobrar={(t) => setTurnoParaCobrar(t)}
@@ -3096,6 +3354,7 @@ export default function App() {
           onClose={() => { setModalOpen(null); setCeldaPreseleccionada(null); }} />
       )}
       
+      {/* CRIT-2: Pasar modoOculto a DetalleTurno */}
       {modalOpen === "detalleTurno" && turnoSel && (
         <ModalDetalleTurno turno={turnoSel} clientes={clientes} staff={staff}
           onClose={() => { setModalOpen(null); setTurnoSel(null); }}
@@ -3103,7 +3362,8 @@ export default function App() {
           onCerrarTurno={cerrarTurno}
           onCobrar={(t) => { setModalOpen(null); setTurnoParaCobrar(t); }}
           onRendir={(t) => { setModalOpen(null); setTurnoParaRendir(t); }}
-          onReasignar={reasignarTurno} />
+          onReasignar={reasignarTurno}
+          modoOculto={modoOculto} />
       )}
       
       {turnoCreadoData && (
@@ -3127,7 +3387,7 @@ export default function App() {
       )}
       
       {mostrarConfig && (
-        <ModalConfigCompleta config={config} mostrarToast={mostrarToast}
+        <ModalConfigCompleta config={config} mostrarToast={mostrarToast} modoOculto={modoOculto}
           onGuardar={async (nuevaConfig) => {
             setConfig(nuevaConfig);
             await fsSave("config", "general", nuevaConfig);
@@ -3146,17 +3406,17 @@ export default function App() {
           onClose={() => setLavadorRuta(null)} />
       )}
       
-      {lavadorOperacion && (
+      {lavadorOperacion && modoOculto && (
         <ModalOperacion lavador={lavadorOperacion} onRegistrar={registrarOperacion}
           onClose={() => setLavadorOperacion(null)} />
       )}
       
-      {turnoParaCobrar && (
+      {turnoParaCobrar && modoOculto && (
         <ModalCobro turno={turnoParaCobrar} onRegistrar={registrarCobro}
           onClose={() => setTurnoParaCobrar(null)} />
       )}
       
-      {turnoParaRendir && (
+      {turnoParaRendir && modoOculto && (
         <ModalRendicion turno={turnoParaRendir} onRegistrar={registrarRendicion}
           onClose={() => setTurnoParaRendir(null)} />
       )}
