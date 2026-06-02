@@ -318,7 +318,7 @@ function slotsOcupados(horaInicio, cantAutos, tipoVehiculo) {
   return result;
 }
 
-// 【 F2 FIX 】: Versión de slotsOcupados que acepta duración directa en minutos
+// 【 F2 FIX 】: Nueva función que acepta duración directa en minutos
 function slotsOcupadosPorDuracion(horaInicio, duracionMinutos) {
   const idx = FRANJAS_BASE.indexOf(horaInicio);
   if (idx < 0) return [horaInicio];
@@ -1576,8 +1576,6 @@ function ModalConfigCompleta({ config, onGuardar, onClose, mostrarToast, modoOcu
     if(!window.confirm(`¿Restaurar backup "${backup.nombre}"? Esto sobrescribirá datos actuales.`)) return;
     try {
       const data = JSON.parse(backup.dataJson);
-      // Lógica simple de restauración: sobreescribe colecciones principales
-      // En producción real requeriría batch writes complejos
       mostrarToast("Backup restaurado (simulación)", "ok");
     } catch(err) { mostrarToast("Error al restaurar", "error"); }
   };
@@ -1740,16 +1738,11 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   const fzPct = config?.fzPct || 20;
   const precioFinal = esFZ ? Math.round(precioBaseTotal * (1 + fzPct/100)) : precioBaseTotal;
   
-  // 【 F2 FIX 】: Cálculo correcto de duración total considerando tipos mixtos
   let tiempoBase = 0;
   if(servicioEsp) {
     tiempoBase = servicioEsp.slotsPersonalizados * FRANJA_DURACION;
   } else if(cantidadAutos > 1) {
-    // Sumar duración individual de cada auto según su tipo en tiposMixtos
-    for(let i=0; i<cantidadAutos; i++) {
-      const tipoAuto = tiposMixtos[i]?.label || "Mediano";
-      tiempoBase += TIEMPOS_LAVADO_BASE[tipoAuto] || 45;
-    }
+    for(let i=0; i<cantidadAutos; i++) tiempoBase += TIEMPOS_LAVADO_BASE[tiposMixtos[i]?.label] || 45;
   } else {
     tiempoBase = TIEMPOS_LAVADO_BASE[tamaño.label] || 45;
   }
@@ -1824,11 +1817,17 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   const guardar = async () => {
     if (!clienteId) return mostrarToast("Seleccioná un cliente", "warn");
     try {
-      // 【 F2 FIX 】: Usar slotsOcupadosPorDuracion con tiempoBase calculado correctamente
-      const horasOcupadas = servicioEsp 
-        ? slotsOcupadosPorDuracion(hora, servicioEsp.slotsPersonalizados * FRANJA_DURACION)
-        : slotsOcupadosPorDuracion(hora, tiempoBase);
-
+      // 【 F2 FIX 】: Recalcular tiempoBase considerando tipos mixtos para multi-auto
+      let tiempoBaseGuardado = 0;
+      if (cantidadAutos > 1 && !servicioEsp) {
+        for(let i=0; i<cantidadAutos; i++) tiempoBaseGuardado += TIEMPOS_LAVADO_BASE[tiposMixtos[i]?.label] || 45;
+      } else {
+        tiempoBaseGuardado = servicioEsp ? servicioEsp.slotsPersonalizados * FRANJA_DURACION : (TIEMPOS_LAVADO_BASE[tamaño.label] || 45);
+      }
+      
+      // 【 F2 FIX 】: Usar slotsOcupadosPorDuracion con la duración correcta
+      const horasOcupadas = slotsOcupadosPorDuracion(hora, tiempoBaseGuardado);
+      
       const turnoData = {
         fecha: hoy(), hora, clienteId,
         clienteNombre: clienteSel?.nombre || "Desconocido",
@@ -1877,7 +1876,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
     });
   }, [mostrarSemafaro, clienteSel, coordsCliente, presentes, turnos]);
 
-  // 【 F3 FIX 】: Fallback para turnos legacy sin horasOcupadas
+  // 【 F3 FIX 】: Fallback para turnos legacy sin campo horasOcupadas
   const opcionesLavadores = useMemo(() => {
     return presentes.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"")).map(s => {
       const ocupado = turnos.some(t => {
@@ -2120,7 +2119,7 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
       {showNewClient && (
         <ModalNuevoCliente nombreInicial={newClientName} COL_CLIENTES={COL_CLIENTES} mostrarToast={mostrarToast} codigosExistentes={codigosExistentes} onClienteCreated={handleNewClientSuccess} onClose={() => setShowNewClient(false)} />
       )}
-
+      
       {/* 【 F4 FIX 】: Modal de servicio especial montado condicionalmente con estado propio */}
       {mostrarServicioEsp && (
         <ModalServicioEsp 
@@ -2761,6 +2760,12 @@ export default function App() {
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef(null);
   
+  // 【 C1 FIX 】: useEffect INDEPENDIENTE para manejar cambio de tab al salir del modo oculto
+  // Esto evita la race condition donde setTab y setModoPrueba se ejecutan síncronos inline
+  useEffect(() => {
+    if (!modoOculto) setTab(t => t === "cierre" ? "agenda" : t);
+  }, [modoOculto]);
+  
   // P0-1 FIX: Colecciones dinámicas DENTRO del componente con ternarias completas
   const COL_DIAS = modoPrueba ? "dias_prueba" : "dias";
   const COL_TURNOS = modoPrueba ? "turnos_prueba" : "turnos";
@@ -2814,14 +2819,6 @@ export default function App() {
   });
 
   const mostrarToast = (msg, tipo="ok") => setToast({ msg, tipo });
-
-  // 【 C1 FIX 】: useEffect independiente para cambiar tab DESPUÉS de desactivar modo oculto
-  // Evita race condition donde listeners se reinician antes de cambiar la vista
-  useEffect(() => {
-    if (!modoOculto) {
-      setTab(t => t === "cierre" ? "agenda" : t);
-    }
-  }, [modoOculto]);
 
   // P0-1 FIX: Sincronización con dependencias correctas incluyendo COL_CIERRE y COL_PRESTAMOS
   useEffect(() => {
@@ -2970,9 +2967,9 @@ export default function App() {
       if(nuevoEstado === "cancelado") {
         const turno = turnos.find(t => t.id === turnoId);
         if(turno && turno.lavadorId && turno.horasOcupadas) {
-           // Nota: En una implementación real con array en lavador, aquí se removerían las horas.
-           // Como usamos query sobre turnos, el slot se libera automáticamente al desaparecer el turno.
-           // Pero aseguramos borrado lógico.
+          // Nota: En una implementación real con array en lavador, aquí se removerían las horas.
+          // Como usamos query sobre turnos, el slot se libera automáticamente al desaparecer el turno.
+          // Pero aseguramos borrado lógico.
         }
       }
       await fsUpdate(COL_TURNOS, turnoId, { estado: nuevoEstado });
@@ -2989,19 +2986,17 @@ export default function App() {
     mostrarToast("🌧️ Modo lluvia activado", "warn");
   };
   
-  // 【 N1 FIX 】: Reorganización lluvia con mapa local para evitar stale snapshot
+  // 【 N1 FIX 】: Reorganizar lluvia con mapa local de slots para evitar stale snapshot
   const aplicarReorganizacionLluvia = async (estadoLav, turnosCancelar, lavQuedan) => {
     const turnosPendientes = turnos.filter(t => t.estado === "lluvia");
     let cancelados = 0, reasignados = 0;
     
-    // N1 FIX: Mapa local de slots para tracking en tiempo real dentro del loop
+    // 【 N1 FIX 】: Inicializar mapa local de slots ANTES del loop
     let mapaSlotsLocal = new Map();
     turnos.forEach(t => {
       if (t.estado !== "cancelado" && t.estado !== "terminado") {
         const horas = t.horasOcupadas?.length ? t.horasOcupadas : [t.hora];
-        horas.forEach(h => {
-          mapaSlotsLocal.set(`${t.lavadorId}_${h}`, t.id);
-        });
+        horas.forEach(h => mapaSlotsLocal.set(`${t.lavadorId}_${h}`, t.id));
       }
     });
     
@@ -3016,7 +3011,7 @@ export default function App() {
       if (estado === "ausente") {
         for (const t of turnosDelLav) {
           await fsUpdate(COL_TURNOS, t.id, { estado: "cancelado" });
-          // N1 FIX: Actualizar mapa local inmediatamente
+          // 【 N1 FIX 】: Actualizar mapa local al cancelar
           const horas = t.horasOcupadas?.length ? t.horasOcupadas : [t.hora];
           horas.forEach(h => mapaSlotsLocal.delete(`${lavId}_${h}`));
           cancelados++;
@@ -3030,7 +3025,7 @@ export default function App() {
         for (const t of turnosDelLav) {
           if (cancelarIds.includes(t.id)) {
             await fsUpdate(COL_TURNOS, t.id, { estado: "cancelado" });
-            // N1 FIX: Actualizar mapa local
+            // 【 N1 FIX 】: Actualizar mapa local al cancelar
             const horas = t.horasOcupadas?.length ? t.horasOcupadas : [t.hora];
             horas.forEach(h => mapaSlotsLocal.delete(`${lavId}_${h}`));
             cancelados++;
@@ -3038,28 +3033,29 @@ export default function App() {
             const idx = reasignados % lavQuedan.length;
             const nuevoLav = lavQuedan[idx];
             
-            // Buscar primer hueco libre DESPUÉS de ahora usando mapa local
+            // Buscar primer hueco libre DESPUÉS de ahora para el nuevo lavador
             let nuevaHora = t.hora;
             const [hOri, mOri] = t.hora.split(":").map(Number);
             if(hOri*60+mOri < minutosAhora) {
-               const franjasFuturas = FRANJAS_BASE.filter(h => {
-                 const [hh,mm] = h.split(":").map(Number);
-                 return hh*60+mm >= minutosAhora;
-               });
-               for(const h of franjasFuturas) {
-                 // N1 FIX: Consultar mapa local en lugar de turnos.some()
-                 const ocupado = mapaSlotsLocal.has(`${nuevoLav.id}_${h}`);
-                 if(!ocupado) { nuevaHora = h; break; }
-               }
+              // Hora pasada, buscar siguiente libre
+              const franjasFuturas = FRANJAS_BASE.filter(h => {
+                const [hh,mm] = h.split(":").map(Number);
+                return hh*60+mm >= minutosAhora;
+              });
+              for(const h of franjasFuturas) {
+                // 【 N1 FIX 】: Usar mapa local en lugar de turnos.some()
+                const ocupado = mapaSlotsLocal.has(`${nuevoLav.id}_${h}`);
+                if(!ocupado) { nuevaHora = h; break; }
+              }
             }
             
-            // N1 FIX: Remover slots antiguos del mapa
+            // 【 N1 FIX 】: Actualizar mapa local al reasignar (eliminar viejo, agregar nuevo)
             const horasViejas = t.horasOcupadas?.length ? t.horasOcupadas : [t.hora];
             horasViejas.forEach(h => mapaSlotsLocal.delete(`${lavId}_${h}`));
             
             await fsUpdate(COL_TURNOS, t.id, { lavadorId: nuevoLav.id, hora: nuevaHora });
             
-            // N1 FIX: Agregar nuevos slots al mapa inmediatamente
+            // Calcular nuevas horas ocupadas y agregarlas al mapa
             const horasNuevas = slotsOcupados(nuevaHora, t.cantidadAutos || 1, t.auto);
             horasNuevas.forEach(h => mapaSlotsLocal.set(`${nuevoLav.id}_${h}`, t.id));
             
@@ -3070,33 +3066,33 @@ export default function App() {
       
       // P0-4 FIX: "Permanece" también busca hueco si la hora ya pasó
       if (estado === "queda") {
-         for (const t of turnosDelLav) {
-            const [hOri, mOri] = t.hora.split(":").map(Number);
-            if(hOri*60+mOri < minutosAhora) {
-               const franjasFuturas = FRANJAS_BASE.filter(h => {
-                 const [hh,mm] = h.split(":").map(Number);
-                 return hh*60+mm >= minutosAhora;
-               });
-               let nuevaHora = t.hora;
-               for(const h of franjasFuturas) {
-                 // N1 FIX: Consultar mapa local excluyendo el turno actual
-                 const ocupado = mapaSlotsLocal.has(`${lavId}_${h}`) && mapaSlotsLocal.get(`${lavId}_${h}`) !== t.id;
-                 if(!ocupado) { nuevaHora = h; break; }
-               }
-               
-               // N1 FIX: Actualizar mapa local
-               const horasViejas = t.horasOcupadas?.length ? t.horasOcupadas : [t.hora];
-               horasViejas.forEach(h => mapaSlotsLocal.delete(`${lavId}_${h}`));
-               
-               await fsUpdate(COL_TURNOS, t.id, { hora: nuevaHora, estado: "pendiente" });
-               
-               const horasNuevas = slotsOcupados(nuevaHora, t.cantidadAutos || 1, t.auto);
-               horasNuevas.forEach(h => mapaSlotsLocal.set(`${lavId}_${h}`, t.id));
-            } else {
-               // Hora futura, solo cambiar estado
-               await fsUpdate(COL_TURNOS, t.id, { estado: "pendiente" });
+        for (const t of turnosDelLav) {
+          const [hOri, mOri] = t.hora.split(":").map(Number);
+          if(hOri*60+mOri < minutosAhora) {
+            const franjasFuturas = FRANJAS_BASE.filter(h => {
+              const [hh,mm] = h.split(":").map(Number);
+              return hh*60+mm >= minutosAhora;
+            });
+            let nuevaHora = t.hora;
+            for(const h of franjasFuturas) {
+              // 【 N1 FIX 】: Usar mapa local para verificar disponibilidad
+              const ocupado = mapaSlotsLocal.has(`${lavId}_${h}`) && mapaSlotsLocal.get(`${lavId}_${h}`) !== t.id;
+              if(!ocupado) { nuevaHora = h; break; }
             }
-         }
+            
+            // 【 N1 FIX 】: Actualizar mapa local al cambiar hora
+            const horasViejas = t.horasOcupadas?.length ? t.horasOcupadas : [t.hora];
+            horasViejas.forEach(h => mapaSlotsLocal.delete(`${lavId}_${h}`));
+            
+            await fsUpdate(COL_TURNOS, t.id, { hora: nuevaHora, estado: "pendiente" });
+            
+            const horasNuevas = slotsOcupados(nuevaHora, t.cantidadAutos || 1, t.auto);
+            horasNuevas.forEach(h => mapaSlotsLocal.set(`${lavId}_${h}`, t.id));
+          } else {
+            // Hora futura, solo cambiar estado
+            await fsUpdate(COL_TURNOS, t.id, { estado: "pendiente" });
+          }
+        }
       }
     }
     
@@ -3275,14 +3271,7 @@ export default function App() {
     mostrarToast(nuevoEstado === "abierto" ? "☀️ Día ABIERTO" : "🌙 Día CERRADO", "ok");
   };
   
-  // 【 C1 FIX 】: salirModoOculto simplificado - solo cambia flags
-  // El cambio de tab lo maneja el useEffect independiente de arriba
-  const salirModoOculto = () => {
-    setModoOculto(false);
-    setModoPrueba(false);
-    mostrarToast("🔒 Modo Normal Restaurado", "ok");
-  };
-
+  // P0-1 FIX: Manejo correcto de Modo Oculto
   const handleLogoTap = () => {
     tapCountRef.current += 1;
     clearTimeout(tapTimerRef.current);
@@ -3293,6 +3282,13 @@ export default function App() {
       setModoPrueba(true);
       mostrarToast("🧪 MODO OCULTO ACTIVADO", "warn");
     }
+  };
+  
+  // 【 C1 FIX 】: salirModoOculto ELIMINÓ el setTab inline. El cambio de tab lo maneja el useEffect independiente.
+  const salirModoOculto = () => {
+    setModoOculto(false);
+    setModoPrueba(false);
+    mostrarToast("🔒 Modo Normal Restaurado", "ok");
   };
 
   const clientesFiltrados = clientes.filter(c => {
