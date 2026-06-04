@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { initializeApp } from "firebase/app";
 import {
   getFirestore, doc, setDoc, getDoc, collection,
@@ -306,6 +306,28 @@ function slotsOcupados(horaInicio, cantAutos, tipoVehiculo) {
   const slots = fin.slotsOcupados;
   const result = [];
   for (let i = 0; i < slots; i++) {
+    const targetIdx = idx + i;
+    if (targetIdx < FRANJAS_BASE.length) {
+      result.push(FRANJAS_BASE[targetIdx]);
+    } else {
+      const lastBase = FRANJAS_BASE[FRANJAS_BASE.length - 1];
+      const [lh, lm] = lastBase.split(":").map(Number);
+      const extraMin = (lh * 60 + lm) + ((targetIdx - FRANJAS_BASE.length + 1) * FRANJA_DURACION);
+      const eh = Math.floor(extraMin / 60);
+      const em = extraMin % 60;
+      result.push(`${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`);
+    }
+  }
+  return result;
+}
+
+// FIX F2: calcula slots ocupados a partir de una duración en minutos (en lugar del tipo base)
+function slotsOcupadosPorDuracion(horaInicio, duracionMinutos) {
+  const idx = FRANJAS_BASE.indexOf(horaInicio);
+  const cantSlots = Math.ceil(duracionMinutos / FRANJA_DURACION);
+  if (idx < 0) return [horaInicio];
+  const result = [];
+  for (let i = 0; i < cantSlots; i++) {
     const targetIdx = idx + i;
     if (targetIdx < FRANJAS_BASE.length) {
       result.push(FRANJAS_BASE[targetIdx]);
@@ -1487,10 +1509,16 @@ function ModalConfigCompleta({ config, onGuardar, onClose, mostrarToast, modoOcu
     setCargandoBackups(false);
   };
   const restaurarBackup = async (backup) => {
-    if (!window.confirm(`¿Restaurar backup "${backup.nombre}"? Esto sobrescribirá datos actuales.`)) return;
+    if (!window.confirm(`¿Restaurar backup "${backup.nombre}"? Esto sobrescribirá la configuración actual.`)) return;
     try {
       const data = JSON.parse(backup.dataJson);
-      mostrarToast("Backup restaurado (simulación)", "ok");
+      // Restaurar configuración (precios, fzPct, distancias)
+      if (data.precios || data.fzPct !== undefined || data.distancias) {
+        await fsSave("config", "general", data);
+        mostrarToast(`✅ Backup "${backup.nombre}" restaurado`, "ok");
+      } else {
+        mostrarToast("⚠️ Este backup no contiene configuración restaurable", "warn");
+      }
     } catch (err) { mostrarToast("Error al restaurar", "error"); }
   };
   const inputStyle = { background: "#f9fafb", border: "1.5px solid #e5e7eb", borderRadius: 10, padding: "8px 12px", color: "#1e293b", fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" };
@@ -1698,7 +1726,15 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
   const guardar = async () => {
     if (!clienteId) return mostrarToast("Seleccioná un cliente", "warn");
     try {
-      const horasOcupadas = slotsOcupados(hora, cantFinal, servicioEsp ? "Especial" : tamaño.label);
+      // FIX F2: para multi-auto con tipos mixtos, calcular duración real y usar slotsOcupadosPorDuracion
+      let horasOcupadas;
+      if (!servicioEsp && cantidadAutos > 1) {
+        let durMixta = 0;
+        for (let i = 0; i < cantidadAutos; i++) durMixta += TIEMPOS_LAVADO_BASE[tiposMixtos[i]?.label] || 45;
+        horasOcupadas = slotsOcupadosPorDuracion(hora, durMixta);
+      } else {
+        horasOcupadas = slotsOcupados(hora, cantFinal, servicioEsp ? "Especial" : tamaño.label);
+      }
       const turnoData = {
         fecha: hoy(), hora, clienteId,
         clienteNombre: clienteSel?.nombre || "Desconocido",
@@ -1748,7 +1784,9 @@ function ModalNuevoTurno({ onClose, clientes, staff, turnos, asistencias, COL_TU
     return presentes.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")).map(s => {
       const ocupado = turnos.some(t => {
         if (t.estado === "cancelado") return false;
-        return t.lavadorId === s.id && t.horasOcupadas?.includes(hora);
+        // FIX F3: fallback para turnos viejos sin horasOcupadas
+        const horas = t.horasOcupadas?.length ? t.horasOcupadas : [t.hora];
+        return t.lavadorId === s.id && horas.includes(hora);
       });
       return { ...s, ocupado };
     });
@@ -2558,7 +2596,6 @@ export default function App() {
   const [tab, setTab] = useState("agenda");
   const [modalOpen, setModalOpen] = useState(null);
   const [turnoSel, setTurnoSel] = useState(null);
-  const [previewData, setPreviewData] = useState(null);
   const [asistencias, setAsistencias] = useState({});
   const [clienteParaTurno, setClienteParaTurno] = useState(null);
   const [clienteParaEditar, setClienteParaEditar] = useState(null);
@@ -2722,7 +2759,7 @@ export default function App() {
     } else if (sinTel.length === 0 && avisoFijo) {
       setAvisoFijo(null);
     }
-  }, [staff]);
+  }, [staff, avisoFijo]);
 
   const cerrarTurno = async (turno) => {
     await fsUpdate(COL_TURNOS, turno.id, { estado: "terminado", rendidoEn: serverTimestamp() });
@@ -2750,12 +2787,26 @@ export default function App() {
     let cancelados = 0, reasignados = 0;
     const ahora = new Date();
     const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
+
+    // FIX N1: mapa local para rastrear slots asignados durante este loop async
+    // key: `${lavadorId}:${hora}` → true
+    const mapaSlotsLocal = new Map();
+    // Inicializar con los turnos existentes NO cancelados
+    turnos.forEach(tt => {
+      if (tt.estado === "cancelado") return;
+      const horas = tt.horasOcupadas?.length ? tt.horasOcupadas : [tt.hora];
+      horas.forEach(h => mapaSlotsLocal.set(`${tt.lavadorId}:${h}`, true));
+    });
+
     for (const lavId of Object.keys(estadoLav)) {
       const estado = estadoLav[lavId];
       const turnosDelLav = turnosPendientes.filter(t => t.lavadorId === lavId);
       if (estado === "ausente") {
         for (const t of turnosDelLav) {
           await fsUpdate(COL_TURNOS, t.id, { estado: "cancelado" });
+          // Liberar slots del mapa local
+          const horas = t.horasOcupadas?.length ? t.horasOcupadas : [t.hora];
+          horas.forEach(h => mapaSlotsLocal.delete(`${lavId}:${h}`));
           cancelados++;
         }
         setAsistencias(prev => ({ ...prev, [lavId]: false }));
@@ -2764,6 +2815,10 @@ export default function App() {
       if (estado === "liberar_reasignar") {
         const cancelarIds = turnosCancelar[lavId] || [];
         for (const t of turnosDelLav) {
+          // Liberar slots originales del turno en el mapa
+          const horasOri = t.horasOcupadas?.length ? t.horasOcupadas : [t.hora];
+          horasOri.forEach(h => mapaSlotsLocal.delete(`${lavId}:${h}`));
+
           if (cancelarIds.includes(t.id)) {
             await fsUpdate(COL_TURNOS, t.id, { estado: "cancelado" });
             cancelados++;
@@ -2778,14 +2833,12 @@ export default function App() {
                 return hh * 60 + mm >= minutosAhora;
               });
               for (const h of franjasFuturas) {
-                const ocupado = turnos.some(tt => {
-                  if (tt.estado === "cancelado") return false;
-                  return tt.lavadorId === nuevoLav.id && tt.horasOcupadas?.includes(h);
-                });
-                if (!ocupado) { nuevaHora = h; break; }
+                if (!mapaSlotsLocal.has(`${nuevoLav.id}:${h}`)) { nuevaHora = h; break; }
               }
             }
             await fsUpdate(COL_TURNOS, t.id, { lavadorId: nuevoLav.id, hora: nuevaHora });
+            // Registrar nueva asignación en el mapa local
+            mapaSlotsLocal.set(`${nuevoLav.id}:${nuevaHora}`, true);
             reasignados++;
           }
         }
@@ -2798,15 +2851,15 @@ export default function App() {
               const [hh, mm] = h.split(":").map(Number);
               return hh * 60 + mm >= minutosAhora;
             });
+            // Liberar slot original antes de buscar nuevo
+            const horasOri = t.horasOcupadas?.length ? t.horasOcupadas : [t.hora];
+            horasOri.forEach(h => mapaSlotsLocal.delete(`${lavId}:${h}`));
             let nuevaHora = t.hora;
             for (const h of franjasFuturas) {
-              const ocupado = turnos.some(tt => {
-                if (tt.estado === "cancelado") return false;
-                return tt.lavadorId === lavId && tt.horasOcupadas?.includes(h) && tt.id !== t.id;
-              });
-              if (!ocupado) { nuevaHora = h; break; }
+              if (!mapaSlotsLocal.has(`${lavId}:${h}`)) { nuevaHora = h; break; }
             }
             await fsUpdate(COL_TURNOS, t.id, { hora: nuevaHora, estado: "pendiente" });
+            mapaSlotsLocal.set(`${lavId}:${nuevaHora}`, true);
           } else {
             await fsUpdate(COL_TURNOS, t.id, { estado: "pendiente" });
           }
